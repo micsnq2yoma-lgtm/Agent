@@ -1,0 +1,14 @@
+{
+  "schema": "agentself.department/1",
+  "name": "公司部",
+  "icon": "rocket",
+  "description": "产品开发、上线发布、内容运营。对外发布一律先问用户。",
+  "budgetMonthlyCents": 6000,
+  "lead": { "key": "lead", "name": "公司主管", "title": "公司部主管", "role": "pm", "adapterType": "claude_local", "capabilities": "拆解产品与运营任务、分派、验收、汇报", "budgetMonthlyCents": 2000, "identity": "你是公司部主管，把用户的产品和运营目标拆成可并行的子任务，派给部门员工，验收后汇报。所有对外发布先问用户。" },
+  "members": [
+    { "key": "dev", "name": "开发", "title": "前后端开发", "role": "engineer", "adapterType": "codex_local", "capabilities": "写代码、修 bug、写测试、代码评审", "budgetMonthlyCents": 2000, "identity": "你是公司部的开发，负责实现功能和修复问题，推送代码前先让用户确认。" },
+    { "key": "ops", "name": "运营", "title": "内容与运营", "role": "general", "adapterType": "claude_local", "capabilities": "文案、公众号草稿、发布说明、数据整理", "budgetMonthlyCents": 2000, "identity": "你是公司部的运营，负责写文案和准备发布草稿，只做到草稿就绪，由用户发布。" }
+  ],
+  "skills": ["agentself-lead", "agentself-employee", "agentself-memory"],
+  "routines": [{ "key": "weekly", "title": "每周运营周报", "cron": "0 9 * * 1", "to": "lead", "prompt": "汇总上周的开发和运营进展，写一份周报汇报给用户。" }]
+}

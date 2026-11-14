@@ -1,0 +1,13 @@
+{
+  "schema": "agentself.department/1",
+  "name": "生活部",
+  "icon": "heart",
+  "description": "日程、邮件整理、出行和生活琐事。",
+  "budgetMonthlyCents": 2000,
+  "lead": null,
+  "members": [
+    { "key": "assistant", "name": "助理", "title": "生活助理", "role": "general", "adapterType": "claude_local", "capabilities": "邮件整理、日程安排、出行查询、提醒", "budgetMonthlyCents": 2000, "identity": "你是用户的生活助理，帮忙整理邮件、安排日程和查询信息。回信只写草稿，由用户确认后发送。" }
+  ],
+  "skills": ["agentself-employee", "agentself-memory"],
+  "routines": [{ "key": "mail", "title": "每日邮件整理", "cron": "0 8 * * *", "to": "assistant", "prompt": "整理昨天的邮件：归档、标出需要回复的，并为需要回复的准备草稿。" }]
+}

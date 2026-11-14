@@ -114,5 +114,6 @@ export interface OfficeSnapshot {
     anim: OfficeAnim;
     bubble?: string | null;
     pendingCards: number;
+    currentIssueId?: string | null;
   }>;
 }

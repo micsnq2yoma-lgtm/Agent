@@ -1,0 +1,116 @@
+// Data access for the console: Paperclip REST (proxied at /api) + Agentself endpoints (/agentself).
+import { useCallback, useEffect, useRef, useState } from "react";
+
+async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const text = await res.text();
+  const json = text ? JSON.parse(text) : null;
+  if (!res.ok) throw new Error((json && (json.error || json.message)) || `${res.status} ${url}`);
+  return json as T;
+}
+
+export const pc = {
+  get: <T,>(p: string) => req<T>("GET", `/api${p}`),
+  post: <T,>(p: string, b?: unknown) => req<T>("POST", `/api${p}`, b ?? {}),
+  patch: <T,>(p: string, b: unknown) => req<T>("PATCH", `/api${p}`, b),
+  put: <T,>(p: string, b: unknown) => req<T>("PUT", `/api${p}`, b),
+  del: <T,>(p: string) => req<T>("DELETE", `/api${p}`),
+};
+
+export const as = {
+  get: <T,>(p: string) => req<T>("GET", `/agentself${p}`),
+  post: <T,>(p: string, b?: unknown) => req<T>("POST", `/agentself${p}`, b ?? {}),
+  put: <T,>(p: string, b: unknown) => req<T>("PUT", `/agentself${p}`, b),
+};
+
+export const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : (((x as { items?: T[] })?.items ?? []) as T[]));
+
+/** Poll a loader; returns [data, error, reload]. */
+export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []): [T | null, string | null, () => void] {
+  const [data, setData] = useState<T | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const run = useCallback(() => {
+    loadRef
+      .current()
+      .then((d) => {
+        setData(d);
+        setError(null);
+      })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+  }, []);
+  useEffect(() => {
+    run();
+    const t = setInterval(run, ms);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return [data, error, run];
+}
+
+/* ---------------- domain types (subset of Paperclip) ---------------- */
+export interface Company {
+  id: string;
+  name: string;
+  issuePrefix: string;
+  budgetMonthlyCents: number;
+  spentMonthlyCents: number;
+}
+export interface Agent {
+  id: string;
+  name: string;
+  title?: string | null;
+  role: string;
+  status: string;
+  adapterType: string;
+  adapterConfig?: { model?: string; cwd?: string };
+  reportsTo?: string | null;
+  capabilities?: string | null;
+  budgetMonthlyCents?: number;
+  spentMonthlyCents?: number;
+  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string } };
+}
+export interface Department {
+  key: string;
+  name: string;
+  projectId: string | null;
+  leadAgentId: string | null;
+  members: string[];
+  description: string;
+  archived: boolean;
+}
+export interface Settings {
+  companyName: string;
+  frontdeskModel: string;
+  askWhenUnclear: boolean;
+  skin: string;
+  externalDefault: "ask" | "direct";
+  globalBudgetCents: number;
+  feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[] };
+}
+export interface Context {
+  company: Company | null;
+  departments: Department[];
+  agents: Agent[];
+  projects: Array<{ id: string; name: string; description?: string }>;
+  settings: Settings;
+  paperclipUrl: string;
+}
+export interface Issue {
+  id: string;
+  identifier: string | null;
+  title: string;
+  description?: string | null;
+  status: string;
+  parentId: string | null;
+  projectId: string | null;
+  assigneeAgentId: string | null;
+  createdAt: string;
+  updatedAt: string;
+  blockedByIssueIds?: string[];
+}
