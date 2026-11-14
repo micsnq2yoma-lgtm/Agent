@@ -101,7 +101,8 @@ async function ensureWorkspaceLinksCurrent(workspaceDir: string) {
     const linkPath = path.join(repoRoot, mismatch.workspaceDir, "node_modules", ...mismatch.packageName.split("/"));
     await fs.mkdir(path.dirname(linkPath), { recursive: true });
     await fs.rm(linkPath, { recursive: true, force: true });
-    await fs.symlink(mismatch.expectedPath, linkPath);
+    // Agentself: junctions need no admin/Developer Mode on Windows (dir symlinks hit EPERM).
+    await fs.symlink(mismatch.expectedPath, linkPath, process.platform === "win32" ? "junction" : undefined);
   }
 
   const remainingMismatches = findWorkspaceLinkMismatches(workspaceDir);

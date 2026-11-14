@@ -1,0 +1,15 @@
+{
+  "name": "@agentself/team-layer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "paperclipPlugin": { "manifest": "./dist/manifest.js", "worker": "./dist/worker.js", "ui": "./dist/ui/" },
+  "scripts": { "build": "node build.mjs" },
+  "dependencies": {
+    "@agentself/shared": "workspace:*",
+    "@paperclipai/plugin-sdk": "2026.1106.0",
+    "@paperclipai/shared": "2026.1106.0"
+  },
+  "devDependencies": { "esbuild": "0.24.2", "react": "19.1.0" }
+}

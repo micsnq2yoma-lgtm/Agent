@@ -1,0 +1,13 @@
+Agentself
+Copyright (c) 2026 Agentself contributors. Licensed under MIT (see LICENSE).
+
+This project includes and modifies third-party software:
+
+- Paperclip (vendor/paperclip) — Copyright (c) 2025 Paperclip AI, MIT License.
+  Source: https://github.com/paperclipai/paperclip, base commit d69631b.
+  See vendor/paperclip/LICENSE and docs/paperclip-changes.md.
+
+- The card protocol (ask / notice / resolve / later), hop limit and event-rule
+  design follow agent-autoloop (https://github.com/KKKKhazix/agent-autoloop, MIT).
+
+MyAgents (AGPL) was used only as a source of ideas; no code was opened or copied.

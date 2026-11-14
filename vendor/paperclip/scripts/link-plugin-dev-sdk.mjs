@@ -71,14 +71,18 @@ export function readPluginsUnder(parentDir) {
 export function linkSdkInto(packageDir) {
   const scopeDir = join(packageDir, "node_modules", "@paperclipai");
   const linkTarget = join(scopeDir, "plugin-sdk");
-  const relativeSdkDir = relative(scopeDir, sdkDir);
+  // Agentself: on Windows, directory symlinks need admin/Developer Mode (EPERM).
+  // Junctions work without privileges but must use an absolute target.
+  const isWindows = process.platform === "win32";
+  const relativeSdkDir = isWindows ? sdkDir : relative(scopeDir, sdkDir);
 
   mkdirSync(scopeDir, { recursive: true });
 
   try {
     const stat = lstatSync(linkTarget);
     if (stat.isSymbolicLink()) {
-      if (readlinkSync(linkTarget) === relativeSdkDir) {
+      const current = readlinkSync(linkTarget);
+      if (current === relativeSdkDir || resolve(scopeDir, current) === resolve(sdkDir)) {
         // Already linked to the in-repo SDK; nothing to do.
         return false;
       }
@@ -93,6 +97,6 @@ export function linkSdkInto(packageDir) {
     if (error?.code !== "ENOENT") throw error;
   }
 
-  symlinkSync(relativeSdkDir, linkTarget, "dir");
+  symlinkSync(relativeSdkDir, linkTarget, isWindows ? "junction" : "dir");
   return true;
 }
