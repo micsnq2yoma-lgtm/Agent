@@ -7,4 +7,3 @@ spikes/work/
 spikes/**/dist/
 spikes/decision/created.json
 *.zip
-vendor/paperclip/

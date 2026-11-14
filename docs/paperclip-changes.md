@@ -1,6 +1,6 @@
 # Paperclip 源码改动记录
 
-- 源码位置：`vendor/paperclip`（独立 git 仓库，remote `origin` = github.com/paperclipai/paperclip）
+- 源码位置：`vendor/paperclip`，已并入主仓库（上游 github.com/paperclipai/paperclip，不再保留独立 .git）
 - 基线：上游 commit `d69631b`（npm 版本 2026.1106.0），工作分支 `agentself`
 - 许可：MIT，保留其 LICENSE 与版权声明
 
