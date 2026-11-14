@@ -21,3 +21,14 @@ describe("skins", () => {
     expect(validateSkin({ id: "x", name: "x", tokens: {}, terms: {} }).length).toBeGreaterThan(10);
   });
 });
+
+import { registerSkin, skins as registry } from "../src/index.js";
+describe("shared skins", () => {
+  it("registers a valid shared skin and rejects an invalid one", () => {
+    const lab = { ...office, id: "lab-test", name: "实验室", terms: { ...office.terms, lead: "组长" } };
+    expect(registerSkin(lab)).toEqual([]);
+    expect(term(getSkin("lab-test"), "lead")).toBe("组长");
+    expect(registerSkin({ ...lab, id: "Bad Id" } as never).length).toBeGreaterThan(0);
+    expect(registry["Bad Id"]).toBeUndefined();
+  });
+});

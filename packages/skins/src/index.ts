@@ -147,6 +147,14 @@ export const court: Skin = {
 };
 
 export const skins: Record<string, Skin> = { office, court };
+export const BUILTIN_SKINS = ["office", "court"];
+
+/** Add a shared / imported skin to the registry (validated first). */
+export function registerSkin(skin: Skin): string[] {
+  const errs = validateSkin(skin);
+  if (errs.length === 0) skins[skin.id] = { ...office, ...skin, layout: { ...office.layout, ...(skin.layout ?? {}) }, office: { ...office.office, ...(skin.office ?? {}) } };
+  return errs;
+}
 
 export function getSkin(id: string | null | undefined): Skin {
   return (id && skins[id]) || office;

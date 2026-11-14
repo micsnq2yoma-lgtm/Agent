@@ -12,6 +12,7 @@ import { imStatus, startIm } from "./im.mjs";
 import { createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
+import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PAPERCLIP = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
@@ -253,6 +254,30 @@ async function handleAgentself(req, res, url) {
       const sha = commitMemory(cwd, `用户编辑 ${url.searchParams.get("path")}`);
       return send(res, 200, { ok: true, commit: sha });
     }
+  }
+
+  /* skins (PLAN 7.2): shared skins live in ~/.agentself/skins/<id>.json */
+  const SKIN_DIR = path.join(HOME, "skins");
+  if (req.method === "GET" && p === "/skins") {
+    if (!fs.existsSync(SKIN_DIR)) return send(res, 200, []);
+    const out = [];
+    for (const f of fs.readdirSync(SKIN_DIR).filter((x) => x.endsWith(".json"))) {
+      try {
+        out.push(JSON.parse(fs.readFileSync(path.join(SKIN_DIR, f), "utf8")));
+      } catch {
+        /* skip broken files */
+      }
+    }
+    return send(res, 200, out);
+  }
+  if (req.method === "POST" && p === "/skins") {
+    const skin = await readJson(req);
+    const errs = validateSkin(skin);
+    if (errs.length) return send(res, 400, { error: `皮肤格式不对：${errs.slice(0, 5).join(", ")}` });
+    if (BUILTIN_SKINS.includes(skin.id)) return send(res, 400, { error: "不能覆盖内置皮肤，请换一个 id" });
+    fs.mkdirSync(SKIN_DIR, { recursive: true });
+    fs.writeFileSync(path.join(SKIN_DIR, `${skin.id}.json`), JSON.stringify(skin, null, 2));
+    return send(res, 200, { ok: true, id: skin.id });
   }
 
   /* IM (PLAN 6) */

@@ -1,6 +1,7 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { as, usePoll, type Context } from "./lib/api";
+import { registerSkin, type Skin } from "@agentself/skins";
 import { act, loadFeed, type Feed } from "./lib/feed";
 import type { Card, Filter } from "./lib/cards";
 import { SkinProvider, useSkin } from "./lib/skin";
@@ -153,7 +154,14 @@ function Shell({ ctx, reloadCtx }: { ctx: Context; reloadCtx: () => void }) {
 }
 
 export function App() {
-  const [ctx, err, reload] = usePoll<Context>(() => as.get<Context>("/context"), 30000);
+  const [ctx, err, reload] = usePoll<Context>(
+    async () => {
+      // shared skins from ~/.agentself/skins must be registered before the provider reads them
+      for (const s of await as.get<Skin[]>("/skins").catch(() => [])) registerSkin(s);
+      return as.get<Context>("/context");
+    },
+    30000,
+  );
   if (err && !ctx)
     return (
       <div className="page">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { skins } from "@agentself/skins";
+import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { Robot, eyeOf, modelName } from "../components/Brand";
@@ -414,6 +414,30 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
       </div>
       <div className="section">
         <h2>皮肤</h2>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <label className="btn">
+            导入皮肤包…
+            <input
+              type="file"
+              accept="application/json,.json"
+              hidden
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                try {
+                  const skin = JSON.parse(await file.text()) as Skin;
+                  await as.post("/skins", skin);
+                  registerSkin(skin);
+                  onSaved();
+                  alert(`已导入皮肤「${skin.name}」`);
+                } catch (err) {
+                  alert(`导入失败：${err instanceof Error ? err.message : String(err)}`);
+                }
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
         {Object.values(skins).map((sk) => (
           <div key={sk.id} className="row">
             <div>
@@ -432,6 +456,21 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
             >
               {s.skin === sk.id ? "使用中" : "使用"}
             </button>
+            <button
+              className="btn ghost"
+              title="导出为皮肤包（JSON）"
+              onClick={() => {
+                const blob = new Blob([JSON.stringify(sk, null, 2)], { type: "application/json" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = `agentself-skin-${sk.id}.json`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+            >
+              导出
+            </button>
+            {!BUILTIN_SKINS.includes(sk.id) && <span className="sub">共享皮肤</span>}
           </div>
         ))}
       </div>
