@@ -3,6 +3,8 @@ import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import type { FeedMessage } from "@agentself/shared";
 import { applyRework, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
 import { addNotice, dueReminders, type Reminder } from "./store.js";
+import path from "node:path";
+import { appendRunLog, consolidate, logLine, runClaudeJson, shouldConsolidate, weeklyArchive } from "./memory-jobs.js";
 
 type Ctx = Parameters<Parameters<typeof definePlugin>[0]["setup"]>[0];
 
@@ -12,13 +14,98 @@ interface Config {
   burstMax: number;
   burstWindowMinutes: number;
   boardUserId: string;
+  idleMinutes: number;
+  consolidationModel: string;
 }
 
-const DEFAULTS: Config = { reworkLimit: 3, maxDepth: 8, burstMax: 20, burstWindowMinutes: 10, boardUserId: "local-board" };
+const DEFAULTS: Config = {
+  reworkLimit: 3,
+  maxDepth: 8,
+  burstMax: 20,
+  burstWindowMinutes: 10,
+  boardUserId: "local-board",
+  idleMinutes: 30,
+  consolidationModel: "haiku",
+};
 
-async function config(ctx: Ctx): Promise<Config> {
-  const raw = ((await ctx.config.get()) ?? {}) as Partial<Config>;
+/* ------------------------------------------------------------------ */
+/* Memory (PLAN 5)                                                     */
+/* ------------------------------------------------------------------ */
+
+type AgentLike = { id: string; name?: string; adapterConfig?: Record<string, unknown> | null; metadata?: Record<string, unknown> | null };
+
+function memDirOf(agent: AgentLike | null): string | null {
+  if (!agent?.metadata || !(agent.metadata as { agentself?: unknown }).agentself) return null;
+  const cwd = agent.adapterConfig?.cwd;
+  return typeof cwd === "string" && cwd ? path.join(cwd, "memory") : null;
+}
+
+const agentKey = (agentId: string, k: string) => ({ scopeKind: "agent" as const, scopeId: agentId, stateKey: k });
+
+async function onRunEnded(ctx: Ctx, companyId: string, p: { agentId?: string; issueId?: string | null; status?: string; error?: string | null }) {
+  if (!p.agentId) return;
+  const agent = (await ctx.agents.get(p.agentId, companyId)) as AgentLike | null;
+  const memDir = memDirOf(agent);
+  if (!memDir) return;
+  const issue = p.issueId ? await ctx.issues.get(p.issueId, companyId) : null;
+  const status = p.status === "succeeded" ? "完成一轮" : `失败（${p.error ?? p.status}）`;
+  appendRunLog(memDir, logLine({ at: new Date(), issue: issue?.identifier ?? null, title: issue?.title ?? null, status }));
+  const now = Date.now();
+  await ctx.state.set(agentKey(p.agentId, "lastRunAt"), now);
+  await ctx.state.set(agentKey(p.agentId, "lastLogWriteAt"), now);
+}
+
+async function memoryIdleTick(ctx: Ctx) {
+  for (const cid of await knownCompanies(ctx)) {
+    const c = { id: cid };
+    const cfg = await config(ctx, cid);
+    for (const agent of (await ctx.agents.list({ companyId: c.id })) as AgentLike[]) {
+      const memDir = memDirOf(agent);
+      if (!memDir) continue;
+      const [lastRunAt, lastConsolidatedAt, lastLogWriteAt] = (await Promise.all(
+        ["lastRunAt", "lastConsolidatedAt", "lastLogWriteAt"].map((k) => ctx.state.get(agentKey(agent.id, k))),
+      )) as Array<number | null>;
+      if (!shouldConsolidate({ lastRunAt, lastConsolidatedAt, lastLogWriteAt, now: Date.now(), idleMinutes: cfg.idleMinutes })) continue;
+      try {
+        const r = await consolidate(memDir, (prompt) => runClaudeJson(prompt, cfg.consolidationModel));
+        await ctx.state.set(agentKey(agent.id, "lastConsolidatedAt"), Date.now());
+        ctx.logger.info("memory consolidated", { agentId: agent.id, ok: r.ok, commit: r.ok ? r.commit : null });
+        for (const s of r.suggestions) {
+          await addNotice(ctx, c.id, { text: `记忆整理建议（${agent.name ?? ""}）：${s}`, issueId: null, agentId: agent.id });
+        }
+      } catch (err) {
+        ctx.logger.error("memory consolidation failed", { agentId: agent.id, err: String(err) });
+      }
+    }
+  }
+}
+
+async function memoryWeeklyTick(ctx: Ctx) {
+  for (const cid of await knownCompanies(ctx)) {
+    const c = { id: cid };
+    for (const agent of (await ctx.agents.list({ companyId: c.id })) as AgentLike[]) {
+      const memDir = memDirOf(agent);
+      if (memDir) ctx.logger.info("memory weekly archive", { agentId: agent.id, ...weeklyArchive(memDir) });
+    }
+  }
+}
+
+async function config(ctx: Ctx, companyId: string): Promise<Config> {
+  const raw = ((await ctx.config.get(companyId).catch(() => ({}))) ?? {}) as Partial<Config>;
   return { ...DEFAULTS, ...raw };
+}
+
+/* Jobs run without a company scope, so the plugin remembers which companies it has seen
+   (from events / tool calls) and only touches those. Paperclip grants proactive access to
+   companies that have a config row for this plugin (created by setup-department). */
+const COMPANIES_KEY = { scopeKind: "instance" as const, stateKey: "knownCompanies" };
+async function rememberCompany(ctx: Ctx, companyId: string | undefined) {
+  if (!companyId) return;
+  const list = ((await ctx.state.get(COMPANIES_KEY)) ?? []) as string[];
+  if (!list.includes(companyId)) await ctx.state.set(COMPANIES_KEY, [...list, companyId]);
+}
+async function knownCompanies(ctx: Ctx): Promise<string[]> {
+  return ((await ctx.state.get(COMPANIES_KEY)) ?? []) as string[];
 }
 
 const issueKey = (issueId: string, stateKey: string) => ({ scopeKind: "issue" as const, scopeId: issueId, stateKey });
@@ -68,7 +155,7 @@ async function askOnIssue(
 /* ------------------------------------------------------------------ */
 
 async function onIssueCreated(ctx: Ctx, companyId: string, issueId: string, actor: { id?: string; type?: string }) {
-  const cfg = await config(ctx);
+  const cfg = await config(ctx, companyId);
   const issue = await ctx.issues.get(issueId, companyId);
   if (!issue || !issue.parentId) return;
 
@@ -123,7 +210,7 @@ async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payl
 
   const issue = await ctx.issues.get(issueId, companyId);
   if (!issue || !issue.parentId) return; // rework only applies to child issues
-  const cfg = await config(ctx);
+  const cfg = await config(ctx, companyId);
   const key = issueKey(issueId, "reworkCount");
   const count = await getState<number>(ctx, key, 0);
   const r = applyRework({
@@ -158,6 +245,10 @@ async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payl
 
 const plugin = definePlugin({
   async setup(ctx) {
+    for (const ev of ["issue.created", "issue.updated", "agent.run.started", "agent.created", "company.created"] as const) {
+      ctx.events.on(ev, async (e) => rememberCompany(ctx, e.companyId).catch(() => {}));
+    }
+
     ctx.events.on("issue.created", async (e) => {
       if (!e.entityId) return;
       try {
@@ -175,6 +266,18 @@ const plugin = definePlugin({
         ctx.logger.error("issue.updated handler failed", { err: String(err) });
       }
     });
+
+    for (const ev of ["agent.run.finished", "agent.run.failed"] as const) {
+      ctx.events.on(ev, async (e) => {
+        try {
+          await onRunEnded(ctx, e.companyId, (e.payload ?? {}) as { agentId?: string; issueId?: string | null; status?: string; error?: string | null });
+        } catch (err) {
+          ctx.logger.error("run log failed", { err: String(err) });
+        }
+      });
+    }
+    ctx.jobs.register("memory-idle", async () => memoryIdleTick(ctx));
+    ctx.jobs.register("memory-weekly", async () => memoryWeeklyTick(ctx));
 
     /* ---------------- card tools (PLAN 4.4) ---------------- */
 
@@ -212,7 +315,7 @@ const plugin = definePlugin({
       { displayName: "team.resolve", description: "Close a card", parametersSchema: { type: "object" } },
       async (params, run) => {
         const p = params as { issueId: string; interactionId: string; reason?: string };
-        const cfg = await config(ctx);
+        const cfg = await config(ctx, run.companyId);
         const r = await ctx.issues.respondInteraction(
           p.issueId,
           p.interactionId,
@@ -238,8 +341,8 @@ const plugin = definePlugin({
     );
 
     ctx.jobs.register("later-tick", async () => {
-      const companies = await ctx.companies.list({});
-      for (const c of companies as Array<{ id: string }>) {
+      for (const cid of await knownCompanies(ctx)) {
+        const c = { id: cid };
         const key = companyKey(c.id, "reminders");
         const list = await getState<Reminder[]>(ctx, key, []);
         if (list.length === 0) continue;
@@ -254,6 +357,12 @@ const plugin = definePlugin({
         }
         if (due.length) await ctx.state.set(key, rest);
       }
+    });
+
+    ctx.actions.register("register", async (params) => {
+      const companyId = (params as { companyId?: string }).companyId;
+      await rememberCompany(ctx, companyId);
+      return { ok: true, companies: await knownCompanies(ctx) };
     });
 
     /* ---------------- data for the console ---------------- */

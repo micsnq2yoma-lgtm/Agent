@@ -2,6 +2,10 @@
 // front-desk answers. Pure functions — unit-tested in test/cards.test.ts.
 import type { Tier } from "@agentself/shared";
 
+/** Sentinels the UI replaces with skin terms (no hard-coded role words). */
+export const FRONTDESK = "__frontdesk__";
+export const LEAD = "__lead__";
+
 export type CardType = "decide" | "deliver" | "answer" | "failed";
 
 export interface CardOption {
@@ -263,7 +267,7 @@ export function buildCards(input: {
       id: `issue:${i.id}`,
       type: "deliver",
       tier: "medium",
-      who: lead?.name ?? "主管",
+      who: lead?.name ?? LEAD,
       model: modelOf(lead),
       department: input.departmentOfProject(i.projectId),
       ref: i.identifier ?? null,
@@ -288,7 +292,7 @@ export function buildCards(input: {
       id: `answer:${a.id}`,
       type: "answer",
       tier: "low",
-      who: "前台",
+      who: FRONTDESK,
       model: null,
       department: null,
       ref: null,

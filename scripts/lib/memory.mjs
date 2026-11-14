@@ -36,7 +36,65 @@ export function commitMemory(cwd, message) {
   return git(dir, ["rev-parse", "--short", "HEAD"]).stdout.trim();
 }
 
+const ENTRY_MARK = "<!-- agentself:memory -->";
+
+const WRITE_BACK = `## 收工前写回记忆
+- 用户明确表达的偏好 → 追加到 memory/user.md
+- 以后还用得上的经验 → 追加到 memory/notes.md（一条一行，"- " 开头）
+- 某个主题的详细资料 → memory/topics/<主题>.md
+- 不要写密钥、令牌、密码；不要改 identity.md 和 style.md（有建议写在交付评论里）`;
+
+/**
+ * Workspace entry files that make memory load automatically:
+ *  - CLAUDE.md (Claude Code reads it from the cwd and resolves @imports)
+ *  - AGENTS.md (Codex reads it from the cwd; no imports, so it tells the agent what to read)
+ * Existing user content is kept; our block is replaced between markers.
+ */
+export function ensureMemoryEntry(cwd) {
+  const claude = `${ENTRY_MARK}
+# 你的长期记忆（自动加载，必须遵守）
+
+以下是你的身份、用户要求的工作方式、用户偏好和以往经验。**每次任务都要照做**；交付时一句话说明用到了哪条。
+
+@memory/identity.md
+@memory/style.md
+@memory/user.md
+@memory/notes.md
+
+和任务相关的详细资料在 memory/topics/ 下，按需读取。
+
+${WRITE_BACK}
+${ENTRY_MARK}
+`;
+  const codex = `${ENTRY_MARK}
+# 你的长期记忆（必须先读，必须遵守）
+
+开始任何任务前，先完整读取下面四个文件，并在本次任务里遵守其中的偏好和经验；交付时一句话说明用到了哪条：
+
+1. memory/identity.md — 你是谁、属于哪个部门
+2. memory/style.md — 用户要求的工作方式
+3. memory/user.md — 用户偏好（例如交付格式）
+4. memory/notes.md — 以往经验
+
+和任务相关的详细资料在 memory/topics/ 下，按需读取。
+
+${WRITE_BACK}
+${ENTRY_MARK}
+`;
+  for (const [file, block] of [
+    ["CLAUDE.md", claude],
+    ["AGENTS.md", codex],
+  ]) {
+    const p = path.join(cwd, file);
+    const old = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
+    const re = new RegExp(`${ENTRY_MARK}[\\s\\S]*?${ENTRY_MARK}\\n?`);
+    const next = re.test(old) ? old.replace(re, block) : (old ? `${old.trimEnd()}\n\n` : "") + block;
+    if (next !== old) fs.writeFileSync(p, next);
+  }
+}
+
 export function initMemory(cwd, info) {
+  ensureMemoryEntry(cwd);
   const dir = memoryDir(cwd);
   for (const sub of ["topics", "log", "archive"]) fs.mkdirSync(path.join(dir, sub), { recursive: true });
   const write = (f, text) => {

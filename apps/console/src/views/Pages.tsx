@@ -528,6 +528,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
   const [budget, setBudget] = useState(50);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [templateKey, setTemplateKey] = useState<string | null>(null);
 
   useEffect(() => {
     as.get<Template[]>("/departments/templates").then(setTemplates).catch(() => {});
@@ -541,6 +542,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setWithLead(!!pack.lead);
     setMembers(pack.members);
     setBudget((pack.budgetMonthlyCents ?? 5000) / 100);
+    setTemplateKey(ctx.departments.some((d) => d.key === key) ? null : key);
   }
   const addMember = (tpl: Omit<PackMember, "key">) => setMembers([...members, { ...tpl, key: `m${Date.now().toString(36)}` }]);
   const allSame = (adapterType: PackMember["adapterType"]) => setMembers(members.map((m) => ({ ...m, adapterType })));
@@ -551,6 +553,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     try {
       const pack = {
         schema: "agentself.department/1",
+        ...(templateKey ? { key: templateKey } : {}),
         name,
         icon,
         description,

@@ -36,6 +36,10 @@
       "identity": "你是科研部的实验员，擅长写代码做实验、处理数据和画图。"
     }
   ],
-  "skills": ["agentself-lead", "agentself-employee"],
+  "skills": [
+    "agentself-lead",
+    "agentself-employee",
+    "agentself-memory"
+  ],
   "routines": []
 }

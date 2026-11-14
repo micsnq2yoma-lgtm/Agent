@@ -8,7 +8,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPrompt, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
-import { imStatus } from "./im.mjs";
+import { imStatus, startIm } from "./im.mjs";
 import { createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
@@ -140,6 +140,7 @@ async function frontdesk(body) {
   const prompt = buildPrompt({ text, departments: ctx.departments, openIssues: issues, now: new Date().toLocaleString("zh-CN") });
   const { text: raw } = await runClaude(prompt, { model: store.settings.frontdeskModel });
   const r = parseRoute(raw);
+  if (body.dryRun) return { dryRun: true, ...r };
 
   if (r.route === "answer") {
     return { route: "answer", answer: addAnswer(ctx.company.id, r.answer, text) };
@@ -213,6 +214,7 @@ async function handleAgentself(req, res, url) {
       const body = await readJson(req);
       store.settings = { ...store.settings, ...body, feishu: { ...store.settings.feishu, ...(body.feishu ?? {}) } };
       saveStore();
+      if (body.feishu) void restartIm();
       return send(res, 200, store.settings);
     }
   }
@@ -281,6 +283,18 @@ function serveStatic(req, res, url) {
   fs.createReadStream(file).pipe(res);
 }
 
+function restartIm() {
+  return startIm({
+    settings: store.settings,
+    store,
+    saveStore,
+    pc,
+    loadContext,
+    frontdesk,
+    createChannel: async (opts) => (await import("@agentself/im-feishu")).createFeishuChannel(opts),
+  }).catch((e) => console.error("IM start failed", e));
+}
+
 export function createServer() {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
@@ -296,5 +310,8 @@ export function createServer() {
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  createServer().listen(PORT, HOST, () => console.log(`Agentself console http://${HOST}:${PORT}  (Paperclip ${PAPERCLIP})`));
+  createServer().listen(PORT, HOST, () => {
+    console.log(`Agentself console http://${HOST}:${PORT}  (Paperclip ${PAPERCLIP})`);
+    void restartIm();
+  });
 }

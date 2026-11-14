@@ -1,7 +1,7 @@
 import type React from "react";
 import { useEffect, useMemo, useState } from "react";
 import { as, pc, type Context } from "../lib/api";
-import { countByType, filterCards, type Card, type Filter } from "../lib/cards";
+import { FRONTDESK, LEAD, countByType, filterCards, type Card, type Filter } from "../lib/cards";
 import { act, dismiss, loadDecisionOptions, snooze, type Feed } from "../lib/feed";
 import { useSkin } from "../lib/skin";
 import { Wordmark } from "../components/Brand";
@@ -124,6 +124,10 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
 
 const TAG: Record<Card["type"], "decide" | "deliverable" | "instantAnswer"> = { decide: "decide", deliver: "deliverable", failed: "deliverable", answer: "instantAnswer" };
 
+export function whoLabel(who: string, t: (k: "frontdesk" | "lead") => string) {
+  return who === FRONTDESK ? t("frontdesk") : who === LEAD ? t("lead") : who;
+}
+
 function CardTile({ card, open, onToggle, onPrimary, busy }: { card: Card; open: boolean; onToggle: () => void; onPrimary: () => void; busy: boolean }) {
   const { t } = useSkin();
   return (
@@ -131,9 +135,9 @@ function CardTile({ card, open, onToggle, onPrimary, busy }: { card: Card; open:
       <div className="card-meta">
         <span className={`tag ${card.type}`}>{card.type === "failed" ? "运行失败" : t(TAG[card.type])}</span>
         {card.model && <span className="model">{card.model}</span>}
-        <span>{card.who}</span>
+        <span>{whoLabel(card.who, t)}</span>
       </div>
-      <div className="card-meta">{[card.department, card.ref].filter(Boolean).join(" · ") || (card.type === "answer" ? "即时问答" : "")}</div>
+      <div className="card-meta">{[card.department, card.ref].filter(Boolean).join(" · ") || (card.type === "answer" ? t("instantAnswer") : "")}</div>
       <div className="card-title">{card.title}</div>
       <div className="card-actions">
         {card.type !== "answer" && card.type !== "failed" && (card.options.length > 0 || card.type === "deliver") ? (
@@ -174,7 +178,7 @@ function CardDetail({ card, ctx, onAct, onOpenProject, busy }: { card: Card; ctx
     <div className="detail">
       <div className="who">
         <span>
-          {card.who}
+          {whoLabel(card.who, t)}
           {who?.title ? ` · ${who.title}` : ""}
           {card.department ? ` · ${card.department}` : ""}
         </span>
@@ -320,7 +324,7 @@ export function Home(props: {
         </div>
         {props.department && <span className="tag answer">只看：{props.department}</span>}
       </div>
-      {feed === null ? <div className="empty">加载中…</div> : cards.length === 0 ? <div className="empty">没有要处理的{t("card")}，团队在干活。</div> : <div className="cards">{rows}</div>}
+      {feed === null ? <div className="empty">加载中…</div> : cards.length === 0 ? <div className="empty">没有要处理的{t("card")}，团队在干活。</div> : <div className="cards" id="results">{rows}</div>}
       {feed && feed.handled.length > 0 && (
         <details className="handled">
           <summary>已处理（{feed.handled.length}）</summary>
@@ -329,7 +333,7 @@ export function Home(props: {
               <div key={c.id} className={`card ${c.type}`} style={{ opacity: 0.7, minHeight: 0 }}>
                 <div className="card-meta">
                   <span className={`tag ${c.type}`}>{t(TAG[c.type])}</span>
-                  <span>{c.who}</span>
+                  <span>{whoLabel(c.who, t)}</span>
                   <span>{[c.department, c.ref].filter(Boolean).join(" · ")}</span>
                 </div>
                 <div className="card-title">{c.title}</div>

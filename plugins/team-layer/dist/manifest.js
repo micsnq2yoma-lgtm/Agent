@@ -39,10 +39,16 @@ var manifest_default = {
       maxDepth: { type: "integer", default: 8, minimum: 1 },
       burstMax: { type: "integer", default: 20, minimum: 1 },
       burstWindowMinutes: { type: "integer", default: 10, minimum: 1 },
-      boardUserId: { type: "string", default: "local-board" }
+      boardUserId: { type: "string", default: "local-board" },
+      idleMinutes: { type: "integer", default: 30, minimum: 1 },
+      consolidationModel: { type: "string", default: "haiku" }
     }
   },
-  jobs: [{ jobKey: "later-tick", displayName: "\u7A0D\u540E\u63D0\u9192\u68C0\u67E5", schedule: "* * * * *" }],
+  jobs: [
+    { jobKey: "later-tick", displayName: "\u7A0D\u540E\u63D0\u9192\u68C0\u67E5", schedule: "* * * * *" },
+    { jobKey: "memory-idle", displayName: "\u7A7A\u95F2\u65F6\u6574\u7406\u5458\u5DE5\u8BB0\u5FC6", schedule: "*/5 * * * *" },
+    { jobKey: "memory-weekly", displayName: "\u6BCF\u5468\u5F52\u6863\u8BB0\u5FC6", schedule: "0 3 * * 1" }
+  ],
   tools: [
     {
       name: "ask",

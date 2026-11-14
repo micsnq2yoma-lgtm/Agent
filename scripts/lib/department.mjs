@@ -49,6 +49,10 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     const markdown = fs.readFileSync(file, "utf8");
     let skill = existingSkills.find((s) => s.slug === name || s.name === name);
     if (!skill) skill = await api("POST", `/companies/${company.id}/skills`, { name, slug: name, markdown, idempotencyKey: `agentself:${name}` });
+    else if (skill.markdown !== undefined && skill.markdown !== markdown) {
+      // keep the company skill in sync with skills/<dir>/SKILL.md
+      await api("PATCH", `/companies/${company.id}/skills/${skill.id}`, { markdown }).catch((e) => log(`skill ${name} update skipped: ${String(e).slice(0, 120)}`));
+    }
     skillKeys[name] = skill.key ?? skill.slug ?? name;
   }
   const skillsFor = (isLead) => [isLead ? skillKeys["agentself-lead"] : null, skillKeys["agentself-employee"], skillKeys["agentself-memory"]].filter(Boolean);
@@ -92,6 +96,8 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
         desiredSkills: skillsFor(isLead),
         metadata,
       });
+    } else {
+      await api("POST", `/agents/${agent.id}/skills/sync`, { mode: "add", desiredSkills: skillsFor(isLead) }).catch((e) => log(`skills sync skipped: ${String(e).slice(0, 120)}`));
     }
     log(`agent ${member.name} (${member.adapterType}) ${agent.id}`);
     return agent;
@@ -121,10 +127,26 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     }
   }
 
+  await registerWithTeamLayer(company.id, { api, log });
+
   const out = { companyId: company.id, projectId: project.id, leadAgentId: lead?.id ?? null, department: deptKey, routineIds };
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(home, `department-${deptKey}.json`), JSON.stringify(out, null, 2));
   return out;
+}
+
+/**
+ * Plugin jobs (memory, later reminders) run without a company scope; Paperclip only lets the
+ * plugin act proactively on companies that have a config row for it. Create one and tell the
+ * plugin about the company.
+ */
+export async function registerWithTeamLayer(companyId, { api = defaultApi, log = console.log } = {}) {
+  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+  if (!plugin) return log("team-layer plugin not installed; skipped registration");
+  const existing = await api("GET", `/plugins/${plugin.id}/config?companyId=${companyId}`).catch(() => null);
+  if (!existing?.configJson) await api("POST", `/plugins/${plugin.id}/config`, { companyId, configJson: {} });
+  await api("POST", `/plugins/${plugin.id}/bridge/action`, { key: "register", companyId, params: { companyId } });
+  log(`team-layer registered for company ${companyId}`);
 }
 
 export function listTemplates() {

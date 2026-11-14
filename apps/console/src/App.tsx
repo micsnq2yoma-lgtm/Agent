@@ -63,7 +63,7 @@ function Shell({ ctx, reloadCtx }: { ctx: Context; reloadCtx: () => void }) {
     }
     const fresh = feed.cards.filter((c) => c.type === "decide" && !seen.includes(c.id));
     if (fresh.length && Notification.permission === "granted" && document.hidden) {
-      for (const c of fresh.slice(0, 3)) new Notification(`${t("decide")}：${c.title}`, { body: `${c.who} · ${c.department ?? ""}` });
+      for (const c of fresh.slice(0, 3)) new Notification(`${t("decide")}：${c.title}`, { body: `${c.department ?? ""}` });
     }
     try {
       sessionStorage.setItem(key, JSON.stringify([...seen, ...fresh.map((c) => c.id)].slice(-200)));

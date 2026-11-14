@@ -41,9 +41,15 @@ export default {
       burstMax: { type: "integer", default: 20, minimum: 1 },
       burstWindowMinutes: { type: "integer", default: 10, minimum: 1 },
       boardUserId: { type: "string", default: "local-board" },
+      idleMinutes: { type: "integer", default: 30, minimum: 1 },
+      consolidationModel: { type: "string", default: "haiku" },
     },
   },
-  jobs: [{ jobKey: "later-tick", displayName: "稍后提醒检查", schedule: "* * * * *" }],
+  jobs: [
+    { jobKey: "later-tick", displayName: "稍后提醒检查", schedule: "* * * * *" },
+    { jobKey: "memory-idle", displayName: "空闲时整理员工记忆", schedule: "*/5 * * * *" },
+    { jobKey: "memory-weekly", displayName: "每周归档记忆", schedule: "0 3 * * 1" },
+  ],
   tools: [
     {
       name: "ask",

@@ -1,0 +1,10 @@
+{
+  "name": "@agentself/im-feishu",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "main": "./src/index.mjs",
+  "exports": { ".": "./src/index.mjs" },
+  "dependencies": { "@larksuiteoapi/node-sdk": "1.76.0" }
+}

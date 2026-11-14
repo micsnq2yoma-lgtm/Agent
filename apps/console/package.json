@@ -14,7 +14,8 @@
     "@agentself/skins": "workspace:*",
     "@agentself/pixel-office": "workspace:*",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "@agentself/im-feishu": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "19.1.8",
