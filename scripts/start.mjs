@@ -37,7 +37,7 @@ async function healthy(url) {
   }
 }
 
-function supervise(name, cmd, cmdArgs, cwd, healthUrl) {
+function supervise(name, cmd, cmdArgs, cwd, healthUrl, extraEnv = {}) {
   let backoff = 2000;
   const run = async () => {
     if (healthUrl && (await healthy(healthUrl))) {
@@ -53,7 +53,7 @@ function supervise(name, cmd, cmdArgs, cwd, healthUrl) {
     const out = fs.openSync(path.join(logs, `${name}.log`), "a");
     log(`starting ${name}: ${cmd} ${cmdArgs.join(" ")}`);
     const started = Date.now();
-    const child = spawn(cmd, cmdArgs, { cwd, stdio: ["ignore", out, out], shell: process.platform === "win32", windowsHide: true, env: process.env });
+    const child = spawn(cmd, cmdArgs, { cwd, stdio: ["ignore", out, out], shell: process.platform === "win32", windowsHide: true, env: { ...process.env, ...extraEnv } });
     child.on("exit", (code) => {
       log(`${name} exited (${code}); restarting in ${backoff / 1000}s`);
       if (Date.now() - started > 60_000) backoff = 2000;
@@ -71,7 +71,10 @@ function log(msg) {
 }
 
 if (!args.has("--no-paperclip")) {
-  supervise("paperclip", findPnpm(), ["paperclipai", "run"], path.join(root, "vendor", "paperclip"), "http://127.0.0.1:3100/api/health");
+  // Serve the built (translated) admin UI instead of the slow Vite dev middleware.
+  supervise("paperclip", findPnpm(), ["paperclipai", "run"], path.join(root, "vendor", "paperclip"), "http://127.0.0.1:3100/api/health", {
+    PAPERCLIP_UI_DEV_MIDDLEWARE: process.env.PAPERCLIP_UI_DEV_MIDDLEWARE ?? "false",
+  });
 }
 if (!args.has("--no-console")) {
   supervise("console", process.execPath, [path.join(root, "apps", "console", "server", "server.mjs")], path.join(root, "apps", "console"), "http://127.0.0.1:3200/agentself/settings");

@@ -367,6 +367,22 @@ agentself/
 - 是否保留"插一句话"：在某个任务里直接给员工留言（本方案默认保留，实现为 issue 评论）。
 - 前端：工作台、像素团队、设置页、项目抽屉、员工抽屉五张画板已出，待确认。
 
+## 12. 实施记录（v0.4，2026-11-14）
+
+P0–P6 已按本方案实现，各阶段报告见 `docs/phase-N-report.md`。与上文设计不同、以实现为准的地方：
+
+| 项 | 方案原文 | 实现 |
+| --- | --- | --- |
+| ask 卡片 | Decision + `wake_origin_agent` | 主要用 issue 线程互动 `ask_user_questions`（插件以员工身份创建，作答 `wake_assignee` 唤醒负责人）；Decision 仍可用，工作台和飞书都能处理 |
+| 返工 / 跳数卡片 | 生成 ask 卡片 | 挂在**父 issue** 上，作答唤醒主管，由主管技能包执行"继续 / 换人 / 放弃"或"放行 / 取消 / 停止拆分" |
+| 主管汇报确认 | 用户确认后置 done | Paperclip 自带技能会对 report 文档发"请求确认"互动；工作台把它当作"交付结果"卡片 |
+| 前台模型 | 插件调快速模型 | 工作台服务调用本机 Claude Code（`claude -p --model haiku`，可联网），不另配密钥 |
+| 记忆注入 | 记忆技能包 | 技能包 + 工作目录 `CLAUDE.md`（@ 引入记忆）/ `AGENTS.md`（Codex）。只靠技能时 Claude Code 不一定加载 |
+| 插件 job | 直接遍历 company | job 无 company 上下文；插件记录见过的 company，建部门时为该 company 建插件配置并注册 |
+| ImChannel | webhook 风格接口 | 增加 `start()`；长连接下入站来自 SDK 推送。通道运行在工作台服务里 |
+| Paperclip 后台中文化 | 在 i18next 上抽词条 | 词典 + DOM 翻译层（`vendor/paperclip/ui/src/i18n/dom-translate.ts`），词典由 `scripts/i18n` 从源码抽取、Haiku 翻译；可用 localStorage 切回英文 |
+| 用户相关数据 | — | 工作区、记忆、设置、皮肤都在 `~/.agentself/`；Paperclip 数据在 `~/.paperclip/instances/default` |
+
 **Sources**
 
 - [paperclipai/paperclip（GitHub）](https://github.com/paperclipai/paperclip)
