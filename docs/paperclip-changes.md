@@ -16,9 +16,11 @@
 | 2026-11-14 | `packages/paperclip-runner/scripts/build-binary-optional.mjs`、`package.json` 的 `build:binary` | Windows 无 cargo 时跳过 runnerd 二进制 | 上游发布包本身也没有 Windows 二进制 |
 | 2026-11-14 | `packages/paperclip-runner/scripts/build-inputs.mjs` | Windows 下不要求 runnerd 产物；`--finish` 找不到按 ppid 命名的记录时取最新的 pending 记录 | Git Bash 下 begin/finish 的父进程号不一致 |
 | 2026-11-14 | `server/src/services/company-deletion.ts` | 删除运行记录前先删 `decisions`、`decision_bundles` | 外键 `decisions_origin_run_id_heartbeat_runs_id_fk` 导致删除 company 返回 500（已验证修复） |
+| 2026-11-14 | `server/src/services/plugin-loader.ts` | 插件 worker 的 `--import` 用 file:// URL | Windows 上本地路径插件无法启动 |
+| 2026-11-14 | `ui/src/i18n/dom-translate.ts`、`zh-CN-dom.json`、`ui/src/main.tsx`、`ui/src/i18n/index.ts`、`ui/index.html` | 后台中文化（词典 + DOM 翻译层），默认 zh-CN | 用户要求 Paperclip 界面全部中文 |
 
 ## 待做
-- 后台中文化：`ui/src/i18n` 已有 i18next 框架和 40 种语言文件，但每个文件只有几条词条；界面约 940 个 `.tsx` 文件，文字大多硬编码，需要分批抽取到 `en.json` / `zh-CN.json`，并把默认语言设为 `zh-CN`。
+- 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。
 
 ## 运行方式
 - 构建：`cd vendor/paperclip && pnpm install && pnpm build`（pnpm 9.15+）

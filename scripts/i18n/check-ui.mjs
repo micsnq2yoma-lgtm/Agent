@@ -23,7 +23,7 @@ page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
 const english = new Map();
 for (const p of pages) {
   await page.goto(`${base}/${prefix}/${p}`, { waitUntil: "domcontentloaded" });
-  await page.waitForTimeout(4000);
+  await page.waitForTimeout(5000);
   await page.screenshot({ path: `${out}/${p}.png` });
   const found = await page.evaluate(() => {
     const skip = "code,pre,kbd,textarea,input,[contenteditable='true'],.prose,.markdown-body,.mdxeditor,script,style";
