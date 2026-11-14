@@ -1,12 +1,19 @@
-# Agentself · 项目方案 v0.3（Paperclip 基座）
+# Agentself · 项目方案 v0.4（Paperclip 基座，源码内置）
 
 Nov 14, 2026 · @Jay Lu
 
 ## 1. 项目概述
 
-项目名 Agentself，仓库名 `agentself`，核心理念是"把注意力放在真正有价值的事情上"（Put your attention on what truly matters）。v0.3 把基座从 MyAgents 换成 Paperclip（MIT）：底座提供组织、任务、调度、预算和审批，我们只做"团队层"，以插件形式挂上去。像素办公室沿用 v0.1 演示，记忆机制和 IM 接入照 MyAgents 的思路用 MIT 自己重写，整个项目保持 MIT。
+项目名 Agentself，仓库名 `agentself`，核心理念是"把注意力放在真正有价值的事情上"（Put your attention on what truly matters）。v0.3 把基座从 MyAgents 换成 Paperclip（MIT）：底座提供组织、任务、调度、预算和审批，我们主要做"团队层"（以插件形式挂上去），并把 Paperclip 源码纳入仓库（`vendor/paperclip`），按需直接修改、复用、融合。像素办公室沿用 v0.1 演示，记忆机制和 IM 接入照 MyAgents 的思路用 MIT 自己重写，整个项目保持 MIT。
 
 **灵魂不变：** 这是一支自动化团队，不是聊天工具。用户下达目标、处理少量卡片，其余时间团队自己干活；用户只在一个窗口里看消息。
+
+**v0.4 相对 v0.3 的变化（2026-11-14，Phase 0 后）**
+
+- Paperclip 从"npx 依赖、不改核心"改为"源码克隆进 `vendor/paperclip`、可直接修改"。基线为上游 commit `d69631b`（2026.1106.0），在 `agentself` 分支上改。
+- Console 定为独立网页（`apps/console`），负责日常全部操作；Paperclip 自带界面作为后台，只做组织图、适配器、密钥等低频高级设置，设置页"高级设置"跳转过去。
+- Paperclip 后台界面全部中文化：在其源码已有的 i18next 框架上抽取词条并补全 `zh-CN`。
+- `codex_local` 保持默认 `dangerouslyBypassApprovalsAndSandbox: true`。
 
 **v0.3 相对 v0.2 的变化**
 
@@ -35,7 +42,7 @@ Nov 14, 2026 · @Jay Lu
 
 ## 2. 总体架构
 
-系统分四层，只有第二层（团队层）和入口是我们写的：Paperclip 作为依赖运行不动核心，员工就是用户已登录的 Claude Code / Codex。
+系统分四层，只有第二层（团队层）和入口是我们写的：Paperclip 以源码形式内置（`vendor/paperclip`），优先通过插件扩展，插件做不到或代价过高时直接改源码，员工就是用户已登录的 Claude Code / Codex。
 
 &#91;embedded content: 总体架构 · 四层\]
 
@@ -70,7 +77,7 @@ Nov 14, 2026 · @Jay Lu
 
 ## 4. 团队层模块设计
 
-团队层是一个 Paperclip 插件 `team-layer`（worker + UI）加一组技能包，不改 Paperclip 核心代码。插件用到的宿主服务：`events`、`jobs`、`state`、`database`、`issues`、`issueRelations`、`agents`、`approvals`、`tools`。
+团队层是一个 Paperclip 插件 `team-layer`（worker + UI）加一组技能包，能用插件实现的不改 Paperclip 源码；需要改时在 `vendor/paperclip` 的 `agentself` 分支上改，并在 `docs/paperclip-changes.md` 记录。插件用到的宿主服务：`events`、`jobs`、`state`、`database`、`issues`、`issueRelations`、`agents`、`approvals`、`tools`。
 
 ### 4.1 前台
 
@@ -265,7 +272,7 @@ interface ImChannel {
 
 **许可与合规**
 
-- 本项目 MIT。Paperclip 是 MIT，作为依赖使用，不分叉核心代码。
+- 本项目 MIT。Paperclip 是 MIT，源码内置并修改，保留其 LICENSE 与版权声明，在 NOTICE 注明。
 - MyAgents（AGPL）只借思路：可以读其设计文档归纳机制，实现时不打开、不复制、不改写其源码；不使用 MyAgents 名称和 logo。
 - agent-autoloop（MIT）的协议设计可以直接移植，在 NOTICE 里注明来源。
 - v0.1 像素演示和设计稿是我们自己的产出，可直接用。
@@ -315,7 +322,7 @@ agentself/
 
 **硬约束**
 
-- 不改 Paperclip 核心：作为依赖运行，固定版本号；插件 SDK 仍是 alpha，锁定 `@paperclipai/plugin-sdk` 和 `@paperclipai/shared` 版本。
+- Paperclip 源码在 `vendor/paperclip`（`agentself` 分支，基线 `d69631b`），可直接修改；每处修改记入 `docs/paperclip-changes.md`，便于以后合并上游。不再从 npm 安装 Paperclip，从源码构建运行。
 - 接口以运行实例的 `GET /api/openapi.json` 为准；与本文档字段名不一致时以实例为准并在 Phase 报告里列出。
 - 不打开、不复制 MyAgents 源码。
 - 目标平台 Windows 11（常开机），Node.js 24.11+、pnpm 9.15+；路径、进程、换行都要兼容 Windows。
@@ -343,7 +350,9 @@ agentself/
 
 | 风险 | 影响 | 应对 |
 | --- | --- | --- |
-| 插件 SDK 是 alpha，版本间有破坏性改动 | 升级 Paperclip 可能弄坏团队层 | 锁定版本；升级单独作为任务，跑完测试再合入 |
+| 插件 SDK 是 alpha，版本间有破坏性改动 | 合并上游可能弄坏团队层 | 固定基线 commit；合并上游单独作为任务，跑完测试再合入 |
+| 直接改 Paperclip 源码 | 与上游分叉越来越大，合并困难 | 改动集中、记录在 `docs/paperclip-changes.md`；中文化词条尽量回馈上游 |
+| 后台中文化工作量大（UI 约 940 个组件文件，文字多为硬编码） | 进度 | 先做高频页面，按页面分批抽取词条 |
 | 插件能否提供整页界面未确认 | console 的落地方式 | Phase 0 验证；不行就做独立网页，经 Paperclip API + 插件 API 路由取数 |
 | Windows 官方未声明支持 | 常驻不稳 | Phase 0 常驻 24 小时；备选 Docker / WSL |
 | 心跳默认关闭，唤醒策略细节文档不全 | 任务可能没人接 | 以分配 / 阻塞解除唤醒为主，主管开低频心跳兜底 |

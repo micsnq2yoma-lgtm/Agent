@@ -6,13 +6,13 @@
 
 ## 项目事实
 - 名字 Agentself，仓库 / 包名 `agentself`，许可 MIT。
-- 基座 Paperclip，作为依赖运行，锁定版本，不改核心。接口以运行实例的 `GET /api/openapi.json` 为准，PLAN 里的字段名与实例不一致时以实例为准并记录。
+- 基座 Paperclip，源码在 `vendor/paperclip`（`agentself` 分支），可直接修改（v0.4 起）。接口以运行实例的 `GET /api/openapi.json` 为准，PLAN 里的字段名与实例不一致时以实例为准并记录。
 - 目标平台：一台常开的 Windows 11 电脑，本地网页访问；手机端不做。
 - 员工 = 本机已登录的 Claude Code / Codex（适配器 `claude_local` / `codex_local`）。
 - IM 本期只接飞书；皮肤本期只做默认"办公室"皮肤，但结构要允许皮肤改配色、字体、素材、术语和布局。
 
 ## 硬约束
-- 不改 Paperclip 核心；锁定 `@paperclipai/plugin-sdk` 和 `@paperclipai/shared` 版本。
+- 可以修改 Paperclip 源码，改动记入 `docs/paperclip-changes.md`；保留其 MIT 版权声明。
 - 不打开、不复制、不改写 MyAgents（AGPL）的源码；只能按 PLAN 里描述的思路自己实现。
 - 员工形象只用原创像素机器人，不使用任何官方吉祥物形象。
 - 不提交密钥，不自动 push。
