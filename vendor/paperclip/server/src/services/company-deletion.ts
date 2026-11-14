@@ -25,6 +25,8 @@ import {
   heartbeatRunEvents,
   costEvents,
   decisionInvocations,
+  decisions,
+  decisionBundles,
   financeEvents,
   budgetPolicies,
   budgetIncidents,
@@ -84,6 +86,10 @@ export async function deleteCompany(db: Db, id: string) {
             .delete(heartbeatRunEvents)
             .where(inArray(heartbeatRunEvents.runId, companyRunIds.map((run) => run.id)));
         }
+        // Agentself: decisions.origin_run_id references heartbeat_runs; delete decisions
+        // (children cascade) before runs, otherwise company deletion fails with a FK error.
+        await tx.delete(decisions).where(eq(decisions.companyId, id));
+        await tx.delete(decisionBundles).where(eq(decisionBundles.companyId, id));
         await tx.delete(agentTaskSessions).where(eq(agentTaskSessions.companyId, id));
         await tx.delete(activityLog).where(eq(activityLog.companyId, id));
         await tx.delete(runIdentityContexts).where(eq(runIdentityContexts.companyId, id));

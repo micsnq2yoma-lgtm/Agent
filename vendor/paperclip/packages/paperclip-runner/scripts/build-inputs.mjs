@@ -158,7 +158,10 @@ function prunePendingRecords(packageRoot, buildId, now) {
  */
 export function expectedBuildOutputs(packageRoot, platform = process.platform) {
   const executable = platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd";
-  return ["dist/index.js", "dist/live/index.js", "dist/testing.js", `dist/bin/${executable}`]
+  // Agentself: no runnerd binary is built on Windows (see build-binary-optional.mjs).
+  const files = ["dist/index.js", "dist/live/index.js", "dist/testing.js"];
+  if (platform !== "win32") files.push(`dist/bin/${executable}`);
+  return files
     .map((relative) => path.join(packageRoot, ...relative.split("/")));
 }
 
@@ -325,6 +328,24 @@ export function recordRunnerBuild({
     pendingPath = buildInputsPendingPath(packageRoot, candidate);
     pending = readPendingRecord(pendingPath);
     if (pending) break;
+  }
+  // Agentself: on Windows, Git Bash (MSYS) does not expose the shell's Windows pid to
+  // child node processes, so --begin and --finish see unrelated ppids. Fall back to
+  // the newest pending record (concurrent Runner builds are not used on Windows).
+  if (!pending && buildId === null && platform === "win32") {
+    let names = [];
+    try {
+      names = readdirSync(buildInputsPendingDirectory(packageRoot)).filter((name) => name.endsWith(".json"));
+    } catch {
+      names = [];
+    }
+    const newest = names
+      .map((name) => path.join(buildInputsPendingDirectory(packageRoot), name))
+      .sort((a, b) => lstatSync(b).mtimeMs - lstatSync(a).mtimeMs)[0];
+    if (newest) {
+      pendingPath = newest;
+      pending = readPendingRecord(pendingPath);
+    }
   }
   if (!pending) {
     removeBuildInputsStamp(stampPath);
