@@ -45,7 +45,7 @@ export async function exportDepartment(key, { api = defaultApi, companyId } = {}
     budgetMonthlyCents: agents.reduce((s, a) => s + (a.budgetMonthlyCents ?? 0), 0),
     lead: lead ? toMember(lead) : null,
     members: agents.filter((a) => !a.metadata.agentself.isLead).map(toMember),
-    skills: ["agentself-employee", "agentself-memory"],
+    skills: ["agentself-lead", "agentself-employee", "agentself-memory"],
     routines: [],
   };
   for (const r of routines) {

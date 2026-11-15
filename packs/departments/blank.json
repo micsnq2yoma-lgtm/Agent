@@ -1,0 +1,34 @@
+{
+  "schema": "agentself.department/1",
+  "name": "新团队",
+  "icon": "sparkles",
+  "description": "",
+  "budgetMonthlyCents": 5000,
+  "lead": {
+    "key": "lead",
+    "name": "主管",
+    "title": "主管",
+    "role": "pm",
+    "adapterType": "claude_local",
+    "capabilities": "",
+    "identity": ""
+  },
+  "members": [
+    {
+      "key": "m1",
+      "name": "员工",
+      "title": "",
+      "role": "general",
+      "adapterType": "claude_local",
+      "capabilities": "",
+      "budgetMonthlyCents": 2500,
+      "identity": ""
+    }
+  ],
+  "skills": [
+    "agentself-lead",
+    "agentself-employee",
+    "agentself-memory"
+  ],
+  "routines": []
+}

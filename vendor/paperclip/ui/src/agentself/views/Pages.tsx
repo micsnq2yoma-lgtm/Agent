@@ -308,6 +308,50 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
   );
 }
 
+/* ---------------- Global profile (plan B): read by every lead ---------------- */
+const PROFILE_SECTIONS = [
+  { key: "user", label: "关于我", sub: "你的课题、项目、习惯和偏好。所有主管理解你的话之前都会读，员工也会参考" },
+  { key: "decisions", label: "我定过的事", sub: "你在卡片里说过\"以后都这样\"的决定，由主管追加。主管照做，不再重复问" },
+  { key: "declined", label: "我拒绝过的事", sub: "你明确拒绝过的建议和做法，不会再被提起" },
+] as const;
+
+function ProfileEditor() {
+  const [texts, setTexts] = useState<Record<string, string>>({});
+  const [saved, setSaved] = useState<string | null>(null);
+  useEffect(() => {
+    for (const { key } of PROFILE_SECTIONS) {
+      as.get<{ text: string }>(`/profile/${key}`)
+        .then((r) => setTexts((t) => ({ ...t, [key]: r.text })))
+        .catch(() => {});
+    }
+  }, []);
+  async function save(key: string) {
+    await as.put(`/profile/${key}`, { text: texts[key] ?? "" });
+    setSaved(key);
+    setTimeout(() => setSaved(null), 1500);
+  }
+  return (
+    <div className="section">
+      <h2>关于我</h2>
+      {PROFILE_SECTIONS.map(({ key, label, sub }) => (
+        <label key={key} className="field" style={{ marginBottom: 12 }}>
+          <span className="label">
+            {label} {saved === key && <span style={{ fontSize: 12, color: "var(--as-success)" }}>已保存</span>}
+          </span>
+          <span className="sub">{sub}</span>
+          <textarea
+            className="input"
+            style={{ minHeight: key === "user" ? 140 : 90, fontFamily: "inherit" }}
+            value={texts[key] ?? ""}
+            onChange={(e) => setTexts({ ...texts, [key]: e.target.value })}
+            onBlur={() => void save(key)}
+          />
+        </label>
+      ))}
+    </div>
+  );
+}
+
 /* ---------------- Settings ---------------- */
 export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => void }) {
   const { t, setSkinId } = useSkin();
@@ -344,22 +388,22 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           <input className="input" defaultValue={s.companyName} onBlur={(e) => e.target.value !== s.companyName && void save({ companyName: e.target.value })} />
         </div>
       </div>
+      <ProfileEditor />
       <div className="section">
-        <h2>{t("frontdesk")}</h2>
+        <h2>路由</h2>
         <div className="row">
           <div>
-            <div className="label">{t("frontdesk")}用的模型</div>
-            <div className="sub">理解你的话、直接回答、选人、判断要不要先出计划</div>
+            <div className="label">路由用的模型</div>
+            <div className="sub">只负责即时回答和选{t("lead")}，理解你的意思是{t("lead")}的事，用便宜的模型就够</div>
           </div>
           <select className="input" value={s.frontdeskModel} onChange={(e) => void save({ frontdeskModel: e.target.value })}>
-            <option value="claude-opus-5-5">Claude Opus 5.5（推荐）</option>
-            <option value="haiku">Claude Haiku</option>
+            <option value="haiku">Claude Haiku（推荐）</option>
             <option value="sonnet">Claude Sonnet</option>
-            <option value="opus">Claude Opus</option>
+            <option value="claude-opus-5-5">Claude Opus 5.5</option>
           </select>
         </div>
         <div className="row">
-          <div className="label">派活：判断不出{t("department")}时先问我</div>
+          <div className="label">判断不出交给哪位{t("lead")}时先问我</div>
           <input type="checkbox" checked={s.askWhenUnclear} onChange={(e) => void save({ askWhenUnclear: e.target.checked })} />
         </div>
       </div>
@@ -610,11 +654,10 @@ interface Template {
   icon: string;
   description: string;
 }
+// Plan B: nothing is preset. These only differ by the agent they run on; the user names everyone.
 const ROLE_TEMPLATES: Array<Omit<PackMember, "key">> = [
-  { name: "研究员", title: "调研与写作", role: "researcher", adapterType: "claude_local", capabilities: "检索、阅读总结、中文写作", budgetMonthlyCents: 1500, identity: "" },
-  { name: "工程师", title: "写代码与实验", role: "engineer", adapterType: "codex_local", capabilities: "写代码、跑实验、数据处理", budgetMonthlyCents: 1500, identity: "" },
-  { name: "运营", title: "内容与运营", role: "general", adapterType: "claude_local", capabilities: "文案、排版、社媒草稿", budgetMonthlyCents: 1000, identity: "" },
-  { name: "助理", title: "生活事务", role: "general", adapterType: "claude_local", capabilities: "日程、邮件整理、提醒", budgetMonthlyCents: 800, identity: "" },
+  { name: "新员工", title: "", role: "general", adapterType: "claude_local", capabilities: "", budgetMonthlyCents: 1500, identity: "" },
+  { name: "新员工", title: "", role: "general", adapterType: "codex_local", capabilities: "", budgetMonthlyCents: 1500, identity: "" },
 ];
 
 export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (key: string) => void }) {
@@ -624,7 +667,10 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("sparkles");
   const [description, setDescription] = useState("");
-  const [withLead, setWithLead] = useState(false); // v0.6: no lead per category
+  const withLead = true; // plan B: every team has a lead
+  const [leadName, setLeadName] = useState("");
+  const [leadFocus, setLeadFocus] = useState("");
+  const [leadModel, setLeadModel] = useState("claude-opus-5-5");
   const [members, setMembers] = useState<PackMember[]>([]);
   const [routineCron, setRoutineCron] = useState("");
   const [routinePrompt, setRoutinePrompt] = useState("");
@@ -642,7 +688,10 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setName(pack.name);
     setIcon(pack.icon);
     setDescription(pack.description);
-    setWithLead(false);
+    if (pack.lead) {
+      setLeadName(pack.lead.name);
+      setLeadFocus(pack.lead.capabilities);
+    }
     setMembers(pack.members);
     setBudget((pack.budgetMonthlyCents ?? 5000) / 100);
     setTemplateKey(ctx.departments.some((d) => d.key === key) ? null : key);
@@ -661,11 +710,19 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         icon,
         description,
         budgetMonthlyCents: Math.round(budget * 100),
-        lead: withLead
-          ? { key: "lead", name: `${name}${t("lead")}`, title: `${name}${t("lead")}`, role: "pm", adapterType: "claude_local", capabilities: "拆解任务、分派、验收、汇报", budgetMonthlyCents: Math.round(budget * 25), identity: `你是${name}的${t("lead")}。${description}` }
-          : null,
+        lead: {
+          key: "lead",
+          name: leadName.trim() || `${name}${t("lead")}`,
+          title: t("lead"),
+          role: "pm",
+          adapterType: "claude_local",
+          model: leadModel,
+          capabilities: leadFocus || description,
+          budgetMonthlyCents: Math.round(budget * 25),
+          identity: `你是用户的${t("lead")}，负责「${name}」。${description}`,
+        },
         members: members.map((m) => ({ ...m, identity: m.identity || `你是${name}的${m.name}，负责${m.title}。` })),
-        skills: ["agentself-employee", "agentself-memory"],
+        skills: ["agentself-lead", "agentself-employee", "agentself-memory"],
         routines: routineCron && routinePrompt ? [{ key: "r1", title: routinePrompt.slice(0, 30), cron: routineCron, to: members[0]?.key, prompt: routinePrompt }] : [],
       };
       const r = await as.post<{ department: string }>("/departments", pack);
@@ -705,7 +762,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
             <div className="grid2">
               <label className="field">
                 名称
-                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：科研部" />
+                <input className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="团队名称，由你来定" />
               </label>
               <label className="field">
                 图标
@@ -724,6 +781,20 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 1 && (
           <>
+            <div className="row" style={{ alignItems: "flex-start" }}>
+              <Robot id="lead-preview" size={26} />
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input className="input" style={{ width: 140 }} placeholder={`${t("lead")}的名字`} value={leadName} onChange={(e) => setLeadName(e.target.value)} />
+                  <input className="input" style={{ flex: 1 }} placeholder={`负责什么（路由靠它把事交给这位${t("lead")}）`} value={leadFocus} onChange={(e) => setLeadFocus(e.target.value)} />
+                  <select className="input" value={leadModel} onChange={(e) => setLeadModel(e.target.value)}>
+                    <option value="claude-opus-5-5">Opus 5.5</option>
+                    <option value="sonnet">Sonnet</option>
+                  </select>
+                </div>
+                <span className="sub">{t("lead")}只管理不干活：理解你的意思、写验收标准、派{t("employee")}、验收、汇报。只能用 Claude。</span>
+              </div>
+            </div>
             {members.map((m, i) => (
               <div key={m.key} className="row">
                 <Robot id={m.key} eye={eyeOf(m.adapterType)} size={22} />
@@ -740,8 +811,8 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
             ))}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
               {ROLE_TEMPLATES.map((r) => (
-                <button key={r.name} className="btn" onClick={() => addMember(r)}>
-                  ＋ {r.name}
+                <button key={r.adapterType} className="btn" onClick={() => addMember(r)}>
+                  ＋ {t("employee")}（{r.adapterType === "codex_local" ? "Codex" : "Claude"}）
                 </button>
               ))}
               <span style={{ flex: 1 }} />
@@ -756,7 +827,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 2 && (
           <>
-            <p className="hint">默认装上「{t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
+            <p className="hint">默认给{t("lead")}装上「{t("lead")}技能 / 记忆技能」，给{t("employee")}装上「{t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
             <div className="grid2">
               <label className="field">
                 {t("routine")}（cron，可选）
@@ -786,7 +857,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
               {withLead && (
                 <div style={{ textAlign: "center", fontSize: 12 }}>
                   <Robot id="lead-preview" size={40} />
-                  {t("lead")}
+                  {leadName || t("lead")}
                 </div>
               )}
               {members.map((m) => (

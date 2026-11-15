@@ -35,7 +35,7 @@ var manifest_default = {
   instanceConfigSchema: {
     type: "object",
     properties: {
-      reworkLimit: { type: "integer", default: 3, minimum: 1 },
+      reworkLimit: { type: "integer", default: 2, minimum: 1 },
       maxDepth: { type: "integer", default: 8, minimum: 1 },
       burstMax: { type: "integer", default: 20, minimum: 1 },
       burstWindowMinutes: { type: "integer", default: 10, minimum: 1 },

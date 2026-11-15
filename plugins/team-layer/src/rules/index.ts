@@ -33,7 +33,8 @@ export function shouldWakeLeadForGate(input: {
 /* Rework counting                                                     */
 /* ------------------------------------------------------------------ */
 
-export const DEFAULT_REWORK_LIMIT = 3;
+// Plan B: the lead sends a delivery back once; the second send-back asks the user.
+export const DEFAULT_REWORK_LIMIT = 2;
 
 export interface ReworkResult {
   count: number;

@@ -4,38 +4,35 @@ import { buildPrompt, parseRoute } from "../server/frontdesk.mjs";
 // @ts-expect-error plain JS module
 import { animFor, eyeFor } from "../server/office.mjs";
 
-describe("front desk", () => {
+describe("router (plan B)", () => {
   it("parses JSON routes, tolerating extra text", () => {
     expect(parseRoute('好的 {"route":"answer","answer":"明天有雨"}')).toEqual({ route: "answer", answer: "明天有雨" });
-  });
-  it("a task plans first unless the steward explicitly says direct", () => {
-    expect(parseRoute('{"route":"task","employee":"e1","title":"t","description":"d"}').mode).toBe("plan");
-    expect(parseRoute('{"route":"task","employee":"e1","mode":"weird","title":"t"}').mode).toBe("plan");
-    expect(parseRoute('{"route":"task","employee":"e1","mode":"direct","title":"t"}').mode).toBe("direct");
+    expect(parseRoute('{"route":"task","lead":"l1","title":"t","why":"科研类"}')).toEqual({ route: "task", lead: "l1", title: "t", why: "科研类" });
   });
   it("falls back to an answer for non-JSON output or unknown routes", () => {
     expect(parseRoute("直接回答")).toEqual({ route: "answer", answer: "直接回答" });
     expect(parseRoute('{"route":"weird"}').route).toBe("answer");
   });
-  it("prompt lists employees with their category, open issues, and the user's notes", () => {
+  it("prompt lists leads with their team, open issues, and the user's profile", () => {
     const p = buildPrompt({
       text: "今天天气",
-      employees: [{ id: "e1", name: "小研", category: "科研", capabilities: "读论文、跑实验" }],
-      openIssues: [{ id: "i1", identifier: "AGE-1", title: "复现", status: "in_progress", assigneeName: "小研" }],
-      now: "2026/11/14",
+      leads: [{ id: "l1", name: "阿研", team: "科研", description: "读论文、做实验" }],
+      openIssues: [{ id: "i1", identifier: "AGE-1", title: "复现", status: "in_progress", assigneeName: "阿研" }],
+      now: "2026/11/15",
       profile: "课题是蛋白质折叠",
-      rules: "生活类的事一律直接开工",
     });
-    expect(p).toContain("e1 | 小研 | 分类：科研");
+    expect(p).toContain("l1 | 阿研 | 团队：科研 | 负责：读论文、做实验");
     expect(p).toContain("AGE-1");
+    expect(p).toContain("负责主管：阿研");
     expect(p).toContain("今天天气");
     expect(p).toContain("课题是蛋白质折叠");
-    expect(p).toContain("生活类的事一律直接开工");
+    // The router must not rewrite the request: the lead reads the original words.
+    expect(p).toContain("不要改写用户的要求");
   });
-  it("prompt works with no employees and no notes", () => {
+  it("prompt works with no leads and no profile", () => {
     const p = buildPrompt({ text: "x", now: "now" });
-    expect(p).toContain("还没有员工");
-    expect(p).not.toContain("关于用户（必须参考）");
+    expect(p).toContain("还没有主管");
+    expect(p).not.toContain("关于用户：");
   });
 });
 

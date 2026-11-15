@@ -61,14 +61,14 @@ describe("rework counting", () => {
   it("ignores forward transitions", () => {
     expect(applyRework({ ...base, prevStatus: "todo", nextStatus: "in_progress" }).isRework).toBe(false);
   });
-  it("escalates on the 3rd rework", () => {
+  it("escalates on the 2nd rework (plan B: send back once, then ask the user)", () => {
     let count = 0;
-    const results = [1, 2, 3].map(() => {
+    const results = [1, 2].map(() => {
       const r = applyRework({ ...base, count, prevStatus: "in_review", nextStatus: "in_progress" });
       count = r.count;
       return r.escalate;
     });
-    expect(results).toEqual([false, false, true]);
+    expect(results).toEqual([false, true]);
   });
   it("respects a custom limit", () => {
     expect(applyRework({ ...base, count: 0, limit: 1, prevStatus: "done", nextStatus: "in_progress" }).escalate).toBe(true);

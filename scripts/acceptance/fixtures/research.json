@@ -2,9 +2,17 @@
   "schema": "agentself.department/1",
   "name": "科研",
   "icon": "microscope",
-  "description": "读论文、判断方法能否用于课题、设计并运行实验、分析结果。",
+  "description": "验收脚本用的示例团队（不是产品预设）。",
   "budgetMonthlyCents": 5000,
-  "lead": null,
+  "lead": {
+    "key": "lead",
+    "name": "科研主管",
+    "title": "主管",
+    "role": "pm",
+    "adapterType": "claude_local",
+    "capabilities": "理解科研需求、写任务书和验收标准、验收、汇报",
+    "identity": "你是用户的科研主管。"
+  },
   "members": [
     {
       "key": "researcher",

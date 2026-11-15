@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Create a department in Paperclip from a department pack (PLAN 7.4).
-// Usage: node scripts/setup-department.mjs packs/departments/research.json [--company Agentself]
+// Usage: node scripts/setup-department.mjs scripts/acceptance/fixtures/research.json [--company Agentself]
 import fs from "node:fs";
 import path from "node:path";
 import { createDepartment } from "./lib/department.mjs";
