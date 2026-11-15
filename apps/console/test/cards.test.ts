@@ -149,3 +149,29 @@ describe("hire cards (SETO §4.6)", () => {
     expect(relTime("2026-11-15T09:00:00Z", now)).toBe("3 小时前");
   });
 });
+
+import { noticeCards } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
+describe("notice cards (notify_user was stored but never shown)", () => {
+  const agents = [{ id: "emp", name: "科研员", adapterType: "claude_local" }] as never;
+  const issues = [{ id: "t1", identifier: "AGE-200" }] as never;
+  const base = { companyId: "c", createdAt: "2026-11-15T10:00:00Z" };
+  it("open notices become 通知 cards filed under 交付结果", () => {
+    const cards = noticeCards(
+      [
+        { ...base, id: "n1", title: "新论文：稀疏注意力", body: "新论文：稀疏注意力\n值得看", issueId: "t1", agentId: "emp", status: "open" },
+        { ...base, id: "n2", title: "旧通知", status: "handled" },
+      ],
+      agents,
+      issues,
+    );
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toMatchObject({ type: "notice", who: "科研员", ref: "AGE-200", title: "新论文：稀疏注意力", issueId: "t1", source: { kind: "notice", noticeId: "n1", companyId: "c" } });
+    expect(cards[0].options).toEqual([{ id: "dismiss", label: "知道了" }]);
+    expect(countByType(cards).deliver).toBe(1);
+    expect(filterCards(cards, "deliver", null)).toHaveLength(1);
+    expect(filterCards(cards, "decide", null)).toHaveLength(0);
+  });
+  it("a notice without an agent comes from 系统", () => {
+    expect(noticeCards([{ ...base, id: "n3", title: "有 2 条关于你的新了解待确认", status: "open" }], agents)[0].who).toBe("系统");
+  });
+});

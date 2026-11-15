@@ -34,6 +34,17 @@ export function appendNotice(list: FeedMessage[], msg: FeedMessage, max = MAX_NO
   return [msg, ...list].slice(0, max);
 }
 
+/** Mark one notice handled (the user dismissed it on the workbench). */
+export function dismissNotice(list: FeedMessage[], id: string): { list: FeedMessage[]; found: boolean } {
+  let found = false;
+  const next = list.map((m) => {
+    if (m.id !== id) return m;
+    found = true;
+    return { ...m, status: "handled" as const };
+  });
+  return { list: next, found };
+}
+
 interface StateLike {
   state: {
     get(key: { scopeKind: "company"; scopeId: string; stateKey: string }): Promise<unknown>;

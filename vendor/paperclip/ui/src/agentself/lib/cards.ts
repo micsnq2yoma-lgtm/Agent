@@ -6,8 +6,12 @@ import type { Tier } from "@agentself/shared";
 export const FRONTDESK = "__frontdesk__";
 export const LEAD = "__lead__";
 
-/** `hire` (v0.6): a lead proposed a new employee; it counts as "要你拍板" (DESIGN §4.6). */
-export type CardType = "decide" | "deliver" | "answer" | "failed" | "hire";
+/**
+ * `hire` (v0.6): a lead proposed a new employee; it counts as "要你拍板" (DESIGN §4.6).
+ * `notice`: an employee or the memory job told the user something (notify_user); no reply needed,
+ * filed under 交付结果.
+ */
+export type CardType = "decide" | "deliver" | "answer" | "failed" | "hire" | "notice";
 
 export interface CardOption {
   id: string;
@@ -36,6 +40,7 @@ export interface Card {
     | { kind: "issue"; issueId: string; dismissalKey: string | null }
     | { kind: "run"; issueId: string | null; runId: string | null; dismissalKey: string | null }
     | { kind: "answer"; answerId: string }
+    | { kind: "notice"; noticeId: string; companyId: string }
     | { kind: "hire"; hireId: string; leadAgentId: string; name: string; capabilities: string; adapterType: string; reason: string };
   issueId: string | null;
 }
@@ -314,7 +319,7 @@ export function buildCards(input: {
   return sortCards(cards.filter((c) => !c.snoozedUntil || Date.parse(c.snoozedUntil) <= now));
 }
 
-const ORDER: Record<CardType, number> = { decide: 0, hire: 0, deliver: 1, failed: 1, answer: 2 };
+const ORDER: Record<CardType, number> = { decide: 0, hire: 0, deliver: 1, failed: 1, notice: 1, answer: 2 };
 export function sortCards(cards: Card[]): Card[] {
   return [...cards].sort((a, b) => ORDER[a.type] - ORDER[b.type] || Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
@@ -323,7 +328,7 @@ export type Filter = "all" | "decide" | "deliver" | "answer";
 export function filterCards(cards: Card[], f: Filter, department: string | null): Card[] {
   return cards.filter(
     (c) =>
-      (f === "all" || c.type === f || (f === "deliver" && c.type === "failed") || (f === "decide" && c.type === "hire")) &&
+      (f === "all" || c.type === f || (f === "deliver" && (c.type === "failed" || c.type === "notice")) || (f === "decide" && c.type === "hire")) &&
       (!department || !c.department || c.department === department),
   );
 }
@@ -332,7 +337,7 @@ export function countByType(cards: Card[]) {
   return {
     all: cards.length,
     decide: cards.filter((c) => c.type === "decide" || c.type === "hire").length,
-    deliver: cards.filter((c) => c.type === "deliver" || c.type === "failed").length,
+    deliver: cards.filter((c) => c.type === "deliver" || c.type === "failed" || c.type === "notice").length,
     answer: cards.filter((c) => c.type === "answer").length,
   };
 }
@@ -386,4 +391,44 @@ export function relTime(iso: string, now = Date.now()): string {
   if (h < 24) return `${h} 小时前`;
   const d = new Date(t);
   return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Plugin notices (team-layer `notices` data): open ones become cards. */
+export interface Notice {
+  id: string;
+  companyId: string;
+  title: string;
+  body?: string;
+  issueId?: string | null;
+  agentId?: string | null;
+  createdAt: string;
+  status: "open" | "handled" | "snoozed";
+}
+
+export function noticeCards(list: Notice[], agents: AgentLite[], issues: IssueLite[] = []): Card[] {
+  const agentById = new Map(agents.map((a) => [a.id, a]));
+  return list
+    .filter((n) => n.status === "open")
+    .map((n) => {
+      const agent = n.agentId ? agentById.get(n.agentId) : undefined;
+      const issue = n.issueId ? issues.find((i) => i.id === n.issueId) : undefined;
+      return {
+        id: `notice:${n.id}`,
+        type: "notice" as const,
+        tier: "low" as const,
+        who: agent?.name ?? "系统",
+        model: modelOf(agent),
+        department: null,
+        ref: issue?.identifier ?? null,
+        title: n.title.split(/\n/)[0].slice(0, 120),
+        explain: n.body && n.body !== n.title ? n.body : null,
+        ifNoReply: null,
+        createdAt: n.createdAt,
+        snoozedUntil: null,
+        options: [{ id: "dismiss", label: "知道了" }],
+        primary: "知道了",
+        source: { kind: "notice" as const, noticeId: n.id, companyId: n.companyId },
+        issueId: n.issueId ?? null,
+      };
+    });
 }

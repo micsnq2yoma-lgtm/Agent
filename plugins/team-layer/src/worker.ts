@@ -2,7 +2,7 @@
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import type { FeedMessage } from "@agentself/shared";
 import { applyRework, isDuplicateTransition, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
-import { addNotice, dropRemindersFor, dueReminders, SETTLED_STATUSES, type Reminder } from "./store.js";
+import { addNotice, dismissNotice, dropRemindersFor, dueReminders, SETTLED_STATUSES, type Reminder } from "./store.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -768,6 +768,16 @@ const plugin = definePlugin({
       const companyId = (params as { companyId?: string }).companyId;
       await rememberCompany(ctx, companyId);
       return { ok: true, companies: await knownCompanies(ctx) };
+    });
+
+    // the workbench's 知道了 on a notice card
+    ctx.actions.register("notice-dismiss", async (params) => {
+      const p = params as { companyId?: string; id?: string };
+      if (!p.companyId || !p.id) return { ok: false };
+      const key = companyKey(p.companyId, "notices");
+      const r = dismissNotice(await getState<FeedMessage[]>(ctx, key, []), p.id);
+      if (r.found) await ctx.state.set(key, r.list);
+      return { ok: r.found };
     });
 
     /* ---------------- data for the console ---------------- */
