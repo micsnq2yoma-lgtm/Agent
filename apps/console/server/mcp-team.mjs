@@ -56,13 +56,51 @@ async function pluginTool(name, parameters, issueId) {
 
 const companyId = () => env("PAPERCLIP_COMPANY_ID");
 
-/** Move a lead's own top-level task to in_review after its report is written. Returns false if not applicable. */
-async function settleReport(issueId) {
+/**
+ * Report on a lead's own top-level task (P1 runs 5 and 6). Order matters:
+ *  1. drop pending reminders / watches first, so they go even if a later step fails;
+ *  2. create a request_confirmation card on the report revision — Paperclip refuses an agent's move to
+ *     in_review unless a review path exists ("invalid_issue_disposition");
+ *  3. only then move the task to in_review.
+ * Returns { applicable: false } for a child task or someone else's task.
+ */
+export async function settleReport(issueId, doc) {
   const issue = await pc("GET", `/issues/${issueId}`);
-  if (issue.parentId || issue.assigneeAgentId !== env("PAPERCLIP_AGENT_ID")) return false;
-  if (!["in_review", "done", "cancelled"].includes(issue.status)) await pc("PATCH", `/issues/${issueId}`, { status: "in_review" });
-  return true;
+  if (issue.parentId || issue.assigneeAgentId !== env("PAPERCLIP_AGENT_ID")) return { applicable: false };
+  const steps = [];
+  try {
+    await pluginTool("settle", { issueId }, issueId);
+    steps.push("提醒已取消");
+  } catch (e) {
+    steps.push(`取消提醒失败：${e instanceof Error ? e.message : e}`);
+  }
+  if (["in_review", "done", "cancelled"].includes(issue.status)) return { applicable: true, ok: true, steps };
+  const revisionId = doc?.latestRevisionId ?? doc?.latestRevision?.id ?? null;
+  await pc("POST", `/issues/${issueId}/interactions`, {
+    kind: "request_confirmation",
+    idempotencyKey: `agentself:report:${issueId}:${revisionId ?? Date.now()}`,
+    title: "汇报待你验收",
+    continuationPolicy: "wake_assignee",
+    payload: {
+      version: 1,
+      prompt: "请验收这份汇报：满意就确认完成，不满意写下要改的地方。",
+      acceptLabel: "确认完成",
+      rejectLabel: "要修改",
+      rejectRequiresReason: true,
+      rejectReasonLabel: "哪里要改？",
+      target: revisionId ? { type: "issue_document", issueId, ...(doc?.id ? { documentId: doc.id } : {}), key: "report", revisionId } : { type: "custom", key: "report" },
+    },
+  });
+  steps.push("确认卡片已发出");
+  try {
+    await pc("PATCH", `/issues/${issueId}`, { status: "in_review" });
+    steps.push("任务已置为待你确认（in_review）");
+    return { applicable: true, ok: true, steps };
+  } catch (e) {
+    return { applicable: true, ok: false, steps, error: e instanceof Error ? e.message : String(e) };
+  }
 }
+
 const me = () => env("PAPERCLIP_AGENT_ID");
 const brief = (i) => ({ id: i.id, identifier: i.identifier ?? null, title: i.title, status: i.status, assigneeAgentId: i.assigneeAgentId ?? null, parentId: i.parentId ?? null });
 
@@ -124,26 +162,28 @@ export const TOOLS = {
     description: "在任务上写或覆盖一份 Markdown 文档（主管写 brief、report；员工写 report）。",
     inputSchema: S({ issueId: str("任务 id"), key: str("文档 key，例如 brief 或 report"), body: str("Markdown 正文"), title: str("标题（可选）") }, ["issueId", "key", "body"]),
     run: async ({ issueId, key, body, title }, role) => {
-      await pc("PUT", `/issues/${issueId}/documents/${encodeURIComponent(key)}`, { format: "markdown", body, ...(title ? { title } : {}) });
+      const doc = await pc("PUT", `/issues/${issueId}/documents/${encodeURIComponent(key)}`, { format: "markdown", body, ...(title ? { title } : {}) });
       // A lead writing the report on its own top-level task is reporting: settle the task in code,
       // not by the skill's wording (P1 run 5: the lead wrote the report and left the task in_progress).
       if (role === "lead" && key === "report") {
-        const settled = await settleReport(issueId);
-        if (settled) return `已写入汇报，任务已置为待你确认（in_review）`;
+        const r = await settleReport(issueId, doc);
+        if (r.applicable && r.ok) return `已写入汇报：${r.steps.join("；")}`;
+        if (r.applicable) throw new Error(`汇报已写入，但没能置为待确认：${r.error}（${r.steps.join("；")}）`);
       }
       return `已写入文档 ${key}`;
     },
   },
   submit_report: {
     roles: ["lead"],
-    description: "向用户汇报：在你负责的父任务上写 report 文档，并把任务置为待用户确认（in_review）。汇报一律用这个工具。",
+    description: "向用户汇报：在你负责的父任务上写 report 文档、发一张验收卡片、把任务置为待用户确认（in_review），并取消未触发的提醒。汇报一律用这个工具，不要另外发确认卡片。",
     inputSchema: S({ issueId: str("你负责的父任务 id"), body: str("一页以内的汇报（Markdown）") }, ["issueId", "body"]),
     run: async ({ issueId, body }) => {
-      await pc("PUT", `/issues/${issueId}/documents/report`, { format: "markdown", title: "汇报", body });
-      const settled = await settleReport(issueId);
-      if (!settled) throw new Error("report 已写入，但这不是你负责的顶层任务，状态没有改");
+      const doc = await pc("PUT", `/issues/${issueId}/documents/report`, { format: "markdown", title: "汇报", body });
+      const r = await settleReport(issueId, doc);
+      if (!r.applicable) throw new Error("report 已写入，但这不是你负责的顶层任务，状态没有改");
+      if (!r.ok) throw new Error(`report 已写入，但 Paperclip 没有接受"待确认"状态：${r.error}。已做：${r.steps.join("；")}。不要重复发卡片，在任务上评论说明情况后结束本轮。`);
       await pc("POST", `/issues/${issueId}/comments`, { body: "已汇报，等你确认。" }).catch(() => {});
-      return "已汇报：report 已写入，任务已置为待你确认（in_review），之前设的提醒会自动取消。结束本轮。";
+      return `已汇报：report 已写入；${r.steps.join("；")}。结束本轮。`;
     },
   },
   comment: {
