@@ -77,10 +77,17 @@ ${profile.askfirst ? `@${profile.askfirst}\n` : ""}
 
 `
     : "";
+  const leadSkill = isLead
+    ? `## 你的工作方式（主管技能，必须遵守）
+
+@.agentself/lead-skill.md
+
+`
+    : "";
   const claude = `${ENTRY_MARK}
 # 你的长期记忆（自动加载，必须遵守）
 
-${profileClaude}## 你自己的记忆
+${leadSkill}${profileClaude}## 你自己的记忆
 
 以下是你的身份、用户要求的工作方式、用户偏好和以往经验。**每次任务都要照做**；交付时一句话说明用到了哪条。
 

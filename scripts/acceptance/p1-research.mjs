@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// P1 acceptance: give the research lead a project that needs 2 parallel subtasks,
-// then watch until the lead reports (top-level issue in_review) or timeout.
+// P1 acceptance (plan B): give the research lead a small research task, then watch until the lead
+// reports (top-level issue in_review) or timeout. Expected path: brief + criteria on the top issue,
+// one child for one employee, evidence, an independent verification, a report.
+// Usage: node scripts/acceptance/p1-research.mjs [existingTopIssueId]
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -17,10 +19,9 @@ const top = existingId
   : await api("POST", `/companies/${companyId}/issues`, {
       title: "小调研：Python 列表推导式与生成器表达式的性能对比",
       description: [
-        "请交付两样东西，可以并行做：",
-        "1. 一段不超过 300 字的中文说明：两者的区别、各自适用场景（文献员）。",
-        "2. 一个可运行的 Python 脚本 bench.py，用 timeit 对 100 万个整数求平方和，比较两种写法的耗时并打印结果，附运行输出（实验员）。",
-        "这是验收测试，请保持精简。",
+        "我想知道这两种写法在性能上到底差多少，以后写代码时该怎么选。",
+        "要有一个能运行的脚本 bench.py（用 timeit 对 100 万个整数求平方和，比较两种写法）和它的运行输出，再加一段不超过 300 字的中文结论。",
+        "这是验收测试，请保持精简，不用先给我计划。",
       ].join("\n"),
       projectId,
       assigneeAgentId: leadAgentId,
@@ -62,4 +63,21 @@ try {
 }
 log("report:", report ? (report.body ?? report.markdown ?? JSON.stringify(report)).slice(0, 1500) : null);
 const final = await api("GET", `/issues/${top.id}`);
-log("RESULT", JSON.stringify({ topStatus: final.status, gateWakes, hasReport: !!report, topIssueId: top.id }));
+const doc = async (issueId, key) => api("GET", `/issues/${issueId}/documents/${key}`).then((d) => !!d?.body).catch(() => false);
+const kids = (await api("GET", `/companies/${companyId}/issues`)).filter((i) => i.parentId === top.id);
+const kid = kids[0];
+const result = {
+  topStatus: final.status,
+  gateWakes,
+  hasBrief: await doc(top.id, "brief"),
+  hasCriteria: await doc(top.id, "criteria"),
+  children: kids.length,
+  childHasEvidence: kid ? await doc(kid.id, "evidence") : false,
+  childHasVerification: kid ? await doc(kid.id, "verification") : false,
+  hasReport: !!report,
+  topIssueId: top.id,
+};
+log("RESULT", JSON.stringify(result));
+const pass = ["in_review", "done"].includes(result.topStatus) && result.hasBrief && result.hasCriteria && result.children === 1 && result.childHasEvidence && result.childHasVerification && result.hasReport;
+log(pass ? "PASS" : "FAIL");
+process.exitCode = pass ? 0 : 1;

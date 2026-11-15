@@ -137,7 +137,7 @@ export default {
     {
       name: "verify",
       displayName: "team.verify",
-      description: "主管用：让一名独立核查员（另一个模型、没有工具）对照验收标准逐条判定员工的交付，返回通过 / 未通过 / 无法判断。结果是参考，最终由你判定。",
+      description: "主管用：让一名独立核查员（另一个模型、没有工具）对照验收标准逐条判定员工的交付。第一次调用在后台开始核查并立即返回；完成后会在你的任务上留言叫醒你，再调用一次拿逐条结果。结果是参考，最终由你判定。",
       parametersSchema: toolSchema({ issueId: { type: "string", description: "员工交付的子任务 id" } }, ["issueId"]),
     },
     {
