@@ -72,7 +72,8 @@ export async function loadContext() {
   const deptMap = new Map();
   for (const a of arr(agents)) {
     const m = a.metadata?.agentself;
-    if (!m?.department) continue;
+    // terminated agents (a removed team whose history kept its rows) no longer make a team
+    if (!m?.department || a.status === "terminated") continue;
     const d = deptMap.get(m.department) ?? { key: m.department, name: m.departmentName ?? m.department, projectId: m.projectId ?? null, leadAgentId: null, members: [] };
     if (m.isLead) d.leadAgentId = a.id;
     // The pack icon lives on the employees (the lead's Paperclip icon is a crown).
