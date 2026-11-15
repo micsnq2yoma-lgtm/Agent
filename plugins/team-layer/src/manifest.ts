@@ -142,6 +142,12 @@ export default {
       parametersSchema: toolSchema({ issueId: { type: "string", description: "员工交付的子任务 id" } }, ["issueId"]),
     },
     {
+      name: "settle",
+      displayName: "team.settle",
+      description: "取消一个任务上所有未触发的提醒和看守（汇报时由系统调用）。",
+      parametersSchema: toolSchema({ issueId: { type: "string" } }, ["issueId"]),
+    },
+    {
       name: "watch",
       displayName: "team.watch",
       description:

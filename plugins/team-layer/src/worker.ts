@@ -675,6 +675,19 @@ const plugin = definePlugin({
       }
     });
 
+    // Called by submit_report before it touches the task's status, so stale reminders are dropped even
+    // when Paperclip refuses the status change (P1 run 6).
+    ctx.tools.register(
+      "settle",
+      { displayName: "team.settle", description: "Drop pending reminders and watches for a task", parametersSchema: { type: "object" } },
+      async (params, run) => {
+        const p = params as { issueId?: string };
+        if (!p.issueId) return { content: "缺少 issueId" };
+        await dropWakeupsFor(ctx, run.companyId, [p.issueId]);
+        return { content: "已取消这个任务上未触发的提醒和看守" };
+      },
+    );
+
     /* ---------------- long-running experiment watch (plan B step 2) ---------------- */
 
     ctx.tools.register(
