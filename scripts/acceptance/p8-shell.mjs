@@ -92,7 +92,7 @@ await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
 await page.waitForTimeout(6000);
 const card = page.locator("#results .card.decide").filter({ hasText: "P8 链路卡片" }).first();
 results.cardShown = (await card.count()) > 0;
-await card.getByRole("button", { name: "展开" }).click();
+await card.click(); // SETO: the whole card is the button that expands it
 await page.locator(".detail a", { hasText: /打开/ }).first().click();
 await page.waitForSelector(".drawer", { timeout: 15_000 });
 results.drawerOpened = await page.locator(".drawer h2", { hasText: "P8 运行记录" }).waitFor({ timeout: 20_000 }).then(() => true, () => false);
