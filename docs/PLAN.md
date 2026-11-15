@@ -1,18 +1,27 @@
-# Agentself · 项目方案 v0.4（Paperclip 基座，源码内置）
+# Agentself · 项目方案 v0.5（Paperclip 基座 · 单一应用）
 
 Nov 14, 2026 · @Jay Lu
 
 ## 1. 项目概述
 
-项目名 Agentself，仓库名 `agentself`，核心理念是"把注意力放在真正有价值的事情上"（Put your attention on what truly matters）。v0.3 把基座从 MyAgents 换成 Paperclip（MIT）：底座提供组织、任务、调度、预算和审批，我们主要做"团队层"（以插件形式挂上去），并把 Paperclip 源码纳入仓库（`vendor/paperclip`），按需直接修改、复用、融合。像素办公室沿用 v0.1 演示，记忆机制和 IM 接入照 MyAgents 的思路用 MIT 自己重写，整个项目保持 MIT。
+项目名 Agentself，仓库名 `agentself`，核心理念是"把注意力放在真正有价值的事情上"（Put your attention on what truly matters）。基座是 Paperclip（MIT），源码内置于 `vendor/paperclip`，可以直接修改；我们在它之上做"团队层"，并把工作台和 Paperclip 的管理页面合成**一个应用**：一个端口、一条侧栏、一套皮肤、一套术语。记忆机制和 IM 接入照 MyAgents 的思路用 MIT 自己写，整个项目保持 MIT。
+
+**三个平台各取所长**：MyAgents 的壳（侧栏 + 工作区 + 首页输入框 + 抽屉 + 主题），Paperclip 的骨（组织、员工配置、任务详情、运行记录、预算、审批、审计，直接复用不重写），agent-autoloop 的神经（卡片、三档注意力、事件规则，决定首页只显示什么）。
 
 **灵魂不变：** 这是一支自动化团队，不是聊天工具。用户下达目标、处理少量卡片，其余时间团队自己干活；用户只在一个窗口里看消息。
 
-**v0.4 相对 v0.3 的变化（2026-11-14，Phase 0 后）**
+**v0.5 相对 v0.4 的变化（2026-11-14，P0–P7 完成后）**
 
-- Paperclip 从"npx 依赖、不改核心"改为"源码克隆进 `vendor/paperclip`、可直接修改"。基线为上游 commit `d69631b`（2026.1106.0），在 `agentself` 分支上改。
-- Console 定为独立网页（`apps/console`），负责日常全部操作；Paperclip 自带界面作为后台，只做组织图、适配器、密钥等低频高级设置，设置页"高级设置"跳转过去。
-- Paperclip 后台界面全部中文化：在其源码已有的 i18next 框架上抽取词条并补全 `zh-CN`。
+- 工作台和 Paperclip 后台合并为一个应用：以 Paperclip 界面为宿主，工作台各视图迁入成为其路由，只用 3100 一个端口，:3200 前端下线。
+- 一条侧栏：日常区（工作台、项目、部门）+"管理"区（默认折叠）。重复入口合并（见 7.0）。
+- 隐藏 Paperclip 的智能体聊天、Cases、Goals、多公司切换：代码保留，界面不显示。
+- 皮肤和术语覆盖整个应用，包括 Paperclip 的管理页。
+- 新增 P8–P10（第 9 节）。
+
+**v0.4 相对 v0.3 的变化（Phase 0 后）**
+
+- Paperclip 从"npx 依赖、不改核心"改为"源码内置 `vendor/paperclip`、可直接修改"，基线为上游 commit `d69631b`（2026.1106.0），改动登记在 `docs/paperclip-changes.md`。
+- Paperclip 后台界面全部中文化（P7）。
 - `codex_local` 保持默认 `dangerouslyBypassApprovalsAndSandbox: true`。
 
 **v0.3 相对 v0.2 的变化**
@@ -42,11 +51,11 @@ Nov 14, 2026 · @Jay Lu
 
 ## 2. 总体架构
 
-系统分四层，只有第二层（团队层）和入口是我们写的：Paperclip 以源码形式内置（`vendor/paperclip`），优先通过插件扩展，插件做不到或代价过高时直接改源码，员工就是用户已登录的 Claude Code / Codex。
+系统分四层，用户只看到一个应用：Paperclip 源码内置，优先用插件扩展，插件做不到时直接改源码；工作台视图作为 Paperclip 界面的路由运行，与管理页同源、同侧栏、同皮肤；员工就是用户已登录的 Claude Code / Codex。
 
 &#91;embedded content: 总体架构 · 四层\]
 
-全部进程跑在那台常开的 Windows 电脑上：Paperclip 服务（含内嵌 PostgreSQL）、插件 worker（由 Paperclip 拉起）、Console 网页。用户的操作从 Console 或 IM 进入团队层，团队层调 Paperclip 建任务、派人、开卡片；Paperclip 唤醒员工运行，员工通过 API 和插件工具回报。
+全部进程跑在那台常开的 Windows 电脑上，对外只有 `http://127.0.0.1:3100` 一个地址：Paperclip 服务（含内嵌 PostgreSQL 和界面）、插件 worker（由 Paperclip 拉起）、Agentself 本地服务（前台、飞书、办公室快照、设置、记忆、部门向导）。本地服务的接口挂在同源 `/agentself/api/*` 下（P8 先由 Paperclip 服务反向代理，之后可逐步迁入 Paperclip 服务端）。用户的操作从应用或飞书进入团队层，团队层调 Paperclip 建任务、派人、开卡片；Paperclip 唤醒员工运行，员工通过 API 和插件工具回报。
 
 ## 3. 概念映射
 
@@ -77,7 +86,7 @@ Nov 14, 2026 · @Jay Lu
 
 ## 4. 团队层模块设计
 
-团队层是一个 Paperclip 插件 `team-layer`（worker + UI）加一组技能包，能用插件实现的不改 Paperclip 源码；需要改时在 `vendor/paperclip` 的 `agentself` 分支上改，并在 `docs/paperclip-changes.md` 记录。插件用到的宿主服务：`events`、`jobs`、`state`、`database`、`issues`、`issueRelations`、`agents`、`approvals`、`tools`。
+团队层是一个 Paperclip 插件 `team-layer`（worker + UI）加一组技能包，优先不改 Paperclip 核心代码（插件做不到时再改源码并登记）。插件用到的宿主服务：`events`、`jobs`、`state`、`database`、`issues`、`issueRelations`、`agents`、`approvals`、`tools`。
 
 ### 4.1 前台
 
@@ -194,21 +203,58 @@ interface ImChannel {
 
 ### 7.0 界面布局
 
-整体布局参考 MyAgents：左侧栏加主区，主区顶部用一个切换按钮在「工作台」和「像素团队」之间切换（取代 MyAgents 的"对话 | 记录"）。工作台的核心只有两部分：结果卡片和输入框。设计稿见[设计画布](https://claude.ai/artifact/J4Z2hYuX1yKTCuhCEJP2Qx)最下面两行的五张画板。手机端暂不考虑。
+整个产品是**一个应用**：工作台和 Paperclip 的管理页面共用一条侧栏、一套皮肤、一套术语。日常层和管理层是同一个应用里的两层深度：日常只用工作台、项目和部门，管理功能收在侧栏下方的"管理"区。主区顶部仍用切换按钮在「工作台」和「像素团队」之间切换。设计稿见[设计画布](https://claude.ai/artifact/J4Z2hYuX1yKTCuhCEJP2Qx)最下面三行。手机端暂不考虑。
 
 **品牌与首页格式**：工作台顶部居中放 AGENTSELF 字标（宽字距，SELF 中的 E 用一个像素字形、用强调色），下面一行是核心理念"把注意力放在真正有价值的事情上"，再下一行小字英文 Put your attention on what truly matters.。接着是输入框，输入框下方是横排的结果卡片。侧栏顶部用小号字标加前台机器人头像作为 Logo。
 
+**侧栏**
+
+```
+AGENTSELF                         搜索
+  工作台        首页：字标 + 输入框 + 结果卡片（顶部切换 → 像素团队）
+  项目          进行中的任务树；点开是抽屉，再点"完整页"进任务详情
+  部门
+    科研部      部门页：概览 / 成员 / 例行任务 / 能力 / 预算
+    公司部
+    ＋ 新建部门
+  ── 管理（默认折叠）──
+    组织图 · 全部员工 · 能力与工具 · 例行任务 · 用量与预算 · 记录
+  设置          通用 / 前台 / 飞书 / 预算 / 对外动作 / 皮肤 / 高级
+  我 · 通知
+```
+
+**重复入口合并为一份**
+
+| 原来两边都有 | 合并后 |
+| --- | --- |
+| Paperclip 收件箱 / 审批 vs 工作台卡片 | 只留工作台卡片（同一份 Attention 数据）；审批历史进"记录" |
+| Paperclip 仪表盘 vs 像素团队 | 只留像素团队，顶部加一条统计：运行中 / 阻塞 / 本月花费 / 待拍板 |
+| 新建任务 vs 输入框 | 只留输入框，旁边"高级新建"打开 Paperclip 原表单 |
+| 任务 / 项目列表 vs 项目 | 侧栏"项目"：按部门分组的顶层任务；完整页沿用 Paperclip 任务详情 |
+| 智能体详情 vs 员工抽屉 | 抽屉 = 快速查看；完整页沿用 Paperclip 员工详情，加"档案""记忆"标签 |
+| 组织图 / 智能体列表 vs 部门 | 部门页是日常入口；全公司组织图和全部员工在"管理" |
+| 技能、连接器 vs 能力与工具 | 一个页面，分技能 / 连接器 / 权限三个标签 |
+| 费用 vs 用量 | 用量与预算：我们的用量面板 + Paperclip 预算规则 |
+| 例行任务（两边） | 一个页面，按部门分组；部门页里只显示本部门 |
+| 活动、审计、产物 | 合并为"记录" |
+| 两边的设置 | 一个设置页；公司 / 实例设置、适配器、插件、实验功能归入"高级" |
+| 智能体聊天、Cases、Goals、多公司切换 | 隐藏（代码保留，URL 仍可访问） |
+
+**三条规则**
+
+1. **每个对象只有一个完整页**，抽屉只是快速查看。卡片 → 项目抽屉 → 任务完整页 → 运行记录，全程在同一个应用里。
+2. **一套皮肤管到底**：皮肤的样式变量映射到 Paperclip 的样式变量，管理页跟着换；像素机器人头像替换 Paperclip 原有头像。
+3. **一套叫法**：皮肤术语表接进汉化层，"智能体"显示为"员工"，"管理台"显示为"我"。
+
+**各区域交互**
+
 | 区域 | 内容 | 交互 |
 | --- | --- | --- |
-| 侧栏·顶部 | SAAT 标志、搜索 | 搜索项目、卡片、员工 |
-| 侧栏·导航 | 工作台、项目、例行任务、能力与工具、用量 | 项目 = 进行中项目列表，点开是项目抽屉；例行任务 = routines；能力与工具 = 技能包与连接器权限；用量 = 7.3 的面板 |
-| 侧栏·部门 | 各部门（主管像素头像 + 待拍板数）、已归档 | 点部门 = 把工作台和像素团队都筛到该部门；＋ = 新建部门向导 |
-| 侧栏·底部 | 设置、用户、通知 | 设置里有飞书绑定、前台模型、预算、皮肤，以及跳到 Paperclip 后台的"高级设置" |
-| 主区·顶部 | 切换按钮：工作台 / 像素团队；右上角"N 件等你拍板" | 点角标回到工作台并只看要你拍板的卡片 |
-| 工作台·卡片 | 横排小卡片（每张只有标签、谁、一句话结论、主操作），分要你拍板、交付结果、前台即答三种；上方筛选条 | 点"展开"在该行下方整行显示详情和全部选项；要你拍板排在最前，其余按时间倒序；处理完的卡片收起到"已处理" |
-| 工作台·输入框 | 文本框 + 附件 +"交给"+"对外动作"+ 发送 | 交给：前台自动分派 / 指定部门 / 指定员工；对外动作：先问我 / 直接做。两个视图都保留输入框 |
-| 像素团队 | 像素办公室占满主区，按部门分区，每人一个名牌和状态点 | 点人物弹出小卡：在做什么、待处理卡片的快捷按钮、看项目；举牌 = 有卡片等你 |
-| 抽屉 / 弹窗 | 项目抽屉、员工抽屉、新建部门向导 | 项目抽屉：子任务树、报告、时间线、插一句话；员工抽屉：档案、模型、技能、记忆文件、花费 |
+| 工作台·卡片 | 横排小卡片：要你拍板、交付结果、前台即答；上方筛选条 | 点"展开"整行显示详情；要你拍板排最前；处理完收起 |
+| 工作台·输入框 | 文本框 + 附件 + 交给 + 对外动作 + 高级新建 | 两个视图都保留输入框 |
+| 像素团队 | 办公室铺满主区 + 顶部统计条 | 点人物弹出小卡，可进员工抽屉 / 完整页 |
+| 部门页 | 概览（本部门像素分区 + 进行中项目 + 待拍板）/ 成员 / 例行任务 / 能力 / 预算 | 成员列表来自组织子树；各标签复用 Paperclip 页面组件 |
+| 员工完整页 | Paperclip 员工详情 + 档案 / 记忆标签 | 换模型、暂停、调预算都在这里 |
 
 **卡片结构**：标签 · 谁发的 · 部门和项目 → 标题（一句话结论）→ 说明 → 操作按钮。要你拍板的卡片底部再写"不回复会怎样"和"以后同类直接做"；交付结果的操作是打开产物、确认完成、返工。任务进展、例行任务完成这类低档消息不进工作台，放在项目页和通知里。
 
@@ -272,14 +318,14 @@ interface ImChannel {
 
 **许可与合规**
 
-- 本项目 MIT。Paperclip 是 MIT，源码内置并修改，保留其 LICENSE 与版权声明，在 NOTICE 注明。
+- 本项目 MIT。Paperclip 是 MIT，源码内置于 vendor/paperclip 并可修改，保留其 LICENSE 和版权声明，每处改动登记在 docs/paperclip-changes.md。
 - MyAgents（AGPL）只借思路：可以读其设计文档归纳机制，实现时不打开、不复制、不改写其源码；不使用 MyAgents 名称和 logo。
 - agent-autoloop（MIT）的协议设计可以直接移植，在 NOTICE 里注明来源。
 - v0.1 像素演示和设计稿是我们自己的产出，可直接用。
 
 ## 9. 实施路线
 
-共 7 个阶段，每个阶段结束都能跑起来给用户验收。P0 不通过就不进入 P1，而是回到方案重议。
+P0–P6 已按 v0.3 / v0.4 完成，P7（Paperclip 后台汉化）也已完成，报告见仓库 `docs/phase-N-report.md`。v0.5 新增 P8–P10，把工作台和后台合成一个应用。下图是 P0–P6 的原始路线。
 
 &#91;embedded content: 实施路线 · 7 个阶段\]
 
@@ -295,39 +341,64 @@ P1 之后，P2、P3、P4 互不依赖，可以并行或按任意顺序做；P5 �
 - **P5 IM**：在飞书里收到高档卡片并点选项，网页同步变为已处理；在飞书里发一句话能建出任务。网页与飞书两端状态一致。
 - **P6 分享**：把"科研部"导出为部门包，在一个全新实例里导入后能直接工作；皮肤包同理。
 
+### v0.5：合成一个应用（P8–P10）
+
+P8 → P9 → P10 依次做，每个阶段结束都能跑起来验收。
+
+**P8 合并外壳：一个端口、一条侧栏**
+
+- 工作台的视图（Home、Team、项目、项目抽屉、员工抽屉、设置、部门向导）迁入 `vendor/paperclip/ui/src/agentself/`，注册为 Paperclip 界面的路由；默认首页改为工作台。
+- Paperclip 的布局侧栏换成 7.0 的 Agentself 侧栏；隐藏收件箱、仪表盘、新建任务入口、智能体聊天、Cases、Goals、多公司切换（不删代码）。
+- Agentself 本地服务的接口统一为 `/agentself/api/*`，由 Paperclip 服务反向代理，前端同源调用；`scripts/start.mjs` 只对外暴露 3100，:3200 前端下线。
+- 验收：只打开 `http://127.0.0.1:3100` 跑通 P2 / P3 验收脚本的全部操作；全应用只有一条侧栏；卡片 → 项目抽屉 → 任务完整页 → 运行记录全程不离开应用；被隐藏的页面用 URL 仍能打开。
+
+**P9 统一视觉与叫法**
+
+- 皮肤 token 映射到 Paperclip 的 CSS 变量（背景、前景、主色、边框、圆角、字体），切换皮肤时管理页同步变化。
+- 像素机器人头像替换 Paperclip 全部员工头像组件。
+- 皮肤术语表接入 P7 的汉化层：术语词条由当前皮肤覆盖（智能体 → 员工、管理台 → 我 等）。
+- 验收：办公室 / 朝堂皮肤切换后，工作台、组织图、员工详情、费用页的颜色和称呼一致；默认皮肤下全应用不出现"智能体"三个字。
+
+**P10 页面整合**
+
+- 部门页：概览 / 成员 / 例行任务 / 能力 / 预算五个标签。
+- 员工完整页：Paperclip 员工详情 + "档案""记忆"标签；员工抽屉加"完整页"入口。
+- 能力与工具（技能 / 连接器 / 权限）、用量与预算、记录（活动 / 审计 / 产物 / 审批历史）、设置（含"高级"）按 7.0 合并。
+- 像素团队顶部统计条；输入框旁加"高级新建"。
+- 验收：侧栏每一项都在同一应用内打开；7.0 合并表里的重复入口全部消失；管理区页面都用 Agentself 侧栏和皮肤。
+
 ## 10. 交给 Claude Code 的执行说明
 
-把本文档（导出为 Markdown）和 v0.1 演示、设计稿一起交给 Claude Code，先做 Phase 0，每个 Phase 结束停下来等用户验收。
+仓库已完成 P0–P7。把本文档（导出为 Markdown）覆盖仓库的 `docs/PLAN.md`，从 P8 开始，每个 Phase 结束停下来等用户验收。第 12 节是 v0.4 的实现记录，与上文设计不同的地方以实现为准。
 
 **仓库结构（pnpm monorepo）**
 
 ```
 agentself/
+  vendor/paperclip/      # Paperclip 源码（可修改，改动登记在 docs/paperclip-changes.md）
+    ui/src/agentself/    # P8 起：工作台、像素团队、部门页等 Agentself 视图和侧栏
+  apps/console/          # P8 起只保留 server/（前台、飞书、办公室快照、设置、记忆、向导），前端下线
   plugins/
-    team-layer/        # 部门、前台、闸门、返工计数、跳数上限、卡片工具、记忆任务、消息流 API
-    im-feishu/         # 本期只接飞书；钉钉、Telegram 后续按同一接口加
-  apps/
-    console/           # 统一消息流、像素办公室、用量面板、新建部门向导（React）
+    team-layer/          # 返工计数、跳数上限、卡片工具 team.*、记忆任务
+    im-feishu/           # 飞书通道（长连接）
   packages/
-    pixel-office/      # 从 v0.1 演示拆出的 canvas 绘制包
-    skins/             # B（默认）、朝堂
-    shared/            # 类型：卡片、消息、部门包、快照
-  skills/
-    lead/              # 主管技能包
-    employee/          # 员工通用技能（汇报格式、卡片工具用法）
-    memory/            # 记忆技能包
-  packs/departments/   # research / company / life 示例
-  docs/                # 本方案、Phase 报告
+    pixel-office/        # 像素办公室 canvas（原创像素机器人）
+    skins/               # 办公室（默认）、朝堂；P9 增加到 Paperclip CSS 变量的映射
+    shared/              # 类型：卡片、消息、部门包、快照
+  skills/                # 主管 / 员工 / 记忆技能包
+  packs/departments/     # 部门包示例
+  scripts/               # 启动、建部门、开机自启、验收、汉化工具
+  docs/                  # 本方案、Phase 计划与报告
 ```
 
 **硬约束**
 
-- Paperclip 源码在 `vendor/paperclip`（`agentself` 分支，基线 `d69631b`），可直接修改；每处修改记入 `docs/paperclip-changes.md`，便于以后合并上游。不再从 npm 安装 Paperclip，从源码构建运行。
-- 接口以运行实例的 `GET /api/openapi.json` 为准；与本文档字段名不一致时以实例为准并在 Phase 报告里列出。
+- Paperclip 源码可以改，但优先用插件或新增文件；必须改上游文件时把改动集中在少数入口（布局、侧栏、路由、主题变量），每处登记在 `docs/paperclip-changes.md`。隐藏的功能只从导航去掉，不删代码。
+- 接口以运行实例的 `GET /api/openapi.json` 为准。
 - 不打开、不复制 MyAgents 源码。
 - 目标平台 Windows 11（常开机），Node.js 24.11+、pnpm 9.15+；路径、进程、换行都要兼容 Windows。
-- 界面文案走皮肤术语表，不硬编码"主管""员工"等词。
-- 测试用 Vitest；每个团队层规则（闸门、返工、跳数、三档归类）都要有单元测试。
+- 界面文案走皮肤术语表，不硬编码"主管""员工"等词；员工形象只用原创像素机器人。
+- 测试用 Vitest；团队层规则和已有验收脚本在每个 Phase 结束时都要继续通过。
 - 不提交密钥；不自动 push。
 
 **工作方式**
@@ -335,7 +406,7 @@ agentself/
 - 每个 Phase 开始前写一页计划到 `docs/phase-N-plan.md`，结束写 `docs/phase-N-report.md`（做了什么、怎么验收、与方案的偏差）。
 - 与方案冲突或 Phase 0 验证失败时，停下来列出选项，不自行改架构。
 
-**首个任务：Phase 0 验证**
+**当前任务：P8 合并外壳（见第 9 节）。下面是已完成的 Phase 0 清单，留作记录**
 
 - [ ] 在 Windows 上用 `npx paperclipai onboard --yes` 装好并常驻 24 小时，记录问题。
 - [ ] 导出 `openapi.json`，核对第 3 节映射表里的每个字段。
@@ -350,9 +421,7 @@ agentself/
 
 | 风险 | 影响 | 应对 |
 | --- | --- | --- |
-| 插件 SDK 是 alpha，版本间有破坏性改动 | 合并上游可能弄坏团队层 | 固定基线 commit；合并上游单独作为任务，跑完测试再合入 |
-| 直接改 Paperclip 源码 | 与上游分叉越来越大，合并困难 | 改动集中、记录在 `docs/paperclip-changes.md`；中文化词条尽量回馈上游 |
-| 后台中文化工作量大（UI 约 940 个组件文件，文字多为硬编码） | 进度 | 先做高频页面，按页面分批抽取词条 |
+| 插件 SDK 是 alpha，版本间有破坏性改动 | 升级 Paperclip 可能弄坏团队层 | 锁定版本；升级单独作为任务，跑完测试再合入 |
 | 插件能否提供整页界面未确认 | console 的落地方式 | Phase 0 验证；不行就做独立网页，经 Paperclip API + 插件 API 路由取数 |
 | Windows 官方未声明支持 | 常驻不稳 | Phase 0 常驻 24 小时；备选 Docker / WSL |
 | 心跳默认关闭，唤醒策略细节文档不全 | 任务可能没人接 | 以分配 / 阻塞解除唤醒为主，主管开低频心跳兜底 |
@@ -360,28 +429,16 @@ agentself/
 | 订阅额度可能拿不到官方剩余值 | 用量面板不准 | 显示为"估算" |
 | Paperclip 更新很快，可能自己做出重叠功能 | 重复建设 | 每个 Phase 开始前看一遍 changelog，有现成就改用 |
 
+v0.5 新增风险：**改动 Paperclip 布局、侧栏、路由后，合并上游更新会在这几个文件上冲突。** 应对：Agentself 代码放在新增目录 `ui/src/agentself/`，上游文件只改挂载点；每处改动登记在 `docs/paperclip-changes.md`；升级上游作为单独任务，跑完验收脚本再合入。
+
 **仍待用户决定**
 
 - 已定：项目名 Agentself，仓库名 `agentself`。
 - 已定：IM 本期只接飞书。
-- 是否保留"插一句话"：在某个任务里直接给员工留言（本方案默认保留，实现为 issue 评论）。
-- 前端：工作台、像素团队、设置页、项目抽屉、员工抽屉五张画板已出，待确认。
-
-## 12. 实施记录（v0.4，2026-11-14）
-
-P0–P6 已按本方案实现，各阶段报告见 `docs/phase-N-report.md`。与上文设计不同、以实现为准的地方：
-
-| 项 | 方案原文 | 实现 |
-| --- | --- | --- |
-| ask 卡片 | Decision + `wake_origin_agent` | 主要用 issue 线程互动 `ask_user_questions`（插件以员工身份创建，作答 `wake_assignee` 唤醒负责人）；Decision 仍可用，工作台和飞书都能处理 |
-| 返工 / 跳数卡片 | 生成 ask 卡片 | 挂在**父 issue** 上，作答唤醒主管，由主管技能包执行"继续 / 换人 / 放弃"或"放行 / 取消 / 停止拆分" |
-| 主管汇报确认 | 用户确认后置 done | Paperclip 自带技能会对 report 文档发"请求确认"互动；工作台把它当作"交付结果"卡片 |
-| 前台模型 | 插件调快速模型 | 工作台服务调用本机 Claude Code（`claude -p --model haiku`，可联网），不另配密钥 |
-| 记忆注入 | 记忆技能包 | 技能包 + 工作目录 `CLAUDE.md`（@ 引入记忆）/ `AGENTS.md`（Codex）。只靠技能时 Claude Code 不一定加载 |
-| 插件 job | 直接遍历 company | job 无 company 上下文；插件记录见过的 company，建部门时为该 company 建插件配置并注册 |
-| ImChannel | webhook 风格接口 | 增加 `start()`；长连接下入站来自 SDK 推送。通道运行在工作台服务里 |
-| Paperclip 后台中文化 | 在 i18next 上抽词条 | 词典 + DOM 翻译层（`vendor/paperclip/ui/src/i18n/dom-translate.ts`），词典由 `scripts/i18n` 从源码抽取、Haiku 翻译；可用 localStorage 切回英文 |
-| 用户相关数据 | — | 工作区、记忆、设置、皮肤都在 `~/.agentself/`；Paperclip 数据在 `~/.paperclip/instances/default` |
+- 已定（v0.5）：以 Paperclip 界面为宿主合成一个应用，只用 3100 一个端口。
+- 已定（v0.5）：侧栏"管理"区默认折叠。
+- 已定（v0.5）：隐藏智能体聊天、Cases、Goals、多公司切换（代码保留）。
+- 是否保留"插一句话"：默认保留，实现为 issue 评论。
 
 **Sources**
 
@@ -395,3 +452,19 @@ P0–P6 已按本方案实现，各阶段报告见 `docs/phase-N-report.md`。�
 - [Adapters](https://docs.paperclip.ing/reference/adapters/overview/)
 - [Connectors](https://docs.paperclip.ing/connectors/)
 - [Windows 安装教程（DataCamp）](https://www.datacamp.com/tutorial/paperclip-tutorial)
+
+## 12. 实施记录（v0.4，2026-11-14）
+
+P0–P7 已实现，各阶段报告见仓库 `docs/phase-N-report.md`。与上文设计不同、以实现为准的地方：
+
+| 项 | 方案原文 | 实现 |
+| --- | --- | --- |
+| ask 卡片 | Decision + `wake_origin_agent` | 主要用 issue 线程互动 `ask_user_questions`（插件以员工身份创建，作答 `wake_assignee` 唤醒负责人）；Decision 仍可用 |
+| 返工 / 跳数卡片 | 生成 ask 卡片 | 挂在父 issue 上，作答唤醒主管，由主管技能包执行对应动作 |
+| 主管汇报确认 | 用户确认后置 done | Paperclip 自带技能对 report 文档发"请求确认"互动，工作台当作"交付结果"卡片 |
+| 前台模型 | 插件调快速模型 | 本地服务调用本机 Claude Code（`claude -p --model haiku`，可联网），不另配密钥 |
+| 记忆注入 | 记忆技能包 | 技能包 + 工作目录 `CLAUDE.md`（@ 引入记忆）/ `AGENTS.md`（Codex） |
+| 插件 job | 直接遍历 company | job 无 company 上下文；插件记录见过的 company，建部门时注册 |
+| ImChannel | webhook 风格接口 | 增加 `start()`；长连接入站来自 SDK 推送；通道运行在本地服务里 |
+| 后台中文化 | 在 i18next 上抽词条 | 词典 + DOM 翻译层（`ui/src/i18n/dom-translate.ts`），词典由 `scripts/i18n` 抽取并翻译 |
+| 用户数据 | — | 工作区、记忆、设置、皮肤在 `~/.agentself/`；Paperclip 数据在 `~/.paperclip/instances/default` |

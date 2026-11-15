@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Start Agentself: Paperclip (from vendor/paperclip source) + the console server.
+// Start Agentself: Paperclip (from vendor/paperclip source; the only public port, :3100) +
+// the Agentself local service (apps/console/server, loopback :3200, reached through
+// Paperclip at /agentself/api/*).
 // Restarts a service if it exits. Logs go to ~/.agentself/logs/.
 // Usage: node scripts/start.mjs [--no-paperclip] [--no-console]
 import { spawn, spawnSync } from "node:child_process";
@@ -77,5 +79,5 @@ if (!args.has("--no-paperclip")) {
   });
 }
 if (!args.has("--no-console")) {
-  supervise("console", process.execPath, [path.join(root, "apps", "console", "server", "server.mjs")], path.join(root, "apps", "console"), "http://127.0.0.1:3200/agentself/settings");
+  supervise("agentself-local", process.execPath, [path.join(root, "apps", "console", "server", "server.mjs")], path.join(root, "apps", "console"), "http://127.0.0.1:3200/agentself/api/settings");
 }

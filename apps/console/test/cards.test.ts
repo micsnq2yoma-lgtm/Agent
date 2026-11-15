@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCards, countByType, filterCards, type AttentionItem, type Interaction } from "../src/lib/cards";
+import { buildCards, countByType, filterCards, type AttentionItem, type Interaction } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
 
 const agents = [
   { id: "lead", name: "科研主管", adapterType: "claude_local", metadata: { agentself: { department: "research", isLead: true } } },

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// Agentself console server: serves the built UI, proxies /api to Paperclip and hosts
-// Agentself-only endpoints under /agentself (front desk, settings, office snapshot).
+// Agentself local service (P8): hosts the Agentself-only endpoints under /agentself/api
+// (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
+// Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
+// /agentself/api/* here, so it listens on loopback only and serves no UI.
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -18,7 +20,6 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const PAPERCLIP = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
 const PORT = Number(process.env.AGENTSELF_PORT ?? 3200);
 const HOST = process.env.AGENTSELF_HOST ?? "127.0.0.1";
-const DIST = path.resolve(here, "..", "dist");
 const HOME = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
 const STORE = path.join(HOME, "console.json");
 
@@ -183,7 +184,7 @@ function send(res, status, body) {
 }
 
 async function handleAgentself(req, res, url) {
-  const p = url.pathname.replace(/^\/agentself/, "");
+  const p = url.pathname.replace(/^\/agentself\/api/, "");
   if (req.method === "GET" && p === "/context") {
     const ctx = await loadContext();
     return send(res, 200, { ...ctx, settings: store.settings, paperclipUrl: PAPERCLIP });
@@ -285,29 +286,6 @@ async function handleAgentself(req, res, url) {
   return send(res, 404, { error: "not found" });
 }
 
-function proxy(req, res) {
-  const target = new URL(req.url, PAPERCLIP);
-  const upstream = http.request(
-    target,
-    { method: req.method, headers: { ...req.headers, host: target.host } },
-    (up) => {
-      res.writeHead(up.statusCode ?? 502, up.headers);
-      up.pipe(res);
-    },
-  );
-  upstream.on("error", (e) => send(res, 502, { error: `Paperclip 不可用：${e.message}` }));
-  req.pipe(upstream);
-}
-
-const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json", ".woff2": "font/woff2", ".ico": "image/x-icon" };
-function serveStatic(req, res, url) {
-  let file = path.join(DIST, decodeURIComponent(url.pathname));
-  if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, "index.html");
-  if (!fs.existsSync(file)) return send(res, 503, { error: "界面还没构建：pnpm --filter @agentself/console build" });
-  res.writeHead(200, { "content-type": MIME[path.extname(file)] ?? "application/octet-stream" });
-  fs.createReadStream(file).pipe(res);
-}
-
 function restartIm() {
   return startIm({
     settings: store.settings,
@@ -324,9 +302,8 @@ export function createServer() {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
     try {
-      if (url.pathname.startsWith("/agentself/")) return await handleAgentself(req, res, url);
-      if (url.pathname.startsWith("/api/")) return proxy(req, res);
-      return serveStatic(req, res, url);
+      if (url.pathname.startsWith("/agentself/api/")) return await handleAgentself(req, res, url);
+      return send(res, 404, { error: `工作台已并入 Paperclip：请打开 ${PAPERCLIP}` });
     } catch (e) {
       console.error(e);
       send(res, e.status ?? 500, { error: e.message ?? String(e) });
@@ -336,7 +313,7 @@ export function createServer() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createServer().listen(PORT, HOST, () => {
-    console.log(`Agentself console http://${HOST}:${PORT}  (Paperclip ${PAPERCLIP})`);
+    console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
   });
 }

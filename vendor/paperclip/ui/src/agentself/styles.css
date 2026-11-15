@@ -1,0 +1,168 @@
+/* Agentself views inside the Paperclip UI. Everything is scoped under .agentself so
+   Paperclip pages are untouched (P8). Colours come from skin tokens (--as-*), set at runtime. */
+:root {
+  --as-bg: #faf9f7;
+  --as-sidebar: #f3f1ed;
+  --as-surface: #ffffff;
+  --as-border: #e6e2db;
+  --as-text: #26241f;
+  --as-muted: #625d55;
+  --as-accent: #d9480f;
+  --as-accent-strong: #b4410c;
+  --as-high: #c23b3b;
+  --as-medium: #3a5a8c;
+  --as-low: #8a847a;
+  --as-success: #2b7a3b;
+  --as-radius: 10px;
+  --as-font-body: "Inter", "Noto Sans SC", sans-serif;
+  --as-font-display: "Space Grotesk", "Inter", "Noto Sans SC", sans-serif;
+  color-scheme: light dark;
+}
+.agentself, .agentself * { box-sizing: border-box; }
+.agentself { background: var(--as-bg); color: var(--as-text); font: 14px/1.5 var(--as-font-body); -webkit-font-smoothing: antialiased; }
+.agentself a { color: var(--as-accent-strong); }
+.agentself button { font: inherit; color: inherit; cursor: pointer; }
+.agentself input, .agentself textarea, .agentself select { font: inherit; color: inherit; }
+.agentself :focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+
+.agentself.as-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
+html[data-layout-sidebar="right"] .agentself .shell { flex-direction: row-reverse; }
+
+/* ---------- sidebar ---------- */
+.agentself .sidebar { width: 100%; height: 100%; flex: none; background: var(--as-sidebar); border-right: 1px solid var(--as-border); display: flex; flex-direction: column; padding: 16px 10px; gap: 2px; overflow-y: auto; }
+html[data-layout-sidebar="right"] .agentself .sidebar { border-right: none; border-left: 1px solid var(--as-border); }
+.agentself .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 14px; }
+.agentself .wordmark { display: inline-flex; align-items: baseline; letter-spacing: 0.16em; font-family: var(--as-font-display); font-weight: 600; line-height: 1; }
+.agentself .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; border: none; background: none; text-align: left; width: 100%; color: var(--as-text); }
+.agentself .nav-item:hover { background: color-mix(in srgb, var(--as-text) 6%, transparent); }
+.agentself .nav-item.active { background: var(--as-surface); box-shadow: 0 1px 2px rgba(38, 36, 31, 0.06); font-weight: 600; }
+.agentself .nav-item .count { margin-left: auto; font-size: 12px; color: var(--as-muted); }
+.agentself .nav-item .count.hot { color: #fff; background: var(--as-high); border-radius: 999px; padding: 0 7px; }
+.agentself .nav-section { margin: 14px 10px 4px; font-size: 12px; color: var(--as-muted); display: flex; justify-content: space-between; align-items: center; }
+.agentself .nav-section button { border: none; background: none; color: var(--as-muted); font-size: 16px; line-height: 1; padding: 0 2px; }
+.agentself .sidebar .spacer { flex: 1; }
+
+/* ---------- main ---------- */
+.agentself .main { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.agentself .topbar { height: 52px; flex: none; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid var(--as-border); }
+.agentself .toggle { display: inline-flex; background: var(--as-sidebar); border-radius: 999px; padding: 3px; border: 1px solid var(--as-border); }
+.agentself .toggle button { border: none; background: none; padding: 5px 16px; border-radius: 999px; color: var(--as-muted); }
+.agentself .toggle button.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: 0 1px 2px rgba(38, 36, 31, 0.08); }
+.agentself .pending-badge { position: absolute; right: 18px; border: none; background: color-mix(in srgb, var(--as-high) 12%, transparent); color: var(--as-high); border-radius: 999px; padding: 4px 12px; font-weight: 600; }
+.agentself .content { flex: 1; overflow-y: auto; }
+.agentself .page { max-width: 1120px; margin: 0 auto; padding: 28px 32px 60px; }
+
+/* ---------- home ---------- */
+.agentself .hero { text-align: center; margin: 18px 0 22px; }
+.agentself .hero .wordmark { font-size: 40px; }
+.agentself .hero .tagline { margin-top: 12px; font-size: 16px; }
+.agentself .hero .tagline-en { margin-top: 4px; font-size: 13px; color: var(--as-muted); }
+.agentself .composer { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: 14px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(38, 36, 31, 0.06); }
+.agentself .composer textarea { width: 100%; border: none; resize: none; min-height: 64px; background: transparent; outline: none; font-size: 15px; }
+.agentself .composer-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agentself .chip-select { border: 1px solid var(--as-border); background: var(--as-bg); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
+.agentself .btn { border: 1px solid var(--as-border); background: var(--as-surface); border-radius: 8px; padding: 6px 12px; white-space: nowrap; }
+.agentself .btn:hover { border-color: var(--as-muted); }
+.agentself .btn.primary { background: var(--as-accent); border-color: var(--as-accent); color: #fff; font-weight: 600; }
+.agentself .btn.primary:hover { background: var(--as-accent-strong); }
+.agentself .btn.danger { color: var(--as-high); }
+.agentself .btn.ghost { border-color: transparent; background: none; color: var(--as-muted); }
+.agentself .btn:disabled { opacity: 0.5; cursor: default; }
+.agentself .hint { font-size: 12px; color: var(--as-muted); margin-top: 8px; }
+.agentself .notice { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--as-sidebar); font-size: 13px; }
+
+.agentself .results-head { display: flex; align-items: center; gap: 10px; margin: 30px 0 12px; }
+.agentself .results-head h2 { font-size: 16px; margin: 0; }
+.agentself .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.agentself .filter { border: 1px solid var(--as-border); background: none; border-radius: 999px; padding: 3px 12px; font-size: 13px; color: var(--as-muted); }
+.agentself .filter.on { background: var(--as-text); border-color: var(--as-text); color: var(--as-bg); }
+
+.agentself .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+html[data-card-columns="grid"] .agentself .cards { grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.agentself .card { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; min-height: 150px; }
+.agentself .card.decide { border-top: 3px solid var(--as-high); }
+.agentself .card.deliver { border-top: 3px solid var(--as-medium); }
+.agentself .card.failed { border-top: 3px solid var(--as-high); }
+.agentself .card.answer { border-top: 3px solid var(--as-low); }
+.agentself .card.open { outline: 2px solid var(--as-accent); }
+.agentself .card-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--as-muted); flex-wrap: wrap; }
+.agentself .tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+.agentself .tag.decide, .agentself .tag.failed { color: var(--as-high); background: color-mix(in srgb, var(--as-high) 12%, transparent); }
+.agentself .tag.deliver { color: var(--as-medium); background: color-mix(in srgb, var(--as-medium) 12%, transparent); }
+.agentself .tag.answer { color: var(--as-low); background: color-mix(in srgb, var(--as-low) 15%, transparent); }
+.agentself .model { font-size: 11px; border: 1px solid var(--as-border); border-radius: 4px; padding: 0 5px; }
+.agentself .card-title { font-weight: 600; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.agentself .card-actions { margin-top: auto; display: flex; gap: 6px; align-items: center; }
+.agentself .detail { grid-column: 1 / -1; background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 18px 20px; }
+.agentself .detail .who { font-size: 13px; color: var(--as-muted); display: flex; justify-content: space-between; gap: 12px; }
+.agentself .detail .explain { white-space: pre-wrap; margin: 10px 0; }
+.agentself .detail .opts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.agentself .detail .noreply { margin-top: 10px; font-size: 12px; color: var(--as-muted); }
+.agentself .detail .report { margin-top: 10px; padding: 12px; background: var(--as-bg); border-radius: 8px; white-space: pre-wrap; max-height: 360px; overflow: auto; font-size: 13px; }
+.agentself .empty { padding: 40px; text-align: center; color: var(--as-muted); border: 1px dashed var(--as-border); border-radius: var(--as-radius); }
+.agentself .handled { margin-top: 24px; }
+.agentself .handled summary { cursor: pointer; color: var(--as-muted); }
+
+/* ---------- drawer ---------- */
+.agentself .drawer-backdrop { position: fixed; inset: 0; background: rgba(27, 23, 34, 0.25); z-index: 20; }
+.agentself .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); background: var(--as-bg); border-left: 1px solid var(--as-border); z-index: 21; display: flex; flex-direction: column; }
+.agentself .drawer header { padding: 18px 22px 12px; border-bottom: 1px solid var(--as-border); }
+.agentself .drawer header h2 { margin: 4px 0; font-size: 18px; }
+.agentself .drawer .body { flex: 1; overflow-y: auto; padding: 16px 22px; display: flex; flex-direction: column; gap: 18px; }
+.agentself .drawer footer { border-top: 1px solid var(--as-border); padding: 12px 22px; }
+.agentself .drawer h3 { font-size: 13px; color: var(--as-muted); margin: 0 0 8px; font-weight: 600; display: flex; justify-content: space-between; }
+.agentself .subtask { display: flex; gap: 10px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--as-border); }
+.agentself .subtask .n { width: 20px; height: 20px; border-radius: 50%; background: var(--as-sidebar); font-size: 12px; display: grid; place-items: center; flex: none; }
+.agentself .subtask .st { margin-left: auto; font-size: 12px; white-space: nowrap; }
+.agentself .st.done { color: var(--as-success); }
+.agentself .st.blocked { color: var(--as-high); }
+.agentself .timeline { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.agentself .timeline li { padding: 6px 0; border-bottom: 1px dashed var(--as-border); }
+.agentself .timeline time { color: var(--as-muted); font-size: 12px; margin-right: 8px; }
+.agentself .close-x { float: right; border: none; background: none; font-size: 20px; color: var(--as-muted); }
+
+/* ---------- team ---------- */
+.agentself .office-wrap { position: relative; width: 100%; }
+.agentself .office-wrap canvas { width: 100%; image-rendering: pixelated; display: block; border-radius: var(--as-radius); border: 1px solid var(--as-border); cursor: pointer; }
+.agentself .nameplate { position: absolute; transform: translate(-50%, 0); font-size: 11px; background: var(--as-surface); border: 1px solid var(--as-border); border-radius: 4px; padding: 0 5px; white-space: nowrap; pointer-events: none; }
+.agentself .nameplate .m { color: var(--as-muted); margin-left: 4px; }
+.agentself .nameplate .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+.agentself .zone-label { position: absolute; top: 2px; transform: translateX(-50%); font-size: 12px; font-weight: 600; background: var(--as-surface); padding: 1px 8px; border-radius: 999px; border: 1px solid var(--as-border); }
+.agentself .popover { position: absolute; z-index: 5; background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 12px 14px; width: 260px; box-shadow: 0 8px 24px rgba(27, 23, 34, 0.15); }
+
+/* ---------- forms / settings ---------- */
+.agentself .section { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 16px 18px; margin-bottom: 14px; }
+.agentself .section h2 { font-size: 15px; margin: 0 0 12px; }
+.agentself .row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--as-border); }
+.agentself .row:first-of-type { border-top: none; }
+.agentself .row .label { font-weight: 500; }
+.agentself .row .sub { font-size: 12px; color: var(--as-muted); }
+.agentself .input { border: 1px solid var(--as-border); border-radius: 8px; padding: 6px 10px; background: var(--as-bg); }
+.agentself table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+.agentself table.data th, .agentself table.data td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--as-border); }
+.agentself table.data th { color: var(--as-muted); font-weight: 500; }
+.agentself .bar { height: 6px; background: var(--as-sidebar); border-radius: 999px; overflow: hidden; min-width: 80px; }
+.agentself .bar > span { display: block; height: 100%; background: var(--as-accent); }
+.agentself .error-banner { background: color-mix(in srgb, var(--as-high) 10%, transparent); color: var(--as-high); padding: 8px 14px; font-size: 13px; }
+.agentself .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--as-text); color: var(--as-bg); padding: 8px 16px; border-radius: 8px; z-index: 50; }
+.agentself .wizard-steps { display: flex; gap: 6px; margin-bottom: 16px; }
+.agentself .wizard-steps span { flex: 1; height: 4px; border-radius: 999px; background: var(--as-border); }
+.agentself .wizard-steps span.on { background: var(--as-accent); }
+.agentself .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.agentself label.field { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+
+@media (max-width: 760px) {
+  .agentself .sidebar { display: none; }
+  .agentself .page { padding: 18px 16px 40px; }
+  .agentself .hero .wordmark { font-size: 30px; }
+}
+
+/* ---------- P8: sidebar inside the Paperclip shell ---------- */
+.agentself a.nav-item { text-decoration: none; }
+.agentself .nav-toggle { border: none; background: none; width: calc(100% - 20px); cursor: pointer; padding: 0; }
+.agentself .nav-toggle.has-active span:first-child { color: var(--as-accent-strong); font-weight: 600; }
+.agentself .nav-group { display: flex; flex-direction: column; gap: 2px; }
+.agentself .nav-me { display: flex; gap: 2px; border-top: 1px solid var(--as-border); padding-top: 6px; margin-top: 6px; }
+.agentself .drawer-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
+.agentself .nav-me .nav-item { white-space: nowrap; }
+.agentself .nav-me .nav-item:first-child { flex: 1; }

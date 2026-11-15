@@ -1,5 +1,6 @@
 const BOARD_ROUTE_ROOTS = new Set([
   "dashboard",
+  "agentself", // Agentself (P8): workbench routes live under /:companyPrefix/agentself
   "companies",
   "company",
   "skills",

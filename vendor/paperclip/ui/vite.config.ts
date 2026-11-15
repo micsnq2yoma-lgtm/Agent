@@ -55,6 +55,10 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      // Agentself: shared packages from the outer monorepo (see src/agentself/)
+      "@agentself/skins": path.resolve(__dirname, "../../../packages/skins/src/index.ts"),
+      "@agentself/shared": path.resolve(__dirname, "../../../packages/shared/src/index.ts"),
+      "@agentself/pixel-office": path.resolve(__dirname, "../../../packages/pixel-office/src/index.ts"),
       lexical: path.resolve(__dirname, "./node_modules/lexical/dist/Lexical.mjs"),
     },
   },

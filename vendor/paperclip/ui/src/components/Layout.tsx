@@ -7,6 +7,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useLocation, useNavigate, useNavigationType, useParams } from "@/lib/router";
 import { Sidebar } from "./Sidebar";
+// Agentself (P8): one sidebar for the whole app; Paperclip nav + contextual rails are not rendered.
+import { AgentselfSidebar } from "../agentself/components/Sidebar";
+const AGENTSELF_SINGLE_SIDEBAR = true;
 import { CompanySettingsSidebar } from "./CompanySettingsSidebar";
 import { CompanySettingsNav } from "./access/CompanySettingsNav";
 import { AppsSidebar } from "./AppsSidebar";
@@ -209,7 +212,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       />
     )
   ) : null;
-  const secondarySidebar = isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
+  const secondarySidebar = AGENTSELF_SINGLE_SIDEBAR ? null : isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
     <AgentContextualSidebar agentRef={agentId} />
   ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
     <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
@@ -613,14 +616,14 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 {hasSecondarySidebar ? (
                   <SecondarySidebar>{secondarySidebar}</SecondarySidebar>
                 ) : (
-                  <Sidebar>{sidebarSections}</Sidebar>
+                  AGENTSELF_SINGLE_SIDEBAR ? <AgentselfSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
                 )}
               </div>
             </div>
-            <SidebarAccountMenu
+            {AGENTSELF_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
               deploymentMode={health?.deploymentMode}
               forceExpanded={replacesPrimarySidebar}
-            />
+            />}
           </div>
         ) : (
           <SidebarShell
@@ -639,13 +642,13 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 {replacesPrimarySidebar ? (
                   <SecondarySidebar>{secondarySidebar}</SecondarySidebar>
                 ) : (
-                  <Sidebar>{sidebarSections}</Sidebar>
+                  AGENTSELF_SINGLE_SIDEBAR ? <AgentselfSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
                 )}
               </div>
-              <SidebarAccountMenu
+              {AGENTSELF_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
                 deploymentMode={health?.deploymentMode}
                 forceExpanded={replacesPrimarySidebar}
-              />
+              />}
             </>}
           </SidebarShell>
         )}

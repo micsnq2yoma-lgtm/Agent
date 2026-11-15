@@ -7,7 +7,7 @@ import path from "node:path";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3200";
+const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p));
 const j = async (method, p, body) => {
@@ -23,53 +23,56 @@ const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 
 // 1. skins: office -> court -> office, terminology follows
-await page.goto(base, { waitUntil: "networkidle" });
-await page.getByRole("button", { name: "设置" }).click();
-await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "朝堂" }).getByRole("button").click();
+await page.goto(base, { waitUntil: "domcontentloaded" });
+await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
+await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "朝堂" }).getByRole("button", { name: /^使用/ }).click();
 await page.waitForTimeout(800);
-await page.getByRole("button", { name: "御书房" }).first().click();
+await page.getByRole("link", { name: "御书房", exact: true }).first().click();
 await page.waitForTimeout(1500);
 const courtText = await page.locator("body").innerText();
 results.courtTerms = ["御书房", "朝堂", "待朱批", "通政司"].every((w) => courtText.includes(w));
 results.courtLayoutRight = (await page.evaluate(() => document.documentElement.dataset.layoutSidebar)) === "right";
 await page.screenshot({ path: "spikes/shots/p3-court.png" });
-await page.getByRole("button", { name: "设置" }).click();
-await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "办公室" }).getByRole("button").click();
+await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "办公室" }).getByRole("button", { name: /^使用/ }).click();
 await page.waitForTimeout(800);
 const officeText = await page.locator("body").innerText();
 results.backToOffice = officeText.includes("工作台") && !officeText.includes("御书房");
 
 // 2. wizard: create the life department from its template through the UI
-const before = (await j("GET", "/agentself/context")).departments.map((d) => d.name);
+const before = (await j("GET", "/agentself/api/context")).departments.map((d) => d.name);
 if (!before.includes("生活部")) {
-  await page.getByTitle("新建部门").click();
+  await page.getByRole("link", { name: /新建部门/ }).click();
   await page.getByRole("button", { name: "生活部" }).click();
   for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "创建" }).click();
   await page.waitForTimeout(8000);
 }
-const ctx = await j("GET", "/agentself/context");
+const ctx = await j("GET", "/agentself/api/context");
 const life = ctx.departments.find((d) => d.name === "生活部");
 results.wizardCreated = !!life && life.members.length >= 1;
 if (life) {
   const agent = ctx.agents.find((a) => life.members.includes(a.id));
   results.wizardAgentReady = { name: agent?.name, status: agent?.status, skills: agent ? (await j("GET", `/api/agents/${agent.id}/skills`)).desiredSkills?.length : 0 };
-  const mem = await j("GET", `/agentself/memory/${agent.id}`);
+  const mem = await j("GET", `/agentself/api/memory/${agent.id}`);
   results.wizardIdentityFile = mem.some((f) => f.path === "identity.md");
 }
 
 // 3. usage panel groups by department
-await page.getByRole("button", { name: "用量" }).click();
+// P8: usage lives in the collapsed "管理" group of the single sidebar
+if ((await page.getByTestId("nav-manage").getAttribute("aria-expanded")) !== "true") await page.getByTestId("nav-manage").click();
+await page.getByRole("link", { name: "用量与预算" }).click();
 await page.waitForTimeout(2500);
 const usageText = await page.locator("body").innerText();
 results.usageByDepartment = usageText.includes("科研部") && usageText.includes("订阅额度");
 await page.screenshot({ path: "spikes/shots/p3-usage.png" });
 
 // 4. pixel office: every agent has a nameplate and a mapped state
-await page.getByRole("button", { name: "工作台" }).first().click();
+await page.getByRole("link", { name: "工作台", exact: true }).first().click();
 await page.getByRole("tab", { name: "像素团队" }).click();
 await page.waitForTimeout(5000);
-const office = await j("GET", "/agentself/office");
+const office = await j("GET", "/agentself/api/office");
 const plates = await page.locator(".nameplate").count();
 results.officePeople = { snapshot: office.people.length, nameplates: plates, anims: office.people.map((p) => `${p.name}:${p.anim}`) };
 await page.screenshot({ path: "spikes/shots/p3-team.png" });

@@ -16,3 +16,4 @@ spikes/gate/ids.json
 spikes/shots/
 spikes/soak/
 agentself-handoff-v0.3-fresh/
+spikes/*-result.txt

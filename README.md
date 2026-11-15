@@ -27,17 +27,18 @@ vendor/paperclip/    Paperclip 源码（已为 Windows 与中文化修改，见 
 # 1. 依赖与构建
 cd vendor\paperclip; pnpm install; pnpm build; cd ..\..
 pnpm install
-pnpm --filter @agentself/console build
+cd vendor\paperclip\ui; pnpm exec vite build; cd ..\..\..   # 界面（Paperclip + Agentself 视图）
 cd plugins\team-layer; node build.mjs; cd ..\..
 
-# 2. 启动（Paperclip :3100 + 工作台 :3200，崩溃自动重启，日志在 ~/.agentself/logs）
+# 2. 启动：对外只有一个应用 :3100；Agentself 本地服务只听本机 :3200，
+#    由 Paperclip 经 /agentself/api 反向代理。崩溃自动重启，日志在 ~/.agentself/logs
 node scripts\start.mjs
 
 # 3. 首次：安装团队层插件并建一个示例部门
 #    （插件：POST /api/plugins/install {packageName:"<repo>\\plugins\\team-layer", isLocalPath:true}）
 node scripts\setup-department.mjs packs\departments\research.json
 
-# 4. 打开 http://127.0.0.1:3200
+# 4. 打开 http://127.0.0.1:3100（默认首页就是工作台）
 ```
 
 开机自启：`powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`（`-Remove` 卸载）。
@@ -54,6 +55,7 @@ node scripts\acceptance\p2-console.mjs      # 只用工作台完成前台即答�
 node scripts\acceptance\p3-console.mjs      # 皮肤切换、向导建部门、用量面板、像素办公室
 node scripts\acceptance\p4-memory.mjs       # 跨项目记忆 + 空闲整理 git 提交（耗额度）
 node scripts\acceptance\p6-skin.mjs         # 皮肤包导入导出
+node scripts\acceptance\p8-shell.mjs        # 一个端口、一条侧栏、卡片→抽屉→任务页→运行记录、隐藏页可直达（耗少量额度）
 ```
 
 ## 许可

@@ -5,22 +5,12 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
     "start": "node server/server.mjs"
   },
   "dependencies": {
-    "@agentself/shared": "workspace:*",
     "@agentself/skins": "workspace:*",
-    "@agentself/pixel-office": "workspace:*",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
     "@agentself/im-feishu": "workspace:*"
   },
-  "devDependencies": {
-    "@types/react": "19.1.8",
-    "@types/react-dom": "19.1.6",
-    "@vitejs/plugin-react": "4.5.2",
-    "vite": "6.3.5"
-  }
+  "devDependencies": {},
+  "description": "Agentself local service (front desk, Feishu, office snapshot, settings, memory, department wizard). UI lives in vendor/paperclip/ui/src/agentself."
 }

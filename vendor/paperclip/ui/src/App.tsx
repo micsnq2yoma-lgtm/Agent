@@ -5,6 +5,9 @@ import { Navigate, Outlet, Route, Routes, useActiveCompanyPrefix, useLocation, u
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/i18n";
 import { Layout } from "./components/Layout";
+// Agentself (P8): workbench views as routes + shared state around the company layout.
+import { AgentselfRoot } from "./agentself/App";
+import { agentselfRoutes } from "./agentself/routes";
 import { ConferenceRoomChatGate } from "./components/ConferenceRoomChatGate";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
 import { StatusCardsExperimentalGate } from "./components/StatusCardsExperimentalGate";
@@ -144,7 +147,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
   const mergedTasks = streamlinedUiEnabled && combinedInboxTasksEnabled;
   return (
     <>
-      <Route index element={<Navigate to="dashboard" replace />} />
+      {/* Agentself (P8): the workbench is the company home page. */}
+      <Route index element={<Navigate to="agentself" replace />} />
+      {agentselfRoutes()}
       <Route path="dashboard" element={<Dashboard />} />
       <Route path="dashboard/live" element={<DashboardLive />} />
       <Route
@@ -659,7 +664,7 @@ function CompanyRootRedirect() {
     return <NoCompaniesStartPage />;
   }
 
-  return <Navigate to={`/${targetCompany.issuePrefix}/dashboard`} replace />;
+  return <Navigate to={`/${targetCompany.issuePrefix}/agentself`} replace />; // Agentself (P8): workbench home
 }
 
 function StatusCardsLegacyRedirect() {
@@ -798,6 +803,8 @@ export function App() {
           <Route path="instance/settings" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings/*" element={<LegacySettingsRedirect />} />
           <Route path="companies" element={<UnprefixedBoardRedirect />} />
+          <Route path="agentself" element={<UnprefixedBoardRedirect />} />{/* Agentself (P8) */}
+          <Route path="agentself/*" element={<UnprefixedBoardRedirect />} />
           <Route path="issues" element={<UnprefixedBoardRedirect />} />
           <Route path="tasks" element={<UnprefixedBoardRedirect />} />
           <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
@@ -853,7 +860,7 @@ export function App() {
           <Route path="execution-workspaces/:workspaceId/runtime-logs" element={<UnprefixedExecutionWorkspaceRedirect />} />
           <Route path="execution-workspaces/:workspaceId/issues" element={<UnprefixedExecutionWorkspaceRedirect />} />
           <Route path="execution-workspaces/:workspaceId/routines" element={<UnprefixedExecutionWorkspaceRedirect />} />
-          <Route path=":companyPrefix" element={streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}>
+          <Route path=":companyPrefix" element={<AgentselfRoot>{streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}</AgentselfRoot>}>
             {boardRoutes(streamlinedUiEnabled, combinedInboxTasksEnabled)}
           </Route>
           <Route path="*" element={<NotFoundPage scope="global" />} />

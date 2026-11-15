@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// P2 acceptance through the browser (Playwright): from the console page only —
+// P2 acceptance through the browser (Playwright): from the single app on :3100 only —
 // front-desk instant answer, answer a card, "later" (snooze), confirm a lead report.
 import { createRequire } from "node:module";
 import fs from "node:fs";
@@ -9,7 +9,7 @@ import { api, list } from "../lib/paperclip.mjs";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3200";
+const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.existsSync(msDir)
   ? fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p))
@@ -22,7 +22,8 @@ const browser = await pw.chromium.launch({ executablePath: exe });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
-await page.goto(base, { waitUntil: "networkidle" });
+await page.goto(base, { waitUntil: "domcontentloaded" });
+await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
 
 // 1. front desk instant answer from the composer
 await page.getByLabel("交给团队一件事").fill("1 公里等于多少米？只回答数字。");
@@ -52,7 +53,8 @@ const mkProbe = async (title, prompt) => {
 };
 const probeAnswer = await mkProbe("[验收] 答卡片", "验收：请选 A 还是 B？");
 const probeLater = await mkProbe("[验收] 稍后", "验收：这张卡稍后再说？");
-await page.reload({ waitUntil: "networkidle" });
+await page.reload({ waitUntil: "domcontentloaded" });
+await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
 await page.waitForTimeout(6000);
 
 const cardA = page.locator("#results .card.decide").filter({ hasText: "请选 A 还是 B" }).first();
@@ -85,7 +87,7 @@ if (await deliver.count()) {
 
 await page.screenshot({ path: "spikes/shots/p2-after.png" });
 await browser.close();
-for (const it of [probeAnswer, probeLater]) await api("PATCH", `/issues/${it.id}`, { status: "cancelled" }).catch(() => {});
+for (const it of [probeAnswer, probeLater]) await api("DELETE", `/issues/${it.id}`).catch(() => {}); // leave no test data
 results.pageErrors = errors;
 const pass = results.instantAnswer && results.answerCardShown && results.answerCardDismissed && results.askAnswered && results.snoozed && errors.length === 0;
 console.log("RESULT", pass ? "PASS" : "FAIL", JSON.stringify(results, null, 1));
