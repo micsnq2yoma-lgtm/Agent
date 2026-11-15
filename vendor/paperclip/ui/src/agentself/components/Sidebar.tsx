@@ -1,12 +1,15 @@
 // The one Agentself sidebar (PLAN 7.0), mounted by ui/src/components/Layout.tsx in place of
-// Paperclip's own navigation. Daily items on top, the "管理" group collapsed by default.
-// Paperclip's inbox, dashboard, new-task button, agent chat, cases, goals and company switcher
-// are intentionally absent here; their routes still work by URL.
-import { useState } from "react";
+// Paperclip's own navigation. v0.6 SETO (DESIGN §4.1): four top-level items — 工作台, 项目,
+// 主管 (one row per lead + new), 管理 (collapsed) — and 设置 pinned at the bottom.
+// Paperclip's inbox, dashboard, agent chat, cases, goals and company switcher stay reachable by URL.
+import { useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, Folder, House, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
 import { Link, useLocation, useParams } from "@/lib/router";
+import { useSidebar } from "@/context/SidebarContext";
 import { AS_BASE, useAgentselfOptional } from "../App";
 import { useSkin } from "../lib/skin";
-import { Robot, Wordmark } from "./Brand";
+import { PackIcon } from "../lib/icons";
+import { Wordmark } from "./Brand";
 
 const MANAGE_KEY = "agentself.sidebar.manageOpen";
 
@@ -21,6 +24,7 @@ function readManageOpen(): boolean {
 export function AgentselfSidebar() {
   const s = useAgentselfOptional();
   const { t } = useSkin();
+  const { toggleSidebar } = useSidebar();
   const { companyPrefix } = useParams<{ companyPrefix?: string }>();
   const location = useLocation();
   const [manageOpen, setManageOpen] = useState(readManageOpen);
@@ -30,9 +34,10 @@ export function AgentselfSidebar() {
   const rel = companyPrefix ? location.pathname.replace(new RegExp(`^/${companyPrefix}(?=/|$)`, "i"), "") || "/" : location.pathname;
   const isActive = (to: string, exact = false) => (exact ? rel === to : rel === to || rel.startsWith(`${to}/`));
 
-  const item = (to: string, label: string, opts: { exact?: boolean; count?: number; hot?: boolean; testId?: string } = {}) => (
+  const item = (to: string, label: string, opts: { exact?: boolean; count?: number; hot?: boolean; testId?: string; icon?: ReactNode } = {}) => (
     <Link to={to} className={`nav-item ${isActive(to, opts.exact) ? "active" : ""}`} data-testid={opts.testId}>
-      <span>{label}</span>
+      {opts.icon}
+      <span className="label">{label}</span>
       {opts.count ? <span className={`count ${opts.hot ? "hot" : ""}`}>{opts.count}</span> : null}
     </Link>
   );
@@ -49,42 +54,49 @@ export function AgentselfSidebar() {
 
   const depts = (ctx?.departments ?? []).filter((d) => !d.archived);
   const archived = (ctx?.departments ?? []).filter((d) => d.archived).length;
-  const manageActive = ["/agentself/org", "/org", "/agents", "/agentself/capabilities", "/agentself/routines", "/routines", "/agentself/usage", "/agentself/records", "/costs", "/activity", "/approvals", "/skills", "/apps", "/artifacts"].some((p) => isActive(p));
+  const manageActive = ["/agentself/org", "/org", "/agents", "/agentself/capabilities", "/agentself/routines", "/routines", "/agentself/usage", "/agentself/records", "/costs", "/activity", "/approvals", "/skills", "/apps", "/artifacts", "/agentself/archived"].some((p) => isActive(p));
 
   return (
     <div className="agentself" style={{ height: "100%", width: "100%" }} data-agentself-sidebar="">
       <aside className="sidebar" aria-label="Agentself 导航">
         <div className="brand">
-          <Robot />
           <Wordmark />
           <span style={{ flex: 1 }} />
-          <Link to="/search" className="btn ghost" title="搜索" aria-label="搜索" style={{ padding: "2px 6px" }}>
-            ⌕
-          </Link>
+          <button className="icon-btn xs plain" aria-label="收起侧栏" title="收起侧栏" onClick={toggleSidebar}>
+            <PanelLeftClose />
+          </button>
         </div>
-        {item(AS_BASE, t("workbench"), { exact: true, count: s?.pending, hot: true, testId: "nav-workbench" })}
-        {item(`${AS_BASE}/projects`, t("project"), { count: s?.projectCount, testId: "nav-projects" })}
+        <Link to="/search" className="search-pill" aria-label="搜索">
+          <Search aria-hidden="true" />
+          <span>搜索</span>
+        </Link>
+
+        {item(AS_BASE, t("workbench"), { exact: true, count: s?.pending, hot: true, testId: "nav-workbench", icon: <House aria-hidden="true" /> })}
+        {item(`${AS_BASE}/projects`, t("project"), { count: s?.projectCount, testId: "nav-projects", icon: <Folder aria-hidden="true" /> })}
+
         <div className="nav-section">
-          <span>{t("department")}</span>
+          <span>{t("lead")}</span>
+          <Link to={`${AS_BASE}/departments/new`} className="icon-btn xs plain" aria-label={`新建${t("lead")}`} title={`新建${t("lead")}`}>
+            <Plus />
+          </Link>
         </div>
         {depts.map((d) => {
           const lead = ctx?.agents.find((a) => a.id === d.leadAgentId);
           const n = s?.pendingByDept[d.name] ?? 0;
           const to = `${AS_BASE}/departments/${d.key}`;
           return (
-            <Link key={d.key} to={to} className={`nav-item ${isActive(to) ? "active" : ""}`}>
-              <Robot id={lead?.id ?? d.key} eye={lead?.adapterType === "codex_local" ? "codex" : "claude"} size={20} />
-              <span>{d.name}</span>
+            <Link key={d.key} to={to} className={`nav-item ${isActive(to) ? "active" : ""}`} title={d.name}>
+              <PackIcon name={d.icon} />
+              <span className="label">{lead?.name ?? d.name}</span>
               {n ? <span className="count hot">{n}</span> : null}
             </Link>
           );
         })}
-        {item(`${AS_BASE}/departments/new`, `＋ 新建${t("department")}`, { exact: true })}
-        {archived ? item(`${AS_BASE}/archived`, "已归档", { count: archived }) : null}
+        {depts.length === 0 && item(`${AS_BASE}/departments/new`, `新建${t("lead")}`, { exact: true, icon: <Plus aria-hidden="true" /> })}
 
         <button className={`nav-section nav-toggle ${manageActive && !manageOpen ? "has-active" : ""}`} aria-expanded={manageOpen} onClick={toggleManage} data-testid="nav-manage">
           <span>管理</span>
-          <span aria-hidden>{manageOpen ? "▾" : "▸"}</span>
+          {manageOpen ? <ChevronDown aria-hidden="true" /> : <ChevronRight aria-hidden="true" />}
         </button>
         {manageOpen && (
           <div className="nav-group">
@@ -94,19 +106,11 @@ export function AgentselfSidebar() {
             {item(`${AS_BASE}/routines`, t("routine"))}
             {item(`${AS_BASE}/usage`, "用量与预算")}
             {item(`${AS_BASE}/records`, "记录")}
+            {archived ? item(`${AS_BASE}/archived`, "已归档", { count: archived }) : null}
           </div>
         )}
         <div className="spacer" />
-        {item(`${AS_BASE}/settings`, "设置", { testId: "nav-settings" })}
-        <div className="nav-me">
-          <Link to="/company/settings/instance/profile" className={`nav-item ${isActive("/company/settings/instance/profile") ? "active" : ""}`}>
-            <span>{t("user")}</span>
-          </Link>
-          <Link to={AS_BASE} className="nav-item" title="通知：等你拍板的卡片" onClick={() => s?.setFilter("decide")} style={{ width: "auto" }}>
-            <span>通知</span>
-            {s?.pending ? <span className="count hot">{s.pending}</span> : null}
-          </Link>
-        </div>
+        {item(`${AS_BASE}/settings`, "设置", { testId: "nav-settings", icon: <Settings aria-hidden="true" /> })}
       </aside>
     </div>
   );

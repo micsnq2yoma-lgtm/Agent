@@ -4,7 +4,7 @@
 // they work from any page. Pages are registered in routes.tsx.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { registerSkin, type Skin } from "@agentself/skins";
-import { useNavigate } from "@/lib/router";
+import { useNavigate, useParams } from "@/lib/router";
 import { as, usePoll, type Context } from "./lib/api";
 import { act, loadFeed, type Feed } from "./lib/feed";
 import type { Card, Filter } from "./lib/cards";
@@ -16,6 +16,8 @@ import { Team } from "./views/Team";
 import { ProjectDrawer } from "./views/ProjectDrawer";
 import { EmployeeDrawer } from "./views/EmployeeDrawer";
 import { Archived, NewDepartment, Projects, Routines, SettingsPage } from "./views/Pages";
+import { ChevronRight } from "lucide-react";
+import { Skeleton } from "./components/Skeleton";
 import "./styles.css";
 
 export const AS_BASE = "/agentself";
@@ -109,7 +111,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
     } catch {
       /* ignore */
     }
-    const fresh = feed.cards.filter((c) => c.type === "decide" && !seen.includes(c.id));
+    const fresh = feed.cards.filter((c) => (c.type === "decide" || c.type === "hire") && !seen.includes(c.id));
     if (fresh.length && Notification.permission === "granted" && document.hidden) {
       for (const c of fresh.slice(0, 3)) new Notification(`${t("decide")}：${c.title}`, { body: `${c.department ?? ""}` });
     }
@@ -122,7 +124,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
 
   const value = useMemo<AgentselfState>(() => {
     const pendingByDept: Record<string, number> = {};
-    for (const c of feed?.cards ?? []) if (c.type === "decide" && c.department) pendingByDept[c.department] = (pendingByDept[c.department] ?? 0) + 1;
+    for (const c of feed?.cards ?? []) if ((c.type === "decide" || c.type === "hire") && c.department) pendingByDept[c.department] = (pendingByDept[c.department] ?? 0) + 1;
     return {
       ctx,
       ctxError,
@@ -136,7 +138,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
       openEmployee: setEmployee,
       toast,
       runAct,
-      pending: (feed?.cards ?? []).filter((c) => c.type === "decide").length,
+      pending: (feed?.cards ?? []).filter((c) => c.type === "decide" || c.type === "hire").length,
       pendingByDept,
       projectCount: (feed?.issues ?? []).filter((i) => !i.parentId && !["done", "cancelled"].includes(i.status)).length,
     };
@@ -147,7 +149,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
       {children}
       {ctx?.company && project && (
         <div className="agentself">
-          <ProjectDrawer ctx={ctx} issueId={project} onClose={() => setProject(null)} toast={toast} />
+          <ProjectDrawer ctx={ctx} issueId={project} onClose={() => setProject(null)} toast={toast} cards={feed?.cards ?? []} />
         </div>
       )}
       {ctx?.company && employee && (
@@ -174,43 +176,59 @@ function readView(): "work" | "team" {
   }
 }
 
-function PageFrame({ ctx, children, topbar }: { ctx: Context | null; children: (ctx: Context) => ReactNode; topbar?: ReactNode }) {
+export { Skeleton };
+
+/**
+ * Page frame (DESIGN §2 / §4.2): a 64px top bar with no bottom line — breadcrumbs on the left, an
+ * optional centre control (the workbench / pixel-team switch), page actions on the right. The
+ * pending count lives only on the sidebar's 工作台 item.
+ */
+function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | null; children: (ctx: Context) => ReactNode; crumbs?: ReactNode[]; center?: ReactNode; actions?: ReactNode }) {
   const s = useAgentself();
   const navigate = useNavigate();
+  const { t } = useSkin();
   let body: ReactNode;
   if (s.ctxError && !ctx)
     body = (
       <div className="page">
         <div className="empty">
-          连不上 Agentself 本地服务：{s.ctxError}
-          <br />
-          请确认用 `node scripts/start.mjs` 启动（它会同时拉起本地服务）。
+          <b>连不上 Agentself 本地服务</b>
+          <span>{s.ctxError}。请确认用 `node scripts/start.mjs` 启动，它会同时拉起本地服务。</span>
         </div>
       </div>
     );
-  else if (!ctx) body = <div className="page">加载中…</div>;
+  else if (!ctx)
+    body = (
+      <div className="page" style={{ maxWidth: 760, paddingTop: 48 }}>
+        <Skeleton />
+      </div>
+    );
   else if (!ctx.company)
     body = (
       <div className="page">
-        <div className="empty">还没有团队。运行 `node scripts/setup-department.mjs packs/departments/research.json` 建一个示例部门，或稍后在这里新建。</div>
+        <div className="empty">
+          <b>还没有团队</b>
+          <span>先新建一位{t("lead")}和他的{t("employee")}，名字由你来定。</span>
+          <button className="btn primary" onClick={() => navigate(`${AS_BASE}/departments/new`)}>
+            新建{t("lead")}
+          </button>
+        </div>
       </div>
     );
   else body = children(ctx);
   return (
     <div className="agentself as-page">
       <div className="topbar">
-        {topbar ?? <span />}
-        {s.pending > 0 && (
-          <button
-            className="pending-badge"
-            onClick={() => {
-              s.setFilter("decide");
-              navigate(AS_BASE);
-            }}
-          >
-            {s.pending} 件等你拍板
-          </button>
-        )}
+        <nav className="crumbs" aria-label="位置">
+          {(crumbs ?? []).map((c, i, all) => (
+            <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+              {i === all.length - 1 ? <b>{c}</b> : c}
+              {i < all.length - 1 && <ChevronRight aria-hidden="true" />}
+            </span>
+          ))}
+        </nav>
+        <div>{center}</div>
+        <div className="actions">{actions}</div>
       </div>
       {s.feedError && <div className="error-banner">数据刷新失败：{s.feedError}</div>}
       <div className="content">{body}</div>
@@ -240,6 +258,7 @@ function TeamStats({ ctx }: { ctx: Context }) {
 export function WorkbenchPage() {
   const s = useAgentself();
   const { t } = useSkin();
+  const navigate = useNavigate();
   const [view, setViewState] = useState<"work" | "team">(readView);
   const setView = (v: "work" | "team") => {
     setViewState(v);
@@ -260,7 +279,7 @@ export function WorkbenchPage() {
     </div>
   );
   return (
-    <PageFrame ctx={s.ctx} topbar={toggle}>
+    <PageFrame ctx={s.ctx} crumbs={[t("workbench")]} center={toggle}>
       {(ctx) =>
         view === "team" ? (
           <div className="page">
@@ -271,7 +290,17 @@ export function WorkbenchPage() {
             </div>
           </div>
         ) : (
-          <Home ctx={ctx} feed={s.feed} reload={s.reloadFeed} department={null} filter={s.filter} setFilter={s.setFilter} openProject={s.openProject} toast={s.toast} />
+          <Home
+            ctx={ctx}
+            feed={s.feed}
+            reload={s.reloadFeed}
+            department={null}
+            filter={s.filter}
+            setFilter={s.setFilter}
+            openProject={s.openProject}
+            openAllProjects={() => navigate(`${AS_BASE}/projects`)}
+            toast={s.toast}
+          />
         )
       }
     </PageFrame>
@@ -280,35 +309,41 @@ export function WorkbenchPage() {
 
 export function DepartmentRoutePage() {
   const s = useAgentself();
+  const { t } = useSkin();
+  const { departmentKey } = useParams<{ departmentKey: string }>();
+  const dept = s.ctx?.departments.find((d) => d.key === departmentKey);
+  const lead = s.ctx?.agents.find((a) => a.id === dept?.leadAgentId);
   return (
-    <PageFrame ctx={s.ctx}>
-      {(ctx) => <DepartmentPage ctx={ctx} issues={s.feed?.issues ?? []} cards={s.feed?.cards ?? []} openProject={s.openProject} openEmployee={s.openEmployee} act={(c, o) => void s.runAct(c, o)} />}
+    <PageFrame ctx={s.ctx} crumbs={[t("lead"), lead?.name ?? dept?.name ?? ""]}>
+      {(ctx) => <DepartmentPage ctx={ctx} issues={s.feed?.issues ?? []} cards={s.feed?.cards ?? []} openProject={s.openProject} openEmployee={s.openEmployee} act={(c, o) => void s.runAct(c, o)} toast={s.toast} />}
     </PageFrame>
   );
 }
 export function ProjectsPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
+  const { t } = useSkin();
+  return <PageFrame ctx={s.ctx} crumbs={[t("project")]}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
 }
 export function RoutinesPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <Routines ctx={ctx} />}</PageFrame>;
+  const { t } = useSkin();
+  return <PageFrame ctx={s.ctx} crumbs={["管理", t("routine")]}>{(ctx) => <Routines ctx={ctx} />}</PageFrame>;
 }
 export function CapabilitiesPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <CapabilitiesHub ctx={ctx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["管理", "能力与工具"]}>{(ctx) => <CapabilitiesHub ctx={ctx} />}</PageFrame>;
 }
 export function UsagePage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <UsageHub ctx={ctx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["管理", "用量与预算"]}>{(ctx) => <UsageHub ctx={ctx} />}</PageFrame>;
 }
 export function RecordsPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{() => <RecordsHub />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["管理", "记录"]}>{() => <RecordsHub />}</PageFrame>;
 }
 export function OrgRoutePage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{() => <OrgPage />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["管理", "组织图"]}>{() => <OrgPage />}</PageFrame>;
 }
 /** Paperclip's employee detail wrapped with the 档案 / 记忆 tabs (mounted by ui/src/App.tsx). */
 export function EmployeeRoute({ detail }: { detail: ReactNode }) {
@@ -317,18 +352,18 @@ export function EmployeeRoute({ detail }: { detail: ReactNode }) {
 }
 export function SettingsRoutePage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <SettingsPage ctx={ctx} onSaved={s.reloadCtx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["设置"]}>{(ctx) => <SettingsPage ctx={ctx} onSaved={s.reloadCtx} />}</PageFrame>;
 }
 export function ArchivedPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <Archived ctx={ctx} onChange={s.reloadCtx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx} crumbs={["管理", "已归档"]}>{(ctx) => <Archived ctx={ctx} onChange={s.reloadCtx} />}</PageFrame>;
 }
 export function NewDepartmentPage() {
   const s = useAgentself();
   const { t } = useSkin();
   const navigate = useNavigate();
   return (
-    <PageFrame ctx={s.ctx}>
+    <PageFrame ctx={s.ctx} crumbs={[t("lead"), `新建${t("lead")}`]}>
       {(ctx) => (
         <NewDepartment
           ctx={ctx}

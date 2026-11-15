@@ -19,21 +19,21 @@ page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 await page.goto(base, { waitUntil: "networkidle" });
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${out}/home.png` });
-const expand = page.getByRole("button", { name: "展开" }).first();
-if (await expand.count()) { await expand.click(); await page.waitForTimeout(1200); await page.screenshot({ path: `${out}/home-expanded.png` }); }
+const firstCard = page.locator("#results .card").first();
+if (await firstCard.count()) { await firstCard.click(); await page.waitForTimeout(1200); await page.screenshot({ path: `${out}/home-expanded.png` }); }
 await page.getByRole("tab", { name: "像素团队" }).click();
 await page.waitForTimeout(2500);
 await page.screenshot({ path: `${out}/team.png` });
 await page.getByRole("tab", { name: "工作台" }).click();
-for (const [name, label] of [["settings", "设置"], ["usage", "用量"], ["projects", "项目"], ["new-dept", "＋"]]) {
-  const btn = name === "new-dept" ? page.getByTitle("新建部门") : page.getByRole("button", { name: label, exact: false }).first();
+for (const [name, testId] of [["settings", "nav-settings"], ["projects", "nav-projects"], ["new-lead", null]]) {
+  const btn = testId ? page.getByTestId(testId) : page.getByRole("link", { name: "新建主管" }).first();
   await btn.click();
   await page.waitForTimeout(1200);
   await page.screenshot({ path: `${out}/${name}.png`, fullPage: false });
 }
-await page.getByRole("button", { name: "项目" }).first().click();
-await page.waitForTimeout(800);
-const row = page.locator("table.data tbody tr").first();
+await page.getByTestId("nav-workbench").click();
+await page.waitForTimeout(1500);
+const row = page.locator("aside.progress .row-link").first();
 if (await row.count()) { await row.click(); await page.waitForTimeout(2500); await page.screenshot({ path: `${out}/project-drawer.png` }); }
 console.log(JSON.stringify({ errors }, null, 1));
 await browser.close();

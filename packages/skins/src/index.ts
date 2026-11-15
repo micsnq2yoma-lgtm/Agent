@@ -34,7 +34,45 @@ export interface SkinTokens {
   radius: string;
   fontBody: string;
   fontDisplay: string;
+  // v0.6 SETO (docs/handoff/design/DESIGN.md §3): optional; styles fall back when a skin omits them.
+  brand?: string;
+  onAccent?: string;
+  surfaceSunken?: string;
+  surfaceSubtle?: string;
+  surfaceTile?: string;
+  borderWarm?: string;
+  borderSoft?: string;
+  textTertiary?: string;
+  placeholder?: string;
+  track?: string;
+  avatarBg?: string;
+  radiusControl?: string;
+  radiusPanel?: string;
+  shadowCard?: string;
+  shadowNav?: string;
+  shadowPrimary?: string;
+  shadowDrawer?: string;
+  fontMono?: string;
 }
+
+/** Keys every skin must define; the rest of SkinTokens is optional (DESIGN §3.2). */
+export const REQUIRED_TOKENS = [
+  "bg",
+  "sidebar",
+  "surface",
+  "border",
+  "text",
+  "muted",
+  "accent",
+  "accentStrong",
+  "high",
+  "medium",
+  "low",
+  "success",
+  "radius",
+  "fontBody",
+  "fontDisplay",
+] as const;
 
 export interface Skin {
   id: string;
@@ -52,36 +90,69 @@ export interface Skin {
 export const office: Skin = {
   id: "office",
   name: "办公室",
-  description: "默认皮肤",
-  // Style: docs/design/DESIGN-claude.md — warm cream canvas, coral primary, serif display,
-  // warm dark surfaces. Colours only; no logos or brand marks.
+  description: "默认皮肤 · SETO",
   tokens: {
-    bg: "#faf9f5", // canvas
-    sidebar: "#f5f0e8", // surface-soft
-    surface: "#faf9f5", // canvas + hairline (cards are colour-blocked, not shadowed)
-    border: "#e6dfd8", // hairline
-    text: "#141413", // ink
-    muted: "#6c6a64", // muted
-    accent: "#cc785c", // primary (coral)
-    accentStrong: "#a9583e", // primary-active
-    high: "#c64545", // error
-    medium: "#3f8f80", // accent-teal, darkened for text on cream
-    low: "#8e8b82", // muted-soft
-    success: "#5db872",
-    radius: "12px", // rounded.lg (cards); buttons/inputs use 8px
-    fontBody: "'Inter', 'Noto Sans SC', -apple-system, 'Segoe UI', sans-serif",
-    fontDisplay: "'Tiempos Headline', 'Cormorant Garamond', 'EB Garamond', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif",
+    bg: "#F5F5F5",
+    sidebar: "#F5F5F5",
+    surface: "#FFFFFF",
+    border: "#E1E1E1",
+    text: "#0C151D",
+    muted: "#5F6266",
+    accent: "#0C151D",
+    accentStrong: "#26313B",
+    high: "#C8433A",
+    medium: "#237A6C",
+    low: "#6B6E71",
+    success: "#3FA45B",
+    radius: "16px",
+    fontBody: "'InterVariable', 'Inter', 'Source Han Sans SC', 'Noto Sans SC', 'PingFang SC', sans-serif",
+    fontDisplay: "'Tiempos Headline', 'Cormorant Garamond', 'EB Garamond', 'Source Han Serif SC', 'Noto Serif SC', serif",
+    brand: "#E3876A",
+    onAccent: "#FFFFFF",
+    surfaceSunken: "#F4F3F1",
+    surfaceSubtle: "#EDEFEF",
+    surfaceTile: "#F6F6F7",
+    borderWarm: "#E1DDDA",
+    borderSoft: "#EEEEEE",
+    textTertiary: "#6B6E71",
+    placeholder: "#8F9295",
+    track: "#E3E5E8",
+    avatarBg: "#EEF0F2",
+    radiusControl: "9999px",
+    radiusPanel: "20px",
+    shadowCard: "0 1px 2px rgba(12,21,29,0.04), 0 4px 16px rgba(12,21,29,0.04)",
+    shadowNav: "0 1px 3px rgba(12,21,29,0.06)",
+    shadowPrimary: "0 6px 14px rgba(12,21,29,0.22)",
+    shadowDrawer: "0 24px 60px rgba(12,21,29,0.18)",
+    fontMono: "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
   },
   darkTokens: {
-    bg: "#181715", // surface-dark
-    sidebar: "#1f1e1b", // surface-dark-soft
-    surface: "#252320", // surface-dark-elevated
-    border: "#34312c",
-    text: "#faf9f5", // on-dark
-    muted: "#a09d96", // on-dark-soft
-    accent: "#cc785c",
-    accentStrong: "#e8a55a", // accent-amber: readable links on dark
-    medium: "#5db8a6",
+    bg: "#111316",
+    sidebar: "#111316",
+    surface: "#1C1F23",
+    border: "#2A2E33",
+    text: "#F1F2F4",
+    muted: "#A7ABB1",
+    accent: "#F1F2F4",
+    accentStrong: "#FFFFFF",
+    high: "#F08A7E",
+    medium: "#5CC4AE",
+    low: "#9A9FA6",
+    success: "#4CC26C",
+    onAccent: "#0C151D",
+    surfaceSunken: "#171A1D",
+    surfaceSubtle: "#262A2F",
+    surfaceTile: "#22262A",
+    borderWarm: "#2E3237",
+    borderSoft: "#25292D",
+    textTertiary: "#9A9FA6",
+    placeholder: "#80858B",
+    track: "#2E3238",
+    avatarBg: "#2A2F35",
+    shadowCard: "0 0 0 1px rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.32)",
+    shadowNav: "0 0 0 1px rgba(255,255,255,0.07)",
+    shadowPrimary: "0 6px 16px rgba(0,0,0,0.45)",
+    shadowDrawer: "0 24px 60px rgba(0,0,0,0.5)",
   },
   terms: {
     department: "团队",
@@ -102,7 +173,7 @@ export const office: Skin = {
     user: "我",
   },
   layout: { sidebar: "left", cardColumns: "row" },
-  office: { floor: "#efe9de", wall: "#f5f0e8", desk: "#3d3d3a", accent: "#cc785c" },
+  office: { floor: "#EFEDE9", wall: "#F6F5F3", desk: "#3A3F45", accent: "#E3876A" },
 };
 
 export const court: Skin = {
@@ -181,7 +252,7 @@ export function validateSkin(x: unknown): string[] {
   if (!s || typeof s !== "object") return ["not an object"];
   if (!s.id || !/^[a-z0-9-]+$/.test(s.id)) errs.push("id");
   if (!s.name) errs.push("name");
-  for (const k of Object.keys(office.tokens)) if (!s.tokens || typeof (s.tokens as never)[k] !== "string") errs.push(`tokens.${k}`);
+  for (const k of REQUIRED_TOKENS) if (!s.tokens || typeof (s.tokens as never)[k] !== "string") errs.push(`tokens.${k}`);
   for (const k of Object.keys(office.terms)) if (!s.terms || typeof (s.terms as never)[k] !== "string") errs.push(`terms.${k}`);
   return errs;
 }
@@ -192,7 +263,9 @@ export function validateSkin(x: unknown): string[] {
  */
 export function paperclipVars(skin: Skin, dark = false): Record<string, string> {
   const t = dark ? { ...skin.tokens, ...skin.darkTokens } : skin.tokens;
-  const onAccent = dark ? t.bg : "#ffffff";
+  const onAccent = t.onAccent ?? (dark ? t.bg : "#ffffff");
+  // The sidebar now shares the page colour, so it can no longer stand in for "muted" (DESIGN §3.3).
+  const subtle = t.surfaceSubtle ?? `color-mix(in srgb, ${t.text} 6%, ${t.surface})`;
   return {
     "--background": t.bg,
     "--foreground": t.text,
@@ -202,11 +275,11 @@ export function paperclipVars(skin: Skin, dark = false): Record<string, string> 
     "--popover-foreground": t.text,
     "--primary": t.accent,
     "--primary-foreground": onAccent,
-    "--secondary": t.sidebar,
+    "--secondary": subtle,
     "--secondary-foreground": t.text,
-    "--muted": t.sidebar,
+    "--muted": subtle,
     "--muted-foreground": t.muted,
-    "--accent": `color-mix(in srgb, ${t.accent} 10%, ${t.surface})`,
+    "--accent": subtle,
     "--accent-foreground": t.text,
     "--border": t.border,
     "--input": t.border,
@@ -221,6 +294,7 @@ export function paperclipVars(skin: Skin, dark = false): Record<string, string> 
     "--sidebar-ring": t.accent,
     "--radius": t.radius,
     "--font-sans": t.fontBody,
+    "--font-heading": t.fontDisplay,
   };
 }
 

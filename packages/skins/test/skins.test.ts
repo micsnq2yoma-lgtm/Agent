@@ -11,9 +11,17 @@ describe("skins", () => {
     expect(getSkin("nope").id).toBe("office");
   });
   it("exposes css variables, with dark overrides", () => {
-    expect(cssVars(office)["--as-accent"]).toBe("#cc785c");
-    expect(cssVars(office, true)["--as-bg"]).toBe("#181715");
-    expect(cssVars(office)["--as-accent-strong"]).toBe("#a9583e");
+    expect(cssVars(office)["--as-accent"]).toBe("#0C151D");
+    expect(cssVars(office, true)["--as-bg"]).toBe("#111316");
+    expect(cssVars(office)["--as-accent-strong"]).toBe("#26313B");
+    // new optional keys become kebab-case variables without touching cssVars
+    expect(cssVars(office)["--as-surface-subtle"]).toBe("#EDEFEF");
+    expect(cssVars(office, true)["--as-on-accent"]).toBe("#0C151D");
+  });
+  it("new tokens are optional: a skin without them is still valid (DESIGN §3.2)", () => {
+    expect(cssVars(court)["--as-surface-subtle"]).toBeUndefined();
+    const minimal = { ...court, id: "minimal", tokens: { ...court.tokens } };
+    expect(validateSkin(minimal)).toEqual([]);
   });
   it("built-in skins are valid and complete", () => {
     expect(validateSkin(office)).toEqual([]);
@@ -42,7 +50,12 @@ describe("skin → Paperclip (P9)", () => {
     expect(v["--radius"]).toBe(office.tokens.radius);
     expect(v["--font-sans"]).toBe(office.tokens.fontBody);
     expect(paperclipVars(court)["--background"]).toBe(court.tokens.bg);
-    expect(paperclipVars(office, true)["--background"]).toBe(office.darkTokens!.bg);
+    expect(paperclipVars(office, true)["--background"]).toBe(office.darkTokens!.bg);    // SETO: muted/accent come from surfaceSubtle, not the sidebar; headings use the display font
+    expect(v["--muted"]).toBe("#EDEFEF");
+    expect(v["--accent"]).toBe("#EDEFEF");
+    expect(v["--font-heading"]).toBe(office.tokens.fontDisplay);
+    expect(paperclipVars(office, true)["--primary-foreground"]).toBe("#0C151D");
+    expect(paperclipVars(court)["--muted"]).toContain("color-mix");
   });
   it("turns the translation layer's words into the skin's terms", () => {
     const o = Object.fromEntries(termOverrides(office));

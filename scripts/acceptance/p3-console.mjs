@@ -40,17 +40,21 @@ await page.waitForTimeout(800);
 const officeText = await page.locator("body").innerText();
 results.backToOffice = officeText.includes("工作台") && !officeText.includes("御书房");
 
-// 2. wizard: create the life department from its template through the UI
+// 2. wizard (plan B / SETO): nothing is preset — name a team, its lead and one employee through the UI
+const TEAM = "验收团队";
 const before = (await j("GET", "/agentself/api/context")).departments.map((d) => d.name);
-if (!before.includes("生活部")) {
-  await page.getByRole("link", { name: /新建部门/ }).click();
-  await page.getByRole("button", { name: "生活部" }).click();
-  for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "下一步" }).click();
+if (!before.includes(TEAM)) {
+  await page.getByRole("link", { name: "新建主管" }).first().click(); // the + next to 主管 in the sidebar
+  await page.getByPlaceholder("团队名称，由你来定").fill(TEAM);
+  await page.getByRole("button", { name: "下一步" }).click();
+  await page.getByPlaceholder("主管的名字").fill("验收主管");
+  await page.getByRole("button", { name: /员工（Claude）/ }).click();
+  for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "创建" }).click();
   await page.waitForTimeout(8000);
 }
 const ctx = await j("GET", "/agentself/api/context");
-const life = ctx.departments.find((d) => d.name === "生活部");
+const life = ctx.departments.find((d) => d.name === TEAM);
 results.wizardCreated = !!life && life.members.length >= 1;
 if (life) {
   const agent = ctx.agents.find((a) => life.members.includes(a.id));
@@ -65,7 +69,7 @@ if ((await page.getByTestId("nav-manage").getAttribute("aria-expanded")) !== "tr
 await page.getByRole("link", { name: "用量与预算" }).click();
 await page.waitForTimeout(2500);
 const usageText = await page.locator("body").innerText();
-results.usageByDepartment = usageText.includes("科研部") && usageText.includes("订阅额度");
+results.usageByDepartment = usageText.includes(ctx.departments.find((d) => d.key === "research")?.name ?? "科研") && usageText.includes("订阅额度");
 await page.screenshot({ path: "spikes/shots/p3-usage.png" });
 
 // 4. pixel office: every agent has a nameplate and a mapped state

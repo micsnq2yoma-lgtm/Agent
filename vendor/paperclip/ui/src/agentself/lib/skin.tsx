@@ -1,7 +1,7 @@
 // Skin context: every user-facing role word goes through `t()` (PLAN 7.2).
 // P9: one skin for the whole app — the provider also sets Paperclip's CSS variables and feeds
 // the skin's terms into the zh-CN translation layer. Light / dark follows Paperclip's theme.
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cssVars, getSkin, paperclipVars, term, termOverrides, type Skin, type TermKey } from "@agentself/skins";
 import { setTermOverrides } from "@/i18n/dom-translate";
 
@@ -29,8 +29,13 @@ export function SkinProvider({ initial, children, onChange }: { initial: string;
     return () => mo.disconnect();
   }, []);
   const skin = getSkin(id);
+  const applied = useRef<string[]>([]);
   useEffect(() => {
     const vars = { ...cssVars(skin, dark), ...paperclipVars(skin, dark) };
+    // Optional tokens (surface-subtle, shadow-card, …) set by the previous skin must not leak into one
+    // that omits them, or the stylesheet's fallbacks never apply (DESIGN §3.2).
+    for (const k of applied.current) if (!(k in vars)) document.documentElement.style.removeProperty(k);
+    applied.current = Object.keys(vars);
     for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v);
     document.documentElement.dataset.skin = skin.id;
     document.documentElement.dataset.layoutSidebar = skin.layout.sidebar;

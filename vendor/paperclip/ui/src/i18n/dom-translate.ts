@@ -25,6 +25,8 @@ const PATTERNS: Pattern[] = [
   [/^(\d+) (?:issues?|tasks?)$/i, (m) => `${m[1]} 个任务`],
   [/^(\d+) sub-?issues?$/i, (m) => `${m[1]} 个子任务`],
   [/^(\d+) agents?$/i, (m) => `${m[1]} 个智能体`],
+  // v0.6 SETO (DESIGN §6); "智能体" then becomes the skin's word for employee
+  [/^Enabled for (\d+) agents?$/i, (m) => `已为 ${m[1]} 名智能体启用`],
   [/^(\d+) projects?$/i, (m) => `${m[1]} 个项目`],
   [/^(\d+) comments?$/i, (m) => `${m[1]} 条评论`],
   [/^(\d+) runs?$/i, (m) => `${m[1]} 次运行`],

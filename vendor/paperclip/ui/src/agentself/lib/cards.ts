@@ -6,7 +6,8 @@ import type { Tier } from "@agentself/shared";
 export const FRONTDESK = "__frontdesk__";
 export const LEAD = "__lead__";
 
-export type CardType = "decide" | "deliver" | "answer" | "failed";
+/** `hire` (v0.6): a lead proposed a new employee; it counts as "要你拍板" (DESIGN §4.6). */
+export type CardType = "decide" | "deliver" | "answer" | "failed" | "hire";
 
 export interface CardOption {
   id: string;
@@ -34,7 +35,8 @@ export interface Card {
     | { kind: "decision"; decisionId: string; dismissalKey: string | null }
     | { kind: "issue"; issueId: string; dismissalKey: string | null }
     | { kind: "run"; issueId: string | null; runId: string | null; dismissalKey: string | null }
-    | { kind: "answer"; answerId: string };
+    | { kind: "answer"; answerId: string }
+    | { kind: "hire"; hireId: string; name: string; capabilities: string; adapterType: string; reason: string };
   issueId: string | null;
 }
 
@@ -312,7 +314,7 @@ export function buildCards(input: {
   return sortCards(cards.filter((c) => !c.snoozedUntil || Date.parse(c.snoozedUntil) <= now));
 }
 
-const ORDER: Record<CardType, number> = { decide: 0, deliver: 1, failed: 1, answer: 2 };
+const ORDER: Record<CardType, number> = { decide: 0, hire: 0, deliver: 1, failed: 1, answer: 2 };
 export function sortCards(cards: Card[]): Card[] {
   return [...cards].sort((a, b) => ORDER[a.type] - ORDER[b.type] || Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
@@ -320,15 +322,68 @@ export function sortCards(cards: Card[]): Card[] {
 export type Filter = "all" | "decide" | "deliver" | "answer";
 export function filterCards(cards: Card[], f: Filter, department: string | null): Card[] {
   return cards.filter(
-    (c) => (f === "all" || c.type === f || (f === "deliver" && c.type === "failed")) && (!department || !c.department || c.department === department),
+    (c) =>
+      (f === "all" || c.type === f || (f === "deliver" && c.type === "failed") || (f === "decide" && c.type === "hire")) &&
+      (!department || !c.department || c.department === department),
   );
 }
 
 export function countByType(cards: Card[]) {
   return {
     all: cards.length,
-    decide: cards.filter((c) => c.type === "decide").length,
+    decide: cards.filter((c) => c.type === "decide" || c.type === "hire").length,
     deliver: cards.filter((c) => c.type === "deliver" || c.type === "failed").length,
     answer: cards.filter((c) => c.type === "answer").length,
   };
+}
+
+export interface HireRequest {
+  id: string;
+  leadAgentId: string;
+  leadName: string;
+  team: string;
+  issueId: string | null;
+  name: string;
+  capabilities: string;
+  adapterType: "claude_local" | "codex_local";
+  reason: string;
+  createdAt: string;
+}
+
+/** Pending hiring requests → `hire` cards in the same grid (DESIGN §4.6). */
+export function hireCards(list: HireRequest[]): Card[] {
+  return list.map((h) => ({
+    id: `hire:${h.id}`,
+    type: "hire" as const,
+    tier: "high" as Tier,
+    who: h.leadName,
+    model: null,
+    department: h.team || null,
+    ref: null,
+    title: `新建员工「${h.name}」`,
+    explain: h.reason || null,
+    ifNoReply: "不会新建，主管会继续等你决定",
+    createdAt: h.createdAt,
+    snoozedUntil: null,
+    options: [
+      { id: "approve", label: "同意并新建" },
+      { id: "reject", label: "不同意" },
+    ],
+    primary: "同意并新建",
+    source: { kind: "hire" as const, hireId: h.id, name: h.name, capabilities: h.capabilities, adapterType: h.adapterType, reason: h.reason },
+    issueId: h.issueId,
+  }));
+}
+
+/** "刚刚 / 5 分钟前 / 3 小时前 / 11-14" */
+export function relTime(iso: string, now = Date.now()): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  const m = Math.round((now - t) / 60000);
+  if (m < 1) return "刚刚";
+  if (m < 60) return `${m} 分钟前`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h} 小时前`;
+  const d = new Date(t);
+  return `${d.getMonth() + 1}-${String(d.getDate()).padStart(2, "0")}`;
 }
