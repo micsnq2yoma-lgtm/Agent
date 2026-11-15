@@ -9,7 +9,7 @@ description: Agentself 员工记忆：开工前读 memory/ 里的身份、风格
 
 ## 开工前（每次运行开始）
 
-1. 读 `memory/identity.md`（你是谁、属于哪个部门、向谁汇报）。
+1. 读 `memory/identity.md`（你是谁、负责哪个领域）。
 2. 读 `memory/style.md`（用户要求的工作方式和交付习惯，**必须遵守**）。
 3. 读 `memory/user.md`（用户的偏好和背景）。
 4. 读 `memory/notes.md`（以前学到的经验）。

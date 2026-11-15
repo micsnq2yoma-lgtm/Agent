@@ -141,10 +141,10 @@ export async function startIm(deps) {
         r.route === "answer"
           ? r.answer.answer
           : r.route === "task"
-            ? `已交给${r.department ?? "团队"}（${r.issue.identifier}），完成后会推给你。`
+            ? `已交给${r.assigneeName ?? "团队"}（${r.issue.identifier}）${r.mode === "plan" ? "，会先给你一份计划" : ""}，完成后会推给你。`
             : r.route === "followup"
               ? `已补充给 ${r.issue.identifier} 的负责人。`
-              : `判断不出交给哪个部门，请在网页上选一下：${r.title}`;
+              : `判断不出交给谁，请在网页上选一下：${r.title}`;
       await channel.sendText({ type: "open_id", id: msg.userId }, reply);
     },
     onAction: async (a) => {

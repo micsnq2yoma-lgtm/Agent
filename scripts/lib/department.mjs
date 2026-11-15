@@ -1,4 +1,6 @@
-// Create a department in Paperclip from a department pack (PLAN 7.4). Shared by the CLI script and the console server.
+// Create a category of employees in Paperclip from a pack. Shared by the CLI script and the console server.
+// Since v0.6 there is no lead per category: every member is an employee who takes tasks from the steward
+// and delivers straight to the user. A `lead` in an older pack is created as an ordinary employee.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -9,7 +11,7 @@ import { initMemory } from "./memory.mjs";
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
 
-const SKILL_DIRS = { "agentself-lead": "lead", "agentself-employee": "employee", "agentself-memory": "memory" };
+const SKILL_DIRS = { "agentself-employee": "employee", "agentself-memory": "memory" };
 
 export function validatePack(pack) {
   const errs = [];
@@ -34,6 +36,8 @@ export function slugKey(s) {
 export async function createDepartment(pack, { key, companyName = "Agentself", api = defaultApi, ensureCompany = defaultEnsureCompany, log = console.log } = {}) {
   const errs = validatePack(pack);
   if (errs.length) throw Object.assign(new Error(errs.join("；")), { status: 400 });
+  // Flatten: an old-style lead becomes one more employee.
+  if (pack.lead) pack = { ...pack, members: [pack.lead, ...pack.members], lead: null };
   const deptKey = key ?? pack.key ?? slugKey(pack.name);
   const home = agentselfHome();
   const company = await ensureCompany(companyName);
@@ -55,7 +59,7 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     }
     skillKeys[name] = skill.key ?? skill.slug ?? name;
   }
-  const skillsFor = (isLead) => [isLead ? skillKeys["agentself-lead"] : null, skillKeys["agentself-employee"], skillKeys["agentself-memory"]].filter(Boolean);
+  const desiredSkills = [skillKeys["agentself-employee"], skillKeys["agentself-memory"]].filter(Boolean);
 
   // 2. project
   const projects = list(await api("GET", `/companies/${company.id}/projects`));
@@ -65,58 +69,56 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
 
   // 3. agents
   const agents = list(await api("GET", `/companies/${company.id}/agents`));
-  const memberCount = pack.members.length + (pack.lead ? 1 : 0);
-  const perHead = pack.budgetMonthlyCents ? Math.floor(pack.budgetMonthlyCents / memberCount) : 0;
+  const perHead = pack.budgetMonthlyCents ? Math.floor(pack.budgetMonthlyCents / pack.members.length) : 0;
 
-  async function ensureAgent(member, isLead, reportsTo) {
+  async function ensureAgent(member) {
     const cwd = path.join(home, "workspaces", deptKey, member.key);
     fs.mkdirSync(cwd, { recursive: true });
     initMemory(cwd, {
       name: member.name,
       title: member.title ?? "",
       department: pack.name,
-      reportsTo: isLead ? "用户" : (pack.lead?.name ?? "主管"),
+      reportsTo: "用户（任务由总管转交）",
       capabilities: member.capabilities ?? "",
       identity: member.identity ?? "",
     });
-    const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id } };
+    const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead: false, memberKey: member.key, projectId: project.id } };
     let agent = agents.find((a) => a.metadata?.agentself?.department === deptKey && a.metadata?.agentself?.memberKey === member.key);
     if (!agent) {
       agent = await api("POST", `/companies/${company.id}/agents`, {
         name: member.name,
         title: member.title ?? null,
         role: member.role ?? "general",
-        icon: isLead ? "crown" : (pack.icon ?? "bot"),
-        reportsTo: reportsTo ?? null,
+        icon: pack.icon ?? "bot",
+        reportsTo: null,
         capabilities: member.capabilities ?? null,
         adapterType: member.adapterType,
         adapterConfig: { cwd, ...(member.model ? { model: member.model } : {}) },
         budgetMonthlyCents: member.budgetMonthlyCents ?? perHead,
         permissions: { canCreateAgents: false },
-        desiredSkills: skillsFor(isLead),
+        desiredSkills,
         metadata,
       });
     } else {
-      await api("POST", `/agents/${agent.id}/skills/sync`, { mode: "add", desiredSkills: skillsFor(isLead) }).catch((e) => log(`skills sync skipped: ${String(e).slice(0, 120)}`));
+      await api("POST", `/agents/${agent.id}/skills/sync`, { mode: "add", desiredSkills }).catch((e) => log(`skills sync skipped: ${String(e).slice(0, 120)}`));
     }
     log(`agent ${member.name} (${member.adapterType}) ${agent.id}`);
     return agent;
   }
 
-  const lead = pack.lead ? await ensureAgent(pack.lead, true, null) : null;
   const memberAgents = [];
-  for (const m of pack.members) memberAgents.push(await ensureAgent(m, false, lead?.id ?? null));
+  for (const m of pack.members) memberAgents.push(await ensureAgent(m));
 
   // 4. routines (agent-autoloop rules -> Paperclip routines)
   const routineIds = [];
   for (const r of pack.routines ?? []) {
-    const assignee = r.to === "lead" || !r.to ? lead : memberAgents[pack.members.findIndex((m) => m.key === r.to)];
+    const assignee = memberAgents[pack.members.findIndex((m) => m.key === r.to)] ?? memberAgents[0];
     try {
       const routine = await api("POST", `/companies/${company.id}/routines`, {
         title: r.title,
         description: r.prompt,
         projectId: project.id,
-        assigneeAgentId: assignee?.id ?? lead?.id ?? memberAgents[0]?.id,
+        assigneeAgentId: assignee.id,
         ...(r.maxActive ? { concurrencyPolicy: "skip_if_active" } : {}),
       });
       if (r.cron) await api("POST", `/routines/${routine.id}/triggers`, { kind: "schedule", cronExpression: r.cron, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone });
@@ -129,7 +131,7 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
 
   await registerWithTeamLayer(company.id, { api, log });
 
-  const out = { companyId: company.id, projectId: project.id, leadAgentId: lead?.id ?? null, department: deptKey, routineIds };
+  const out = { companyId: company.id, projectId: project.id, leadAgentId: null, department: deptKey, routineIds };
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(home, `department-${deptKey}.json`), JSON.stringify(out, null, 2));
   return out;

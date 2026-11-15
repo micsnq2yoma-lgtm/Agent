@@ -8,7 +8,7 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildPrompt, parseRoute, runClaude } from "./frontdesk.mjs";
+import { buildPrompt, DEFAULT_STEWARD_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
 import { createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
@@ -26,7 +26,7 @@ const STORE = path.join(HOME, "console.json");
 /* ---------------- store ---------------- */
 const DEFAULT_SETTINGS = {
   companyName: "Agentself",
-  frontdeskModel: "haiku",
+  frontdeskModel: DEFAULT_STEWARD_MODEL,
   askWhenUnclear: true,
   skin: "office",
   externalDefault: "ask",
@@ -83,17 +83,42 @@ export async function loadContext() {
   return { company, departments, agents: arr(agents), projects: arr(projects) };
 }
 
-/* ---------------- front desk ---------------- */
+/* ---------------- steward (总管) ---------------- */
 function externalNote(mode) {
   return mode === "direct" ? "\n\n—— 对外动作：可以直接做（用户已授权）。" : "\n\n—— 对外动作：先问我（发邮件、发布、推代码、花钱前用 team.ask 确认）。";
 }
+const PLAN_NOTE =
+  "\n\n—— 开工方式：先出计划。先读必要的资料，然后用 team.ask 把一份简短计划发给用户（要做什么、分几步、预计多久、预计花费、主要风险），选项为「同意开工 / 修改计划 / 取消」。用户同意后才能动手。";
+const DIRECT_NOTE = "\n\n—— 开工方式：直接开工。";
 
-async function createTask(ctx, dept, { title, description, external, assigneeAgentId }) {
+/** The user's own notes for the steward: ~/.agentself/steward/user.md and rules.md (both optional). */
+function stewardNotes() {
+  const read = (f) => {
+    try {
+      return fs.readFileSync(path.join(HOME, "steward", f), "utf8").slice(0, 8000);
+    } catch {
+      return "";
+    }
+  };
+  return { profile: read("user.md"), rules: read("rules.md") };
+}
+
+/** Employees = agents created through Agentself; "department" in metadata is the user's own category. */
+function employeesOf(ctx) {
+  return ctx.agents
+    .filter((a) => a.metadata?.agentself && a.status !== "terminated")
+    .map((a) => ({ id: a.id, name: a.name, category: a.metadata.agentself.departmentName ?? a.metadata.agentself.department, capabilities: a.capabilities ?? a.title ?? "" }));
+}
+const deptOfAgent = (ctx, agent) => ctx.departments.find((d) => d.key === agent?.metadata?.agentself?.department);
+/** A category has no lead any more; packs created before v0.6 may still have one. */
+const defaultAssignee = (dept) => dept?.leadAgentId ?? dept?.members?.[0] ?? undefined;
+
+async function createTask(ctx, dept, { title, description, external, assigneeAgentId, mode }) {
   const issue = await pc("POST", `/companies/${ctx.company.id}/issues`, {
     title: title.slice(0, 200),
-    description: (description ?? title) + externalNote(external),
+    description: (description ?? title) + (mode === "plan" ? PLAN_NOTE : mode === "direct" ? DIRECT_NOTE : "") + externalNote(external),
     projectId: dept?.projectId ?? undefined,
-    assigneeAgentId: assigneeAgentId ?? dept?.leadAgentId ?? undefined,
+    assigneeAgentId: assigneeAgentId ?? defaultAssignee(dept),
     status: "todo",
   });
   return issue;
@@ -116,30 +141,33 @@ function addAnswer(companyId, text, question, extra = {}) {
 
 async function frontdesk(body) {
   const ctx = await loadContext();
-  if (!ctx.company) throw Object.assign(new Error("还没有团队，请先创建部门"), { status: 409 });
+  if (!ctx.company) throw Object.assign(new Error("还没有团队，请先创建员工"), { status: 409 });
   const text = String(body.text ?? "").trim();
   if (!text) throw Object.assign(new Error("内容为空"), { status: 400 });
   const external = body.external === "direct" ? "direct" : "ask";
   const to = body.to ?? { kind: "auto" };
   const firstLine = text.split(/\r?\n/)[0].slice(0, 60);
 
+  // The user picked the target by hand: no steward call, no start-mode note.
   if (to.kind === "department") {
     const dept = ctx.departments.find((d) => d.key === to.id);
-    if (!dept) throw Object.assign(new Error("部门不存在"), { status: 400 });
+    if (!dept) throw Object.assign(new Error("分类不存在"), { status: 400 });
     const issue = await createTask(ctx, dept, { title: firstLine, description: text, external });
-    return { route: "task", department: dept.key, issue };
+    return { route: "task", department: dept.key, assigneeAgentId: issue.assigneeAgentId ?? null, assigneeName: ctx.agents.find((x) => x.id === issue.assigneeAgentId)?.name ?? null, issue };
   }
   if (to.kind === "agent") {
     const agent = ctx.agents.find((a) => a.id === to.id);
-    const dept = ctx.departments.find((d) => d.key === agent?.metadata?.agentself?.department);
-    const issue = await createTask(ctx, dept, { title: firstLine, description: text, external, assigneeAgentId: to.id });
-    return { route: "task", department: dept?.key ?? null, issue };
+    if (!agent) throw Object.assign(new Error("员工不存在"), { status: 400 });
+    const dept = deptOfAgent(ctx, agent);
+    const issue = await createTask(ctx, dept, { title: firstLine, description: text, external, assigneeAgentId: agent.id });
+    return { route: "task", department: dept?.key ?? null, assigneeAgentId: agent.id, assigneeName: agent.name, issue };
   }
 
+  const employees = employeesOf(ctx);
   const issues = arr(await pc("GET", `/companies/${ctx.company.id}/issues`))
     .filter((i) => !i.parentId && !["done", "cancelled"].includes(i.status))
-    .map((i) => ({ ...i, departmentName: ctx.departments.find((d) => d.projectId === i.projectId)?.name }));
-  const prompt = buildPrompt({ text, departments: ctx.departments, openIssues: issues, now: new Date().toLocaleString("zh-CN") });
+    .map((i) => ({ ...i, assigneeName: ctx.agents.find((a) => a.id === i.assigneeAgentId)?.name }));
+  const prompt = buildPrompt({ text, employees, openIssues: issues, now: new Date().toLocaleString("zh-CN"), ...stewardNotes() });
   const { text: raw } = await runClaude(prompt, { model: store.settings.frontdeskModel });
   const r = parseRoute(raw);
   if (body.dryRun) return { dryRun: true, ...r };
@@ -148,10 +176,11 @@ async function frontdesk(body) {
     return { route: "answer", answer: addAnswer(ctx.company.id, r.answer, text) };
   }
   if (r.route === "task") {
-    const dept = ctx.departments.find((d) => d.key === r.department);
-    if (dept) {
-      const issue = await createTask(ctx, dept, { title: r.title ?? firstLine, description: r.description ?? text, external });
-      return { route: "task", department: dept.key, issue };
+    const agent = ctx.agents.find((a) => a.id === r.employee && a.metadata?.agentself);
+    if (agent) {
+      const dept = deptOfAgent(ctx, agent);
+      const issue = await createTask(ctx, dept, { title: r.title ?? firstLine, description: r.description ?? text, external, assigneeAgentId: agent.id, mode: r.mode });
+      return { route: "task", department: dept?.key ?? null, assigneeAgentId: agent.id, assigneeName: agent.name, mode: r.mode, issue };
     }
   }
   if (r.route === "followup" && r.issueId) {
@@ -161,13 +190,14 @@ async function frontdesk(body) {
       return { route: "followup", issue };
     }
   }
-  // unclear: let the user pick the department in the UI (ask card behaviour)
+  // unclear (or the steward named someone who does not exist): the user picks the employee.
+  const ids = new Set(employees.map((e) => e.id));
   return {
     route: "unclear",
     title: r.title ?? firstLine,
     description: r.description ?? text,
     external,
-    candidates: (r.candidates ?? ctx.departments.map((d) => d.key)).filter((k) => ctx.departments.some((d) => d.key === k)),
+    candidates: (Array.isArray(r.candidates) ? r.candidates : []).filter((id) => ids.has(id)),
   };
 }
 
@@ -193,10 +223,12 @@ async function handleAgentself(req, res, url) {
   if (req.method === "POST" && p === "/frontdesk/assign") {
     const body = await readJson(req);
     const ctx = await loadContext();
-    const dept = ctx.departments.find((d) => d.key === body.department);
-    if (!dept) return send(res, 400, { error: "部门不存在" });
-    const issue = await createTask(ctx, dept, { title: body.title, description: body.description, external: body.external });
-    return send(res, 200, { route: "task", department: dept.key, issue });
+    const agent = body.agentId ? ctx.agents.find((a) => a.id === body.agentId && a.metadata?.agentself) : null;
+    const dept = agent ? deptOfAgent(ctx, agent) : ctx.departments.find((d) => d.key === body.department);
+    if (!agent && !dept) return send(res, 400, { error: "员工或分类不存在" });
+    // The steward could not place this task, so it has not judged its size either: plan first.
+    const issue = await createTask(ctx, dept, { title: body.title, description: body.description, external: body.external, assigneeAgentId: agent?.id, mode: "plan" });
+    return send(res, 200, { route: "task", department: dept?.key ?? null, assigneeAgentId: issue.assigneeAgentId ?? null, assigneeName: ctx.agents.find((x) => x.id === issue.assigneeAgentId)?.name ?? null, mode: "plan", issue });
   }
   if (req.method === "GET" && p === "/answers") {
     const companyId = url.searchParams.get("companyId");

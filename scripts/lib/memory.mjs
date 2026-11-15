@@ -71,7 +71,7 @@ ${ENTRY_MARK}
 
 开始任何任务前，先完整读取下面四个文件，并在本次任务里遵守其中的偏好和经验；交付时一句话说明用到了哪条：
 
-1. memory/identity.md — 你是谁、属于哪个部门
+1. memory/identity.md — 你是谁、负责哪个领域
 2. memory/style.md — 用户要求的工作方式
 3. memory/user.md — 用户偏好（例如交付格式）
 4. memory/notes.md — 以往经验
@@ -103,7 +103,7 @@ export function initMemory(cwd, info) {
   };
   write(
     "identity.md",
-    `# ${info.name}\n\n- 角色：${info.title}\n- 部门：${info.department}\n- 汇报对象：${info.reportsTo}\n- 能力：${info.capabilities}\n\n${info.identity}\n`,
+    `# ${info.name}\n\n- 角色：${info.title}\n- 分类：${info.department}\n- 汇报对象：${info.reportsTo}\n- 能力：${info.capabilities}\n\n${info.identity}\n`,
   );
   write("style.md", "# 工作方式\n\n（交付习惯、语气等，由用户填写；整理任务只提建议）\n");
   write("user.md", "# 关于用户\n\n");

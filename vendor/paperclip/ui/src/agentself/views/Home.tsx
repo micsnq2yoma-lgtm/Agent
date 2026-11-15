@@ -27,7 +27,7 @@ function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
 
 type FrontdeskResult =
   | { route: "answer"; answer: { answer: string } }
-  | { route: "task"; department: string | null; issue: { identifier: string; id: string } }
+  | { route: "task"; department: string | null; assigneeName?: string | null; mode?: "direct" | "plan"; issue: { identifier: string; id: string } }
   | { route: "followup"; issue: { identifier: string } }
   | { route: "unclear"; title: string; description: string; external: string; candidates: string[] };
 
@@ -41,6 +41,7 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
   const [err, setErr] = useState<string | null>(null);
 
   const deptName = (key: string | null) => ctx.departments.find((d) => d.key === key)?.name ?? key ?? "";
+  const employees = ctx.agents.filter((a) => a.metadata?.agentself);
 
   async function send() {
     if (!text.trim() || busy) return;
@@ -61,11 +62,11 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
     }
   }
 
-  async function pick(dept: string) {
+  async function pick(agentId: string) {
     if (result?.route !== "unclear") return;
     setBusy(true);
     try {
-      const r = await as.post<FrontdeskResult>("/frontdesk/assign", { department: dept, title: result.title, description: result.description, external });
+      const r = await as.post<FrontdeskResult>("/frontdesk/assign", { agentId, title: result.title, description: result.description, external });
       setResult(r);
       setText("");
       onDone();
@@ -90,16 +91,7 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
       <div className="composer-bar">
         <select className="chip-select" aria-label="交给" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="auto">交给：{t("frontdesk")}自动分派</option>
-          {ctx.departments
-            .filter((d) => !d.archived)
-            .map((d) => (
-              <option key={d.key} value={`department:${d.key}`}>
-                交给：{d.name}
-              </option>
-            ))}
-          {ctx.agents
-            .filter((a) => a.metadata?.agentself)
-            .map((a) => (
+          {employees.map((a) => (
               <option key={a.id} value={`agent:${a.id}`}>
                 交给：{a.name}（{a.metadata?.agentself?.departmentName}）
               </option>
@@ -116,23 +108,23 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
         </button>
       </div>
       <div className="hint">
-        即时问题{t("frontdesk")}直接回答；任务会派给对应{t("department")}的{t("lead")}，完成后以{t("card")}回到这里。Ctrl+Enter 发送。
+        即时问题{t("frontdesk")}直接回答；任务由{t("frontdesk")}选一名{t("employee")}去做，大事会先给你一份计划，完成后以{t("card")}回到这里。Ctrl+Enter 发送。
       </div>
       {err && <div className="notice" style={{ color: "var(--as-high)" }}>{err}</div>}
       {result?.route === "answer" && <div className="notice">{result.answer.answer}</div>}
       {result?.route === "task" && (
         <div className="notice">
-          已交给{deptName(result.department)}（{result.issue.identifier}），完成后会以{t("card")}回到这里。
+          已交给{result.assigneeName ?? deptName(result.department)}（{result.issue.identifier}）{result.mode === "plan" ? `，会先给你一份计划等你同意` : ""}，完成后会以{t("card")}回到这里。
         </div>
       )}
       {result?.route === "followup" && <div className="notice">已作为补充发给 {result.issue.identifier} 的负责人。</div>}
       {result?.route === "unclear" && (
         <div className="notice">
-          判断不出该交给哪个{t("department")}，请选一个：
+          判断不出该交给谁，请选一名{t("employee")}：
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-            {(result.candidates.length ? result.candidates : ctx.departments.map((d) => d.key)).map((k) => (
+            {(result.candidates.length ? result.candidates : employees.map((a) => a.id)).map((k) => (
               <button key={k} className="btn" disabled={busy} onClick={() => void pick(k)}>
-                {deptName(k)}
+                {employees.find((a) => a.id === k)?.name ?? k}
               </button>
             ))}
           </div>

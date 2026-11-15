@@ -7,22 +7,35 @@ import { animFor, eyeFor } from "../server/office.mjs";
 describe("front desk", () => {
   it("parses JSON routes, tolerating extra text", () => {
     expect(parseRoute('好的 {"route":"answer","answer":"明天有雨"}')).toEqual({ route: "answer", answer: "明天有雨" });
-    expect(parseRoute('{"route":"task","department":"research","title":"t","description":"d"}').route).toBe("task");
+  });
+  it("a task plans first unless the steward explicitly says direct", () => {
+    expect(parseRoute('{"route":"task","employee":"e1","title":"t","description":"d"}').mode).toBe("plan");
+    expect(parseRoute('{"route":"task","employee":"e1","mode":"weird","title":"t"}').mode).toBe("plan");
+    expect(parseRoute('{"route":"task","employee":"e1","mode":"direct","title":"t"}').mode).toBe("direct");
   });
   it("falls back to an answer for non-JSON output or unknown routes", () => {
     expect(parseRoute("直接回答")).toEqual({ route: "answer", answer: "直接回答" });
     expect(parseRoute('{"route":"weird"}').route).toBe("answer");
   });
-  it("prompt lists departments and open issues", () => {
+  it("prompt lists employees with their category, open issues, and the user's notes", () => {
     const p = buildPrompt({
       text: "今天天气",
-      departments: [{ key: "research", name: "科研部", description: "论文" }],
-      openIssues: [{ id: "i1", identifier: "AGE-1", title: "复现", status: "in_progress", departmentName: "科研部" }],
+      employees: [{ id: "e1", name: "小研", category: "科研", capabilities: "读论文、跑实验" }],
+      openIssues: [{ id: "i1", identifier: "AGE-1", title: "复现", status: "in_progress", assigneeName: "小研" }],
       now: "2026/11/14",
+      profile: "课题是蛋白质折叠",
+      rules: "生活类的事一律直接开工",
     });
-    expect(p).toContain("research: 科研部");
+    expect(p).toContain("e1 | 小研 | 分类：科研");
     expect(p).toContain("AGE-1");
     expect(p).toContain("今天天气");
+    expect(p).toContain("课题是蛋白质折叠");
+    expect(p).toContain("生活类的事一律直接开工");
+  });
+  it("prompt works with no employees and no notes", () => {
+    const p = buildPrompt({ text: "x", now: "now" });
+    expect(p).toContain("还没有员工");
+    expect(p).not.toContain("关于用户（必须参考）");
   });
 });
 

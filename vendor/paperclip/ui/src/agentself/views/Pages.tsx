@@ -87,7 +87,7 @@ export function Routines({ ctx, departmentKey, embedded = false }: { ctx: Contex
   return (
     <div className={embedded ? "" : "page"}>
       {!embedded && <h1 style={{ fontSize: 20 }}>{t("routine")}</h1>}
-      <p className="hint">定时、Webhook 或接口触发，每次生成一个任务，交给对应{t("department")}的{t("lead")}。在新建{t("department")}向导里添加，或在高级设置里调整。</p>
+      <p className="hint">定时、Webhook 或接口触发，每次生成一个任务，交给指定的{t("employee")}。在新建{t("department")}向导里添加，或在高级设置里调整。</p>
       <table className="data">
         <thead>
           <tr>
@@ -348,10 +348,11 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
         <h2>{t("frontdesk")}</h2>
         <div className="row">
           <div>
-            <div className="label">回答问题用的模型</div>
-            <div className="sub">即时问答直接用它，不建任务</div>
+            <div className="label">{t("frontdesk")}用的模型</div>
+            <div className="sub">理解你的话、直接回答、选人、判断要不要先出计划</div>
           </div>
           <select className="input" value={s.frontdeskModel} onChange={(e) => void save({ frontdeskModel: e.target.value })}>
+            <option value="claude-opus-5-5">Claude Opus 5.5（推荐）</option>
             <option value="haiku">Claude Haiku</option>
             <option value="sonnet">Claude Sonnet</option>
             <option value="opus">Claude Opus</option>
@@ -623,7 +624,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
   const [name, setName] = useState("");
   const [icon, setIcon] = useState("sparkles");
   const [description, setDescription] = useState("");
-  const [withLead, setWithLead] = useState(true);
+  const [withLead, setWithLead] = useState(false); // v0.6: no lead per category
   const [members, setMembers] = useState<PackMember[]>([]);
   const [routineCron, setRoutineCron] = useState("");
   const [routinePrompt, setRoutinePrompt] = useState("");
@@ -641,7 +642,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setName(pack.name);
     setIcon(pack.icon);
     setDescription(pack.description);
-    setWithLead(!!pack.lead);
+    setWithLead(false);
     setMembers(pack.members);
     setBudget((pack.budgetMonthlyCents ?? 5000) / 100);
     setTemplateKey(ctx.departments.some((d) => d.key === key) ? null : key);
@@ -664,8 +665,8 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
           ? { key: "lead", name: `${name}${t("lead")}`, title: `${name}${t("lead")}`, role: "pm", adapterType: "claude_local", capabilities: "拆解任务、分派、验收、汇报", budgetMonthlyCents: Math.round(budget * 25), identity: `你是${name}的${t("lead")}。${description}` }
           : null,
         members: members.map((m) => ({ ...m, identity: m.identity || `你是${name}的${m.name}，负责${m.title}。` })),
-        skills: ["agentself-lead", "agentself-employee", "agentself-memory"],
-        routines: routineCron && routinePrompt ? [{ key: "r1", title: routinePrompt.slice(0, 30), cron: routineCron, to: "lead", prompt: routinePrompt }] : [],
+        skills: ["agentself-employee", "agentself-memory"],
+        routines: routineCron && routinePrompt ? [{ key: "r1", title: routinePrompt.slice(0, 30), cron: routineCron, to: members[0]?.key, prompt: routinePrompt }] : [],
       };
       const r = await as.post<{ department: string }>("/departments", pack);
       onCreated(r.department);
@@ -723,9 +724,6 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 1 && (
           <>
-            <label style={{ display: "block", marginBottom: 10 }}>
-              <input type="checkbox" checked={withLead} onChange={(e) => setWithLead(e.target.checked)} /> 要{t("lead")}（推荐：所有任务经过{t("lead")}，由{t("lead")}汇报）
-            </label>
             {members.map((m, i) => (
               <div key={m.key} className="row">
                 <Robot id={m.key} eye={eyeOf(m.adapterType)} size={22} />
@@ -758,7 +756,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 2 && (
           <>
-            <p className="hint">默认装上「{t("lead")}技能 / {t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
+            <p className="hint">默认装上「{t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
             <div className="grid2">
               <label className="field">
                 {t("routine")}（cron，可选）
