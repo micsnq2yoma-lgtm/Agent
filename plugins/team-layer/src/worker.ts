@@ -2,7 +2,7 @@
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import type { FeedMessage } from "@agentself/shared";
 import { applyRework, isDuplicateTransition, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
-import { addNotice, dueReminders, type Reminder } from "./store.js";
+import { addNotice, dropRemindersFor, dueReminders, SETTLED_STATUSES, type Reminder } from "./store.js";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -282,10 +282,23 @@ function serialize<T>(key: string, fn: () => Promise<T>): Promise<T> {
   return run;
 }
 
+async function dropWakeupsFor(ctx: Ctx, companyId: string, issueIds: string[]) {
+  const rKey = companyKey(companyId, "reminders");
+  const r = dropRemindersFor(await getState<Reminder[]>(ctx, rKey, []), issueIds);
+  if (r.dropped.length) await ctx.state.set(rKey, r.kept);
+  const wKey = companyKey(companyId, "watches");
+  const w = dropRemindersFor(await getState<Watch[]>(ctx, wKey, []), issueIds);
+  if (w.dropped.length) await ctx.state.set(wKey, w.kept);
+  if (r.dropped.length || w.dropped.length) ctx.logger.info(`dropped ${r.dropped.length} reminder(s) and ${w.dropped.length} watch(es) for settled task(s) ${issueIds.join(",")}`);
+}
+
 async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payload: Record<string, unknown>, actor: { id?: string; type?: string }) {
   const prev = (payload._previous as { status?: IssueStatus } | undefined)?.status;
   const next = payload.status as IssueStatus | undefined;
   if (!prev || !next || prev === next) return;
+
+  // A task that is reported, done or cancelled needs no more wake-ups: drop its reminders and watches.
+  if (SETTLED_STATUSES.has(next)) await dropWakeupsFor(ctx, companyId, [issueId]);
 
   const issue = await ctx.issues.get(issueId, companyId);
   if (!issue || !issue.parentId) return; // rework only applies to child issues
@@ -725,6 +738,9 @@ const plugin = definePlugin({
         const { due, rest } = dueReminders(list, Date.now());
         for (const r of due) {
           try {
+            // Safety net for an issue.updated we missed: never wake anyone on a settled task.
+            const issue = await ctx.issues.get(r.issueId, c.id).catch(() => null);
+            if (issue && SETTLED_STATUSES.has(String(issue.status))) continue;
             if (r.note) await ctx.issues.createComment(r.issueId, `⏰ 稍后提醒：${r.note}`, c.id);
             await ctx.issues.requestWakeup(r.issueId, c.id, { reason: "agentself_later" } as never);
           } catch (err) {
