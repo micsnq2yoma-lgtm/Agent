@@ -91,7 +91,7 @@ describe("memory: files and git", () => {
     expect(fs.readFileSync(path.join(mem, "notes.md"), "utf8")).toContain("结论放最前面");
     const log = spawnSync("git", ["log", "--oneline"], { cwd: mem, encoding: "utf8" }).stdout;
     expect(log).toContain("整理记忆");
-  });
+  }, 20_000); // spawns git several times; slow on Windows when the full suite runs in parallel
   it("weekly archive moves old logs and stale topics", () => {
     const mem = tmpMem();
     fs.writeFileSync(path.join(mem, "log", "2026-10-01.md"), "old");

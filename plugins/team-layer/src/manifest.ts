@@ -52,6 +52,7 @@ export default {
     { jobKey: "memory-idle", displayName: "空闲时整理员工记忆", schedule: "*/5 * * * *" },
     { jobKey: "memory-weekly", displayName: "每周归档记忆", schedule: "0 3 * * 1" },
     { jobKey: "watch-tick", displayName: "长任务看守（不调用模型）", schedule: "* * * * *" },
+    { jobKey: "verify-tick", displayName: "记录独立核查结果", schedule: "* * * * *" },
   ],
   tools: [
     {

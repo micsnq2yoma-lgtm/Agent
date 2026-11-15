@@ -156,7 +156,7 @@ export const TOOLS = {
   create_subtask: {
     roles: ["lead"],
     description:
-      "派活：在你负责的父任务下建一个子任务交给你的一名员工，并让父任务等它（父任务置为 blocked）。描述里放完整任务书和带编号的验收标准。一次只派一名员工。",
+      "派活：在你负责的父任务下建一个子任务交给你的一名员工，并让父任务等它（父任务置为 blocked）。描述里放完整任务书和带编号的验收标准。父任务还没有 brief 文档时，会把这份任务书同时存为父任务的 brief。一次只派一名员工。",
     inputSchema: S({ parentId: str("你负责的父任务 id"), assigneeAgentId: str("员工 id（必须是你的员工）"), title: str("子任务标题"), description: str("任务书全文") }, [
       "parentId",
       "assigneeAgentId",
@@ -176,7 +176,14 @@ export const TOOLS = {
       });
       const waiting = [...new Set([...(parent.blockedByIssueIds ?? []), child.id])];
       await pc("PATCH", `/issues/${parentId}`, { blockedByIssueIds: waiting, status: "blocked" });
-      return { child: brief(child), parentWaitsFor: waiting };
+      // The brief is what the verifier and the user read as the goal: never leave the parent without one.
+      const existing = await pc("GET", `/issues/${parentId}/documents/brief`).catch(() => null);
+      let briefSaved = false;
+      if (!existing?.body) {
+        await pc("PUT", `/issues/${parentId}/documents/brief`, { format: "markdown", title: "任务书", body: description });
+        briefSaved = true;
+      }
+      return { child: brief(child), parentWaitsFor: waiting, briefSaved };
     },
   },
   ask_user: {
