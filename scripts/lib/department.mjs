@@ -14,7 +14,9 @@ import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
 
-export const DEFAULT_LEAD_MODEL = "claude-opus-5-5";
+// Overridable for Anthropic-compatible providers (e.g. DeepSeek): set AGENTSELF_LEAD_MODEL to the provider's
+// model id, or to an alias such as "opus" that Claude Code maps through ANTHROPIC_DEFAULT_OPUS_MODEL.
+export const DEFAULT_LEAD_MODEL = process.env.AGENTSELF_LEAD_MODEL || "claude-opus-5-5";
 
 const SKILL_DIRS = { "agentself-lead": "lead", "agentself-employee": "employee", "agentself-memory": "memory" };
 // Skills reach agents through their instructions file (see writeAgentRuntime): Paperclip-mounted

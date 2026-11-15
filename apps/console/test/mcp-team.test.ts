@@ -5,7 +5,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { handle } from "../server/mcp-team.mjs";
 
 type Issue = { id: string; companyId: string; status: string; parentId: string | null; assigneeAgentId: string; projectId: string };
-const db: { issues: Issue[]; docs: Record<string, unknown>; comments: Array<{ issueId: string; body: string }> } = { issues: [], docs: {}, comments: [] };
+const db = {
+  issues: [] as Issue[],
+  docs: {} as Record<string, unknown>,
+  comments: [] as Array<{ issueId: string; body: string }>,
+  interactions: [] as Array<{ issueId: string; kind: string; payload: { target?: { key?: string; revisionId?: string } } }>,
+  calls: [] as string[],
+  /** force Paperclip to refuse in_review even with a review path */
+  refuseReview: false,
+};
 let server: http.Server;
 
 beforeAll(async () => {
@@ -16,13 +24,27 @@ beforeAll(async () => {
     const p = new URL(req.url!, "http://x").pathname;
     let out: unknown = null;
     let m: RegExpMatchArray | null;
+    db.calls.push(`${req.method} ${p}`);
     if ((m = p.match(/^\/api\/issues\/(\w+)$/))) {
       const i = db.issues.find((x) => x.id === m![1])!;
-      if (req.method === "PATCH") Object.assign(i, b);
+      if (req.method === "PATCH") {
+        // Paperclip: an agent may not move a task to in_review without a review path
+        const hasPath = db.interactions.some((x) => x.issueId === i.id);
+        if (b.status === "in_review" && (!hasPath || db.refuseReview)) {
+          res.writeHead(422, { "content-type": "application/json" });
+          return res.end(JSON.stringify({ error: "invalid_issue_disposition: Agent-authored updates that move an issue to in_review must include a real review path." }));
+        }
+        Object.assign(i, b);
+      }
       out = i;
     } else if ((m = p.match(/^\/api\/issues\/(\w+)\/documents\/(\w+)$/))) {
-      if (req.method === "PUT") db.docs[`${m[1]}:${m[2]}`] = b;
+      if (req.method === "PUT") db.docs[`${m[1]}:${m[2]}`] = { ...b, id: `doc-${m[2]}`, latestRevisionId: "11111111-1111-4111-8111-111111111111" };
       out = db.docs[`${m[1]}:${m[2]}`] ?? null;
+    } else if ((m = p.match(/^\/api\/issues\/(\w+)\/interactions$/)) && req.method === "POST") {
+      db.interactions.push({ issueId: m[1], ...b });
+      out = { id: `int-${db.interactions.length}` };
+    } else if (p === "/api/plugins/tools/execute") {
+      out = { result: { content: "已取消这个任务上未触发的提醒和看守" } };
     } else if ((m = p.match(/^\/api\/issues\/(\w+)\/comments$/))) {
       db.comments.push({ issueId: m[1], body: b.body });
       out = {};
@@ -46,13 +68,32 @@ const call = async (name: string, args: Record<string, unknown>, role = "lead") 
 };
 
 describe("team MCP server", () => {
-  it("submit_report writes the report and moves the lead's task to in_review", async () => {
+  it("submit_report: drop reminders, then a confirmation card on the report, then in_review", async () => {
     db.issues.push({ id: "top", companyId: "c1", status: "in_progress", parentId: null, assigneeAgentId: "lead1", projectId: "p" });
+    db.calls.length = 0;
     const r = await call("submit_report", { issueId: "top", body: "## 结论\n可以" });
     expect(r.err).toBe(false);
     expect((db.docs["top:report"] as { body: string }).body).toContain("可以");
     expect(db.issues[0].status).toBe("in_review");
+    const card = db.interactions.find((x) => x.issueId === "top")!;
+    expect(card.kind).toBe("request_confirmation");
+    expect(card.payload.target).toMatchObject({ key: "report", revisionId: "11111111-1111-4111-8111-111111111111" });
+    const order = (x: string) => db.calls.findIndex((c) => c === x);
+    expect(order("POST /api/plugins/tools/execute")).toBeLessThan(order("POST /api/issues/top/interactions"));
+    expect(order("POST /api/issues/top/interactions")).toBeLessThan(order("PATCH /api/issues/top"));
     expect(db.comments.at(-1)).toEqual({ issueId: "top", body: "已汇报，等你确认。" });
+  });
+  it("when Paperclip still refuses in_review, reminders are already dropped and the lead gets the reason", async () => {
+    db.issues.push({ id: "top3", companyId: "c1", status: "in_progress", parentId: null, assigneeAgentId: "lead1", projectId: "p" });
+    db.refuseReview = true;
+    db.calls.length = 0;
+    const r = await call("submit_report", { issueId: "top3", body: "x" });
+    db.refuseReview = false;
+    expect(r.err).toBe(true);
+    expect(r.text).toContain("invalid_issue_disposition");
+    expect(r.text).toContain("提醒已取消");
+    expect(db.calls).toContain("POST /api/plugins/tools/execute");
+    expect(db.issues.find((i) => i.id === "top3")!.status).toBe("in_progress");
   });
   it("writing the report through write_document settles the task too", async () => {
     db.issues.push({ id: "top2", companyId: "c1", status: "in_progress", parentId: null, assigneeAgentId: "lead1", projectId: "p" });
@@ -66,6 +107,17 @@ describe("team MCP server", () => {
     expect(db.issues.find((i) => i.id === "kid")!.status).toBe("in_progress");
     await call("write_document", { issueId: "kid", key: "report", body: "x" }, "employee");
     expect(db.issues.find((i) => i.id === "kid")!.status).toBe("in_progress");
+  });
+  it("an employee can settle its own task (exercises the shared helpers)", async () => {
+    process.env.PAPERCLIP_AGENT_ID = "emp";
+    try {
+      const r = await call("update_task", { issueId: "kid", status: "done" }, "employee");
+      expect(r.err).toBe(false);
+      expect(JSON.parse(r.text)).toMatchObject({ id: "kid", status: "done", parentId: "top" });
+      expect((await call("update_task", { issueId: "top", status: "done" }, "employee")).err).toBe(true);
+    } finally {
+      process.env.PAPERCLIP_AGENT_ID = "lead1";
+    }
   });
   it("employees cannot see lead-only tools", async () => {
     const r = await handle({ jsonrpc: "2.0", id: 2, method: "tools/list" }, "employee");
