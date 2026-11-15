@@ -28,34 +28,73 @@ export interface OfficePalette {
   accent: string;
 }
 
+/** Office skin, light (DESIGN §5). */
 export const DEFAULT_PALETTE: OfficePalette = {
-  floorA: "#e9e5de",
-  floorB: "#e2ddd4",
-  wall: "#f1eee8",
-  wallDark: "#e6e2db",
-  trim: "#d6cfc4",
-  sky: "#cfe3f1",
-  desk: "#8a6b4f",
-  deskTop: "#b08a66",
-  deskLeg: "#5e4733",
-  monitor: "#2f2f3a",
-  screenIdle: "#3a4660",
-  screenOn: "#58d0ff",
+  floorA: "#EFEDE9",
+  floorB: "#E8E5E1",
+  wall: "#F6F5F3",
+  wallDark: "#E4E1DD",
+  trim: "#D8D2CB",
+  sky: "#F7E4D6",
+  desk: "#3A3F45",
+  deskTop: "#CDBBA8",
+  deskLeg: "#3A3F45",
+  monitor: "#2B3138",
+  screenIdle: "#46566B",
+  screenOn: "#9FC4BA",
   code: "#ffffff",
-  plant: "#4f9a4a",
-  plantDark: "#33703a",
-  pot: "#c56a3d",
-  rug: "#ede3d4",
-  rugB: "#d9480f",
-  chair: "#4a4458",
+  plant: "#8FA58A",
+  plantDark: "#7A9475",
+  pot: "#E3876A",
+  rug: "#EDEAE6",
+  rugB: "#E3876A",
+  chair: "#5F6266",
   mug: "#ffffff",
-  shelf: "#7c5a3c",
-  books: ["#c23b3b", "#3a5a8c", "#ffc56b", "#2b7a3b"],
-  accent: "#d9480f",
+  shelf: "#8E7F73",
+  books: ["#E3876A", "#C6BCC4", "#EBC3A0", "#A9B79B", "#9AA7B5"],
+  accent: "#E3876A",
 };
 
+/** Office skin, dark (DESIGN §5). */
+export const DARK_PALETTE: OfficePalette = {
+  floorA: "#191C20",
+  floorB: "#1D2125",
+  wall: "#1E2226",
+  wallDark: "#2A2F34",
+  trim: "#3A3F45",
+  sky: "#3B3240",
+  desk: "#2B3035",
+  deskTop: "#8C7C6C",
+  deskLeg: "#2B3035",
+  monitor: "#14181C",
+  screenIdle: "#33465E",
+  screenOn: "#5CC4AE",
+  code: "#ffffff",
+  plant: "#6E8A6A",
+  plantDark: "#5D7859",
+  pot: "#C9765D",
+  rug: "#22262A",
+  rugB: "#C9765D",
+  chair: "#3A4047",
+  mug: "#D8D2CB",
+  shelf: "#5B5048",
+  books: ["#E3876A", "#C6BCC4", "#EBC3A0", "#A9B79B", "#9AA7B5"],
+  accent: "#E3876A",
+};
+
+/** The lead's seat gets a 3px peach → lavender outline; nothing else uses a gradient (DESIGN §5). */
+export const LEAD_OUTLINE = ["#F2BC94", "#BFB6D6"] as const;
+
+export function lerpColor(a: string, b: string, t: number): string {
+  const p = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
+}
+
+
 export const EYE_COLORS = { claude: "#ffc56b", codex: "#4fd1e8", other: "#c9c3ff" } as const;
-export const BODY_COLORS = ["#3a7bd5", "#2b7a3b", "#8a6bd6", "#d9480f", "#c23b3b", "#0f8a8a", "#b0892f", "#6b7280"];
+// Muted to sit on the grey SETO floor (DESIGN §5).
+export const BODY_COLORS = ["#5B7FD6", "#7D8794", "#9C8CC9", "#3E9C8C", "#B07CC9", "#C9956A"];
 
 /** 8x8 robot: a antenna, f frame, s screen, e eye, b body. */
 export const ROBOT = ["...aa...", ".ffffff.", "ffssssff", "fsessesf", "fssssssf", ".ffffff.", "..bbbb..", ".b.bb.b."];
@@ -296,14 +335,24 @@ export class OfficeRenderer {
       this.px(P.shelf, sx, 8, 32, 30);
       for (let s = 0; s < 2; s++) for (let b = 0; b < 6; b++) {
         const hgt = 6 + ((b * 3 + s) % 3);
-        this.px(P.books[(b + s) % 4], sx + 2 + b * 5, 10 + s * 13 + (9 - hgt), 3, hgt);
+        this.px(P.books[(b + s) % P.books.length], sx + 2 + b * 5, 10 + s * 13 + (9 - hgt), 3, hgt);
       }
       // lead rug
       const lead = this.layout.seats.find((s) => s.isLead && s.zone === this.layout.zones.indexOf(z));
       if (lead) {
-        this.px(P.rug, lead.deskX - 8, lead.deskY - 22, 56, 40);
-        this.px(P.rugB, lead.deskX - 8, lead.deskY - 22, 56, 1);
-        this.px(P.rugB, lead.deskX - 8, lead.deskY + 17, 56, 1);
+        const rx = lead.deskX - 8, ry = lead.deskY - 22, rw = 56, rh = 40;
+        this.px(P.rug, rx, ry, rw, rh);
+        // 3px outline, peach at the top-left fading to lavender at the bottom-right
+        for (let i = 0; i < rw; i++) {
+          const c = lerpColor(LEAD_OUTLINE[0], LEAD_OUTLINE[1], i / (rw - 1));
+          this.px(c, rx + i, ry - 3, 1, 3);
+          this.px(c, rx + i, ry + rh, 1, 3);
+        }
+        for (let j = -3; j < rh + 3; j++) {
+          const t = (j + 3) / (rh + 5);
+          this.px(lerpColor(LEAD_OUTLINE[0], LEAD_OUTLINE[1], t * 0.5), rx - 3, ry + j, 3, 1);
+          this.px(lerpColor(LEAD_OUTLINE[0], LEAD_OUTLINE[1], 0.5 + t * 0.5), rx + rw, ry + j, 3, 1);
+        }
       }
       this.plant(z.x + z.w - 14, TOP + 4);
     }

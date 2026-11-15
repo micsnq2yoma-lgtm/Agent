@@ -1,17 +1,14 @@
-// AGENTSELF wordmark (pixel "E" in SELF uses the accent colour) and the original pixel robot avatar.
+// AGENTSELF wordmark, set in the display serif with the E in the brand colour (DESIGN §5), and the
+// original pixel robot avatar (employees only).
 import { BODY_COLORS, EYE_COLORS, ROBOT, hashColor } from "@agentself/pixel-office";
 
-export function Wordmark({ size = 16 }: { size?: number }) {
-  const h = size * 0.75;
+export function Wordmark({ size = 21 }: { size?: number }) {
   return (
     <span className="wordmark" role="img" aria-label="AGENTSELF" style={{ fontSize: size }}>
       <span aria-hidden="true">AGENTS</span>
-      <svg width={h * 0.6} height={h} viewBox="0 0 3 5" shapeRendering="crispEdges" aria-hidden="true" style={{ margin: `0 ${size * 0.08}px` }}>
-        <rect x="0" y="0" width="3" height="1" fill="var(--as-accent)" />
-        <rect x="0" y="0" width="1" height="5" fill="var(--as-accent)" />
-        <rect x="0" y="2" width="2" height="1" fill="var(--as-accent)" />
-        <rect x="0" y="4" width="3" height="1" fill="var(--as-accent)" />
-      </svg>
+      <span aria-hidden="true" className="e">
+        E
+      </span>
       <span aria-hidden="true">LF</span>
     </span>
   );
@@ -27,7 +24,7 @@ export function Robot({ id = "frontdesk", eye = "claude", size = 26, grey = fals
     b: grey ? "#8a8a8a" : body,
   };
   return (
-    <svg width={size} height={size} viewBox="-1 -1 10 10" shapeRendering="crispEdges" aria-hidden="true" style={{ flex: "none", display: "block", background: "#26241f", borderRadius: 4 }}>
+    <svg width={size} height={size} viewBox="-1 -1 10 10" shapeRendering="crispEdges" aria-hidden="true" style={{ flex: "none", display: "block", background: "var(--as-x-avatar, var(--as-avatar-bg, #EEF0F2))", borderRadius: Math.round(size * 0.3) }}>
       {ROBOT.flatMap((row, y) => [...row].map((ch, x) => (ch === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill={pal[ch]} />)))}
     </svg>
   );

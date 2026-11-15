@@ -1,6 +1,6 @@
 // Loads everything the workbench needs and turns it into cards.
 import { as, list, pc, type Context, type Issue } from "./api";
-import { buildCards, type Answer, type AttentionItem, type Card, type Interaction } from "./cards";
+import { buildCards, hireCards, sortCards, type Answer, type AttentionItem, type Card, type HireRequest, type Interaction } from "./cards";
 
 export interface Feed {
   cards: Card[];
@@ -13,10 +13,11 @@ const interactionCache = new Map<string, Interaction>();
 export async function loadFeed(ctx: Context): Promise<Feed> {
   if (!ctx.company) return { cards: [], issues: [], handled: [] };
   const cid = ctx.company.id;
-  const [attention, issues, answers] = await Promise.all([
+  const [attention, issues, answers, hires] = await Promise.all([
     pc.get<{ items: AttentionItem[] }>(`/companies/${cid}/attention`),
     pc.get<Issue[]>(`/companies/${cid}/issues`),
     as.get<Answer[]>(`/answers?companyId=${cid}`),
+    as.get<HireRequest[]>(`/hire-requests?status=pending`).catch(() => [] as HireRequest[]),
   ]);
   const items = list<AttentionItem>(attention);
 
@@ -41,7 +42,7 @@ export async function loadFeed(ctx: Context): Promise<Feed> {
 
   const deptOfProject = (projectId: string | null | undefined) => ctx.departments.find((d) => d.projectId === projectId)?.name ?? null;
   const issueList = list<Issue>(issues);
-  const cards = buildCards({
+  const built = buildCards({
     attention: items,
     interactions,
     issues: issueList,
@@ -49,6 +50,7 @@ export async function loadFeed(ctx: Context): Promise<Feed> {
     answers: list<Answer>(answers),
     departmentOfProject: deptOfProject,
   });
+  const cards = sortCards([...hireCards(list<HireRequest>(hires)), ...built]);
   const handled = buildCards({
     attention: [],
     interactions: {},
@@ -64,9 +66,11 @@ export async function loadFeed(ctx: Context): Promise<Feed> {
 
 /* ---------------- actions ---------------- */
 
-export async function act(card: Card, optionId: string, extra?: { comment?: string }) {
+export async function act(card: Card, optionId: string, extra?: { comment?: string; name?: string }) {
   const s = card.source;
   switch (s.kind) {
+    case "hire":
+      return as.post(`/hire-requests/${s.hireId}/${optionId === "approve" ? "approve" : "reject"}`, optionId === "approve" ? { name: extra?.name || s.name } : { reason: extra?.comment ?? "" });
     case "interaction":
       if (optionId === "__accept") return pc.post(`/issues/${s.issueId}/interactions/${s.interactionId}/accept`, {});
       if (optionId === "__reject" || optionId === "rework")

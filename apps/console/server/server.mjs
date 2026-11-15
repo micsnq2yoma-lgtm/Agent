@@ -75,6 +75,8 @@ export async function loadContext() {
     if (!m?.department) continue;
     const d = deptMap.get(m.department) ?? { key: m.department, name: m.departmentName ?? m.department, projectId: m.projectId ?? null, leadAgentId: null, members: [] };
     if (m.isLead) d.leadAgentId = a.id;
+    // The pack icon lives on the employees (the lead's Paperclip icon is a crown).
+    else if (!d.icon && a.icon) d.icon = a.icon;
     d.members.push(a.id);
     deptMap.set(m.department, d);
   }

@@ -1,6 +1,7 @@
+import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { OfficeSnapshot } from "@agentself/shared";
-import { OfficeRenderer, type Label } from "@agentself/pixel-office";
+import { DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, type Label } from "@agentself/pixel-office";
 import { as, type Context } from "../lib/api";
 import type { Card } from "../lib/cards";
 import { useSkin } from "../lib/skin";
@@ -32,7 +33,7 @@ export function Team(props: {
   openEmployee: (agentId: string) => void;
   act: (card: Card, opt: string) => void;
 }) {
-  const { t, skin } = useSkin();
+  const { t, skin, dark } = useSkin();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<OfficeRenderer | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
@@ -54,8 +55,12 @@ export function Team(props: {
   }, []);
 
   useEffect(() => {
-    rendererRef.current?.setPalette({ floorA: skin.office.floor, wall: skin.office.wall, desk: skin.office.desk, accent: skin.office.accent });
-  }, [skin]);
+    // The office skin has full light / dark palettes (DESIGN §5); other skins override four keys.
+    const base = dark ? DARK_PALETTE : DEFAULT_PALETTE;
+    rendererRef.current?.setPalette(
+      skin.id === "office" ? base : { ...base, floorA: skin.office.floor, wall: skin.office.wall, desk: skin.office.desk, accent: skin.office.accent },
+    );
+  }, [skin, dark]);
 
   useEffect(() => {
     let alive = true;
@@ -93,7 +98,7 @@ export function Team(props: {
 
   return (
     <div className="page" style={{ maxWidth: "none" }}>
-      {snapshot && snapshot.people.length === 0 && <div className="empty">还没有{t("employee")}。去侧栏「{t("department")} ＋」新建一个。</div>}
+      {snapshot && snapshot.people.length === 0 && <div className="empty"><b>还没有{t("employee")}</b><span>在侧栏「{t("lead")}」旁边点加号，新建一位{t("lead")}和他的{t("employee")}。</span></div>}
       <div className="office-wrap" style={{ maxWidth: worldW * 4, margin: "0 auto" }}>
         <canvas
           ref={canvasRef}
@@ -122,8 +127,8 @@ export function Team(props: {
           <div className="popover" style={{ left: `min(calc(${label.left * 100}% + 12px), calc(100% - 270px))`, top: `${label.top * 100 + 4}%` }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
               <strong>{person.name}</strong>
-              <button className="close-x" style={{ fontSize: 16 }} onClick={() => setSelected(null)} aria-label="关闭">
-                ×
+              <button className="icon-btn xs plain" onClick={() => setSelected(null)} aria-label="关闭">
+                <X />
               </button>
             </div>
             <div style={{ fontSize: 12, color: "var(--as-muted)" }}>

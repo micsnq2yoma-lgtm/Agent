@@ -1,4 +1,5 @@
 // Employee quick view (drawer) + the 档案 / 记忆 panels reused by the employee full page (P10).
+import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { as, list, pc, type Agent, type Context } from "../lib/api";
 import { useSkin } from "../lib/skin";
@@ -89,7 +90,7 @@ export function EmployeeProfile({ ctx, agentId, toast }: { ctx: Context; agentId
         <h3>技能</h3>
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {skills.map((s) => (
-            <span key={s} className="tag answer">
+            <span key={s} className="chip">
               {s}
             </span>
           ))}
@@ -193,13 +194,17 @@ export function EmployeeDrawer({ ctx, agentId, onClose, toast }: { ctx: Context;
       <div className="drawer-backdrop" onClick={onClose} />
       <aside className="drawer" role="dialog" aria-label={`${t("employee")}档案`}>
         <header>
-          <button className="close-x" aria-label="关闭" onClick={onClose}>
-            ×
-          </button>
+          <div className="line1">
+            <span className="mono">{t("employee")}档案</span>
+            <span className="grow" />
+            <button className="icon-btn sm surface" aria-label="关闭" onClick={onClose}>
+              <X />
+            </button>
+          </div>
           <EmployeeHeader ctx={ctx} agentId={agentId} />
           <div className="drawer-links">
             <Link to={`/agents/${agentId}/profile`} onClick={onClose} data-testid="open-agent-page">
-              完整页（档案、记忆、配置、运行记录、预算）→
+              完整页（档案、记忆、配置、运行记录、预算）
             </Link>
           </div>
         </header>

@@ -124,3 +124,27 @@ describe("workbench cards", () => {
     expect(filterCards(cards, "all", "科研部")).toHaveLength(2);
   });
 });
+
+import { hireCards, relTime } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
+describe("hire cards (SETO §4.6)", () => {
+  const hire = { id: "h1", leadAgentId: "l", leadName: "科研主管", team: "科研", issueId: "top", name: "小码", capabilities: "写代码", adapterType: "codex_local" as const, reason: "缺人", createdAt: "2026-11-15T10:00:00Z" };
+  it("turns a pending hiring request into a decide-tier card", () => {
+    const [c] = hireCards([hire]);
+    expect(c.type).toBe("hire");
+    expect(c.tier).toBe("high");
+    expect(c.options.map((o) => o.id)).toEqual(["approve", "reject"]);
+    expect(c.issueId).toBe("top");
+  });
+  it("counts and filters with 要你拍板", () => {
+    const cards = hireCards([hire]);
+    expect(countByType(cards).decide).toBe(1);
+    expect(filterCards(cards, "decide", null)).toHaveLength(1);
+    expect(filterCards(cards, "deliver", null)).toHaveLength(0);
+  });
+  it("relative time", () => {
+    const now = Date.parse("2026-11-15T12:00:00Z");
+    expect(relTime("2026-11-15T11:59:40Z", now)).toBe("刚刚");
+    expect(relTime("2026-11-15T11:55:00Z", now)).toBe("5 分钟前");
+    expect(relTime("2026-11-15T09:00:00Z", now)).toBe("3 小时前");
+  });
+});

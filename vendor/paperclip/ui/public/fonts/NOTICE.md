@@ -28,3 +28,19 @@ The bundled WOFF2 files are included unmodified from the upstream v4.1 release.
 The refreshed task-row specimen uses this variable webfont for task identifiers.
 It supports upright weights 100–800. Existing uses of the system monospace stack
 remain unchanged until their design is reviewed.
+
+## Cormorant Garamond (Agentself SETO skin, display serif)
+
+- Upstream project: https://github.com/CatharsisFonts/Cormorant
+- Taken from the npm package `@fontsource-variable/cormorant-garamond` 5.3.0 (`files/cormorant-garamond-latin-wght-normal.woff2`, `files/cormorant-garamond-latin-ext-wght-normal.woff2`), bundled without modification as `CormorantGaramond-Variable-latin.woff2` and `CormorantGaramond-Variable-latin-ext.woff2`
+- Weights 300–700
+- License: SIL Open Font License 1.1; included in `CormorantGaramond-OFL.txt`
+
+Used for headings, the wordmark and stat numbers when the commercial Tiempos Headline is not installed locally (docs/handoff/design/DESIGN.md §9.11).
+
+## JetBrains Mono (Agentself SETO skin, monospace)
+
+- Upstream project: https://github.com/JetBrains/JetBrainsMono
+- Taken from the npm package `@fontsource-variable/jetbrains-mono` 5.3.0 (`files/jetbrains-mono-latin-wght-normal.woff2`), bundled without modification as `JetBrainsMono-Variable-latin.woff2`
+- Weights 100–800
+- License: SIL Open Font License 1.1; included in `JetBrainsMono-OFL.txt`

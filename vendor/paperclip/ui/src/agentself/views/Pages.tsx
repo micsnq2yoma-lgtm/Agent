@@ -1,3 +1,4 @@
+import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
@@ -23,7 +24,7 @@ export function Projects({ ctx, issues, openProject, departmentKey, embedded = f
     .sort((a, b) => deptIndex(a) - deptIndex(b) || b.updatedAt.localeCompare(a.updatedAt));
   return (
     <div className={embedded ? "" : "page"}>
-      {!embedded && <h1 style={{ fontSize: 20 }}>{t("project")}</h1>}
+      {!embedded && <h1 className="page-title">{t("project")}</h1>}
       <label style={{ fontSize: 13 }}>
         <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> 显示已完成
       </label>
@@ -86,7 +87,7 @@ export function Routines({ ctx, departmentKey, embedded = false }: { ctx: Contex
   const routines = all ? all.filter((r) => !dept || r.projectId === dept.projectId).sort((x, y) => deptIndex(x) - deptIndex(y)) : null;
   return (
     <div className={embedded ? "" : "page"}>
-      {!embedded && <h1 style={{ fontSize: 20 }}>{t("routine")}</h1>}
+      {!embedded && <h1 className="page-title">{t("routine")}</h1>}
       <p className="hint">定时、Webhook 或接口触发，每次生成一个任务，交给指定的{t("employee")}。在新建{t("department")}向导里添加，或在高级设置里调整。</p>
       <table className="data">
         <thead>
@@ -149,7 +150,7 @@ export function Capabilities({ ctx, agentIds, permissionsOnly = false, embedded 
   const skillsList = all;
   return (
     <div className={embedded ? "" : "page"}>
-      {!embedded && <h1 style={{ fontSize: 20 }}>能力与工具</h1>}
+      {!embedded && <h1 className="page-title">能力与工具</h1>}
       {!permissionsOnly && (
       <div className="section">
         <h2>能力包（技能）</h2>
@@ -213,7 +214,7 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
   const depts = departmentKey ? ctx.departments.filter((d) => d.key === departmentKey) : ctx.departments;
   return (
     <div className={embedded ? "" : "page"}>
-      {!embedded && <h1 style={{ fontSize: 20 }}>用量</h1>}
+      {!embedded && <h1 className="page-title">用量</h1>}
       <div className="section">
         <h2>按{t("department")}（本月 API 折算花费 / 预算）</h2>
         <table className="data">
@@ -336,17 +337,21 @@ function ProfileProposals({ onAccepted }: { onAccepted: () => void }) {
   }
   if (list.length === 0) return null;
   return (
-    <div style={{ marginBottom: 14 }}>
-      <div className="label">新的了解，待你确认（{list.length}）</div>
+    <div className="section">
+      <h2>
+        待确认的记忆提议 <span className="status-tag hot">{list.length}</span>
+      </h2>
       <div className="sub" style={{ marginBottom: 6 }}>记忆整理时从工作日志里提炼出来的。确认后才会写进"关于我"，可以先改措辞。</div>
       {list.map((p) => (
-        <div key={p.id} className="row" style={{ gap: 8 }}>
-          <input className="input" style={{ flex: 1 }} value={edits[p.id] ?? p.text} onChange={(e) => setEdits({ ...edits, [p.id]: e.target.value })} />
-          <span className="sub">{p.from}</span>
-          <button className="btn" onClick={() => void resolve(p, "accept")}>
-            记下
+        <div key={p.id} className="proposal">
+          <div className="grow">
+            <input className="input" style={{ width: "100%", height: 40 }} aria-label="提议内容" value={edits[p.id] ?? p.text} onChange={(e) => setEdits({ ...edits, [p.id]: e.target.value })} />
+            <div className="sub" style={{ marginTop: 4 }}>来自 {p.from} 的工作日志</div>
+          </div>
+          <button className="btn primary xs" onClick={() => void resolve(p, "accept")}>
+            写入
           </button>
-          <button className="btn ghost" onClick={() => void resolve(p, "reject")}>
+          <button className="btn ghost xs" onClick={() => void resolve(p, "reject")}>
             忽略
           </button>
         </div>
@@ -357,7 +362,10 @@ function ProfileProposals({ onAccepted }: { onAccepted: () => void }) {
 
 function ProfileEditor() {
   const [texts, setTexts] = useState<Record<string, string>>({});
-  const [saved, setSaved] = useState<string | null>(null);
+  const [draft, setDraft] = useState<string>("");
+  const [sel, setSel] = useState<(typeof PROFILE_SECTIONS)[number]["key"]>("user");
+  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [saved, setSaved] = useState(false);
   const loadTexts = () => {
     for (const { key } of PROFILE_SECTIONS) {
       as.get<{ text: string }>(`/profile/${key}`)
@@ -366,40 +374,85 @@ function ProfileEditor() {
     }
   };
   useEffect(loadTexts, []);
-  async function save(key: string) {
-    await as.put(`/profile/${key}`, { text: texts[key] ?? "" });
-    setSaved(key);
-    setTimeout(() => setSaved(null), 1500);
+  useEffect(() => setDraft(texts[sel] ?? ""), [sel, texts[sel]]);
+  async function save() {
+    await as.put(`/profile/${sel}`, { text: draft });
+    setTexts((t) => ({ ...t, [sel]: draft }));
+    setSaved(true);
+    setTimeout(() => setSaved(false), 1500);
   }
+  const current = PROFILE_SECTIONS.find((x) => x.key === sel)!;
   return (
-    <div className="section">
-      <h2>关于我</h2>
-      <ProfileProposals onAccepted={loadTexts} />
-      {PROFILE_SECTIONS.map(({ key, label, sub }) => (
-        <label key={key} className="field" style={{ marginBottom: 12 }}>
-          <span className="label">
-            {label} {saved === key && <span style={{ fontSize: 12, color: "var(--as-success)" }}>已保存</span>}
-          </span>
-          <span className="sub">{sub}</span>
-          <textarea
-            className="input"
-            style={{ minHeight: key === "user" ? 140 : 90, fontFamily: "inherit" }}
-            value={texts[key] ?? ""}
-            onChange={(e) => setTexts({ ...texts, [key]: e.target.value })}
-            onBlur={() => void save(key)}
-          />
-        </label>
-      ))}
+    <div className="profile-grid">
+      <div className="profile-list" role="tablist" aria-label="档案">
+        {PROFILE_SECTIONS.map(({ key, label, sub }) => (
+          <button key={key} role="tab" aria-selected={sel === key} className={sel === key ? "on" : ""} onClick={() => setSel(key)}>
+            <b>{label}</b>
+            <span>{sub}</span>
+          </button>
+        ))}
+      </div>
+      <div>
+        <ProfileProposals onAccepted={loadTexts} />
+        <div className="section">
+          <h2>
+            <span style={{ flex: 1 }}>{current.label}</span>
+            <span className="seg" role="tablist" aria-label="编辑或预览">
+              <button role="tab" aria-selected={mode === "edit"} className={mode === "edit" ? "on" : ""} onClick={() => setMode("edit")}>
+                编辑
+              </button>
+              <button role="tab" aria-selected={mode === "preview"} className={mode === "preview" ? "on" : ""} onClick={() => setMode("preview")}>
+                预览
+              </button>
+            </span>
+            <button className="btn primary xs" disabled={draft === (texts[sel] ?? "")} onClick={() => void save()}>
+              {saved ? "已保存" : "保存"}
+            </button>
+          </h2>
+          {mode === "edit" ? (
+            <textarea className="input" style={{ minHeight: 320 }} aria-label={current.label} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          ) : (
+            <div className="md-preview">{draft || "（空）"}</div>
+          )}
+          <div className="sub mono" style={{ marginTop: 8 }}>
+            ~/.agentself/profile/{sel}.md
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
 /* ---------------- Settings ---------------- */
+const SETTINGS_TABS = [
+  ["general", "通用"],
+  ["router", "路由"],
+  ["feishu", "飞书"],
+  ["budget", "预算"],
+  ["external", "对外动作"],
+  ["skin", "皮肤"],
+  ["profile", "关于我"],
+  ["advanced", "高级"],
+] as const;
+type SettingsTab = (typeof SETTINGS_TABS)[number][0];
+
 export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => void }) {
   const { t, setSkinId } = useSkin();
   const [s, setS] = useState<Settings>(ctx.settings);
   const [saved, setSaved] = useState(false);
   const [feishuStatus, setFeishuStatus] = useState<string | null>(null);
+  const [tab, setTabState] = useState<SettingsTab>(() => {
+    const h = typeof location !== "undefined" ? location.hash.slice(1) : "";
+    return (SETTINGS_TABS.some(([k]) => k === h) ? h : "general") as SettingsTab;
+  });
+  const setTab = (k: SettingsTab) => {
+    setTabState(k);
+    try {
+      history.replaceState(null, "", `#${k}`);
+    } catch {
+      /* ignore */
+    }
+  };
   useEffect(() => setS(ctx.settings), [ctx.settings]);
   useEffect(() => {
     as.get<{ status: string }>("/feishu/status").then((r) => setFeishuStatus(r.status)).catch(() => setFeishuStatus(null));
@@ -418,8 +471,29 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
     onSaved();
   }
   return (
-    <div className="page" style={{ maxWidth: 760 }}>
-      <h1 style={{ fontSize: 20 }}>设置 {saved && <span style={{ fontSize: 13, color: "var(--as-success)" }}>已保存</span>}</h1>
+    <div className="page" style={{ maxWidth: tab === "profile" ? 1180 : 820 }}>
+      <h1 className="page-title">
+        设置 {saved && <span style={{ fontSize: 13, color: "var(--as-success)", fontFamily: "var(--as-font-body)" }}>已保存</span>}
+      </h1>
+      <div className="tabbar" role="tablist" aria-label="设置分类">
+        {SETTINGS_TABS.map(([key, label]) => (
+          <a
+            key={key}
+            href={`#${key}`}
+            role="tab"
+            aria-selected={tab === key}
+            className={tab === key ? "on" : ""}
+            onClick={(e) => {
+              e.preventDefault();
+              setTab(key);
+            }}
+          >
+            {label}
+          </a>
+        ))}
+      </div>
+      {tab === "general" && (
+        <>
       <div className="section">
         <h2>通用</h2>
         <div className="row">
@@ -430,7 +504,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           <input className="input" defaultValue={s.companyName} onBlur={(e) => e.target.value !== s.companyName && void save({ companyName: e.target.value })} />
         </div>
       </div>
-      <ProfileEditor />
+        </>
+      )}
+      {tab === "router" && (
+        <>
       <div className="section">
         <h2>路由</h2>
         <div className="row">
@@ -449,6 +526,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           <input type="checkbox" checked={s.askWhenUnclear} onChange={(e) => void save({ askWhenUnclear: e.target.checked })} />
         </div>
       </div>
+        </>
+      )}
+      {tab === "feishu" && (
+        <>
       <div className="section">
         <h2>飞书</h2>
         <div className="row">
@@ -507,6 +588,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           <input type="checkbox" checked={s.feishu.enabled} onChange={(e) => void save({ feishu: { ...s.feishu, enabled: e.target.checked } })} />
         </div>
       </div>
+        </>
+      )}
+      {tab === "budget" && (
+        <>
       <div className="section">
         <h2>预算</h2>
         <div className="row">
@@ -536,6 +621,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           );
         })}
       </div>
+        </>
+      )}
+      {tab === "external" && (
+        <>
       <div className="section">
         <h2>对外动作</h2>
         <div className="row">
@@ -549,6 +638,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           </select>
         </div>
       </div>
+        </>
+      )}
+      {tab === "skin" && (
+        <>
       <div className="section">
         <h2>皮肤</h2>
         <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
@@ -611,6 +704,10 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           </div>
         ))}
       </div>
+        </>
+      )}
+      {tab === "advanced" && (
+        <>
       <div className="section">
         <h2>高级</h2>
         <p className="hint">低频的高级设置沿用 Paperclip 原页面，在本应用内打开。</p>
@@ -630,6 +727,9 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
           <span className="sub">Paperclip 源码内置（vendor/paperclip，基线 d69631b）</span>
         </div>
       </div>
+        </>
+      )}
+      {tab === "profile" && <ProfileEditor />}
     </div>
   );
 }
@@ -656,7 +756,7 @@ export function Archived({ ctx, onChange }: { ctx: Context; onChange: () => void
   }
   return (
     <div className="page" style={{ maxWidth: 760 }}>
-      <h1 style={{ fontSize: 20 }}>已归档</h1>
+      <h1 className="page-title">已归档</h1>
       {archived.length === 0 && <div className="empty">没有归档的{t("department")}</div>}
       {archived.map((d) => (
         <div key={d.key} className="row">
@@ -697,7 +797,7 @@ interface Template {
   description: string;
 }
 // Plan B entry 2: scheduled watching goes straight to an employee; the lead is not woken.
-const WATCH_TEMPLATES = [
+export const WATCH_TEMPLATES = [
   { label: "新论文", cron: "30 8 * * *", prompt: "检索过去 24 小时与我课题相关的新论文（arXiv、主要会议和期刊），只挑真正值得我看的 0–3 篇，每篇一句话说明为什么值得看并附链接；没有就写\"无事\"。关键词和课题见全局档案\"关于我\"。" },
   { label: "邮件", cron: "0 8 * * 1-5", prompt: "整理过去 24 小时的未读邮件：标出需要我回复或决定的，写好回复草稿但不要发送；其余的一句话归类。没有需要我处理的就写\"无事\"。" },
   { label: "新闻", cron: "0 19 * * *", prompt: "汇总今天与我关注领域相关的重要新闻和动态（关注点见全局档案\"关于我\"），只保留真正重要的 0–5 条，每条一句话加来源链接；没有就写\"无事\"。" },
@@ -786,7 +886,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
   const steps = ["基本信息", "人员", "工具和数据源", "预算", "预览并创建"];
   return (
     <div className="page" style={{ maxWidth: 760 }}>
-      <h1 style={{ fontSize: 20 }}>新建{t("department")}</h1>
+      <h1 className="page-title">新建{t("lead")}</h1>
       <div className="wizard-steps">
         {steps.map((s, i) => (
           <span key={s} className={i <= step ? "on" : ""} title={s} />
@@ -861,7 +961,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
               {ROLE_TEMPLATES.map((r) => (
                 <button key={r.adapterType} className="btn" onClick={() => addMember(r)}>
-                  ＋ {t("employee")}（{r.adapterType === "codex_local" ? "Codex" : "Claude"}）
+                  <Plus aria-hidden="true" /> {t("employee")}（{r.adapterType === "codex_local" ? "Codex" : "Claude"}）
                 </button>
               ))}
               <span style={{ flex: 1 }} />

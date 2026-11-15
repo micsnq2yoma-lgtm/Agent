@@ -30,6 +30,8 @@
 | 2026-11-14 | `ui/src/components/Layout.tsx`（P9） | 主行加 `data-agentself-row`（朝堂皮肤侧栏放右侧）；Agentself 页面隐藏面包屑栏、去掉外层内边距 | 皮肤布局、去掉空白栏 |
 | 2026-11-14 | `ui/src/i18n/dom-translate.ts`（P9） | `setTermOverrides()`：词典翻译之后按皮肤替换术语（智能体→员工、管理台→我、例行任务、子任务），已是中文的文本也替换；切换皮肤时从原文重算 | 一套叫法 |
 | 2026-11-14 | `ui/src/App.tsx`（P10） | `agents/:agentId`、`agents/:agentId/:tab`、`agents/:agentId/runs/:runId` 外包 `EmployeeRoute` | 员工完整页 = Paperclip 详情 + 档案 / 记忆标签，并补回 P8 去掉二级侧栏后缺的子导航 |
+| 2026-11-15 | `ui/src/i18n/dom-translate.ts`、`ui/src/i18n/zh-CN-dom.json`（v0.6 界面） | 新增 "Enabled for N agents" 模式和 Assign Task、Search installed skills… 的译文 | SETO 设计规范 §6 的残留英文 |
+| 2026-11-15 | 新增 `ui/public/fonts/CormorantGaramond-Variable-*.woff2`、`JetBrainsMono-Variable-latin.woff2` 及 OFL 文本，`NOTICE.md` 追加两节 | 打包开源的衬线标题字体和等宽字体 | SETO 设计规范 §9.11：不依赖网络；Tiempos Headline 为商业字体，只在本机已安装时使用 |
 
 ## 待做
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。

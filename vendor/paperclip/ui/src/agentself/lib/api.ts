@@ -78,6 +78,8 @@ export interface Agent {
 export interface Department {
   key: string;
   name: string;
+  /** pack icon key (microscope, rocket, …), shown as a lucide line icon */
+  icon?: string;
   projectId: string | null;
   leadAgentId: string | null;
   members: string[];
