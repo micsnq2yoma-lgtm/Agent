@@ -1,7 +1,7 @@
 import type React from "react";
 // Workbench (DESIGN §2, §4.4–4.8): the three blocks of v0.6 — the input box (fixed at the bottom),
 // "待你处理" cards (middle) and the task progress panel (right, grouped by lead).
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, ChevronDown, ChevronRight, Clock, ExternalLink, Pencil, Route, Shield, SlidersHorizontal, TriangleAlert, X, Zap } from "lucide-react";
 import { as, pc, type Context, type Issue } from "../lib/api";
 import { FRONTDESK, LEAD, countByType, filterCards, relTime, type Card, type Filter } from "../lib/cards";
@@ -430,6 +430,12 @@ export function Home(props: {
   const [openId, setOpenId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [showHandled, setShowHandled] = useState(false);
+  // keep the opened detail clear of the fixed composer (scroll-margin-bottom in styles.css);
+  // only when a card is opened, not on every feed refresh
+  const detailRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (openId) requestAnimationFrame(() => detailRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }));
+  }, [openId]);
   const cards = useMemo(() => filterCards(feed?.cards ?? [], props.filter, props.department), [feed, props.filter, props.department]);
   const counts = countByType(filterCards(feed?.cards ?? [], "all", props.department));
 
@@ -462,11 +468,13 @@ export function Home(props: {
   }
 
   const rows: React.JSX.Element[] = [];
+
+  // The clicked card opens in place across the whole row (DESIGN §4.5); the others keep flowing.
   for (const c of cards) {
-    rows.push(<CardTile key={c.id} card={c} open={openId === c.id} onToggle={() => setOpenId(openId === c.id ? null : c.id)} />);
-    if (openId === c.id)
+    if (openId !== c.id) rows.push(<CardTile key={c.id} card={c} open={false} onToggle={() => setOpenId(c.id)} />);
+    else
       rows.push(
-        <div key={`${c.id}-detail`} className="detail-wrap">
+        <div key={`${c.id}-detail`} className="detail-wrap" ref={detailRef}>
           <CardDetail
             card={c}
             ctx={ctx}

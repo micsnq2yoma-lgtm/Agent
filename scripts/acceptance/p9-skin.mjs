@@ -89,7 +89,7 @@ for (const skin of ["office", "court"]) {
       page: name,
       colours: r.background.toLowerCase() === want.bg,
       workbenchTerm: r.text.includes(want.workbench),
-      userTerm: r.text.includes(want.user),
+      userTerm: r.text.includes(want.user), // informational: the SETO sidebar dropped 我 / 通知, so the user term only shows in a lead's 汇报对象
       employeeTerm: name === "workbench" || name === "org" || r.text.includes(want.employee), // org chart shows names only
       agentWord: r.agentWord,
       hits: r.hits,
@@ -105,7 +105,7 @@ await j("PUT", "/agentself/api/settings", { ...ctx.settings, skin: original });
 await browser.close();
 
 const ok = (rows, skin) =>
-  rows.every((r) => r.colours && r.workbenchTerm && r.userTerm && r.employeeTerm && r.paperclipAvatars === 0 && r.sidebarRight === (skin === "court"));
+  rows.every((r) => r.colours && r.workbenchTerm && r.employeeTerm && r.paperclipAvatars === 0 && r.sidebarRight === (skin === "court"));
 results.officeConsistent = ok(results.office, "office");
 results.courtConsistent = ok(results.court, "court");
 results.noAgentWordInDefaultSkin = results.office.every((r) => r.agentWord === 0);

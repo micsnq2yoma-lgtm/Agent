@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { ArrowUp, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 import { list, pc, type Context, type Issue } from "../lib/api";
 import { loadAcceptance, VERDICT_TEXT, type Acceptance } from "../lib/acceptance";
-import { progressOf, STAGE_NAMES } from "../lib/progress";
+import { progressOf, STAGE_NAMES, statusOf } from "../lib/progress";
 import { useSkin } from "../lib/skin";
-import { Robot, eyeOf, modelName } from "../components/Brand";
+import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Stages } from "./Home";
 import { Link } from "@/lib/router";
 import type { Card } from "../lib/cards";
@@ -38,6 +38,9 @@ interface Comment {
   createdAt: string;
   authorAgentId?: string | null;
 }
+
+/** A subtask is the employee's job: backlog there means "not started", not "paused". */
+const SUB_STATUS: Record<string, string> = { ...STATUS, backlog: "未开始", in_review: "已交付", done: "已交付" };
 
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
@@ -123,7 +126,8 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
   const emp = ctx.agents.find((a) => a.id === p?.employeeId);
   const hasDoc = (k: string) => docs.some((d) => d.key === k);
   const issueLink = (i: Issue | null) => (i ? `/issues/${i.identifier ?? i.id}` : "#");
-  const statusClass = issue?.status === "in_review" ? "good" : p?.bad ? "hot" : "";
+  const st = issue ? statusOf(issue, p) : null;
+  const sub = all.find((x) => x.id === p?.childId) ?? null;
 
   return (
     <>
@@ -134,7 +138,7 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
             <span className="mono">
               {lead?.name ?? t("lead")} · {issue?.identifier ?? ""}
             </span>
-            {issue && <span className={`status-tag ${statusClass}`}>{STATUS[issue.status] ?? issue.status}</span>}
+            {st && <span className={`status-tag ${st.tone}`}>{st.text}</span>}
             <span className="grow" />
             <button className="icon-btn sm surface" aria-label="关闭" onClick={onClose}>
               <X />
@@ -171,6 +175,7 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
                 {STAGE_NAMES.map((n, i) => (
                   <span key={n} className={i === p.stage ? "on" : ""}>
                     {n}
+                    {i === p.stage && p.waiting && issue?.status !== "in_review" ? " · 等你决定" : ""}
                   </span>
                 ))}
               </div>
@@ -227,7 +232,7 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
                 <div className="grow">
                   <div style={{ fontWeight: 600 }}>{emp.name}</div>
                   <div className="sub">
-                    {modelName(emp)} · {STATUS[kids[0]?.status ?? ""] ?? ""}
+                    {[modelName(emp), AGENT_STATUS[emp.status ?? ""] ?? emp.status, sub ? `子任务${SUB_STATUS[sub.status] ?? sub.status}` : null].filter(Boolean).join(" · ")}
                   </div>
                 </div>
                 <Link to={`/agents/${emp.id}/runs`} onClick={onClose}>

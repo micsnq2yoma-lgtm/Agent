@@ -5,7 +5,8 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useParams } from "@/lib/router";
 import { as, list, pc, type Context, type Issue } from "../lib/api";
 import { relTime, type Card } from "../lib/cards";
-import { progressOf } from "../lib/progress";
+import { cardsOfLead, progressOf, tasksOfLead } from "../lib/progress";
+import { cronText } from "../lib/cron";
 import { PackIcon } from "../lib/icons";
 import { Skeleton } from "../components/Skeleton";
 import { Stages } from "./Home";
@@ -99,7 +100,7 @@ function WatchCard({ ctx, dept, employees, toast }: { ctx: Context; dept: Contex
           <div key={w.label} className="row">
             <div>
               <div className="label">{w.label}</div>
-              <div className="sub mono">{w.cron}</div>
+              <div className="sub" title={w.cron}>{cronText(w.cron)}</div>
             </div>
             <button
               className={`switch ${on ? "on" : ""}`}
@@ -183,9 +184,10 @@ export function DepartmentPage(props: {
     { key: "budget", label: "预算" },
   ];
   const active = activeTab(tabs, tab);
-  const tops = props.issues.filter((i) => !i.parentId && i.projectId === dept.projectId && !["done", "cancelled"].includes(i.status));
-  const decide = props.cards.filter((c) => (c.type === "decide" || c.type === "hire") && c.department === dept.name);
-  const hires = props.cards.filter((c) => c.type === "hire" && c.department === dept.name);
+  // same membership rules as the sidebar count and the workbench progress panel
+  const tops = tasksOfLead(ctx, props.issues, dept);
+  const decide = cardsOfLead(ctx, props.issues, props.cards, dept);
+  const hires = decide.filter((c) => c.type === "hire");
   const spent = [lead, ...employees].reduce((n, a) => n + (a?.spentMonthlyCents ?? 0), 0) / 100;
   const budget = [lead, ...employees].reduce((n, a) => n + (a?.budgetMonthlyCents ?? 0), 0) / 100;
   return (

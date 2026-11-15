@@ -131,6 +131,7 @@ describe("hire cards (SETO §4.6)", () => {
   it("turns a pending hiring request into a decide-tier card", () => {
     const [c] = hireCards([hire]);
     expect(c.type).toBe("hire");
+    expect(c.source).toMatchObject({ kind: "hire", leadAgentId: "l" }); // the lead page and sidebar count it by lead
     expect(c.tier).toBe("high");
     expect(c.options.map((o) => o.id)).toEqual(["approve", "reject"]);
     expect(c.issueId).toBe("top");

@@ -36,7 +36,7 @@ export interface Card {
     | { kind: "issue"; issueId: string; dismissalKey: string | null }
     | { kind: "run"; issueId: string | null; runId: string | null; dismissalKey: string | null }
     | { kind: "answer"; answerId: string }
-    | { kind: "hire"; hireId: string; name: string; capabilities: string; adapterType: string; reason: string };
+    | { kind: "hire"; hireId: string; leadAgentId: string; name: string; capabilities: string; adapterType: string; reason: string };
   issueId: string | null;
 }
 
@@ -370,7 +370,7 @@ export function hireCards(list: HireRequest[]): Card[] {
       { id: "reject", label: "不同意" },
     ],
     primary: "同意并新建",
-    source: { kind: "hire" as const, hireId: h.id, name: h.name, capabilities: h.capabilities, adapterType: h.adapterType, reason: h.reason },
+    source: { kind: "hire" as const, hireId: h.id, leadAgentId: h.leadAgentId, name: h.name, capabilities: h.capabilities, adapterType: h.adapterType, reason: h.reason },
     issueId: h.issueId,
   }));
 }

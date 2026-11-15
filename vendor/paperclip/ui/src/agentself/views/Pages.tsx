@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
+import { cronText } from "../lib/cron";
 import { Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 
@@ -105,7 +106,7 @@ export function Routines({ ctx, departmentKey, embedded = false }: { ctx: Contex
                 <Link to={`/routines/${r.id}`}>{r.title ?? r.name}</Link>
               </td>
               <td>{ctx.departments.find((d) => d.projectId === r.projectId)?.name ?? "—"}</td>
-              <td>{(r.triggers ?? []).map((x) => x.cronExpression ?? x.kind).join(", ") || "—"}</td>
+              <td title={(r.triggers ?? []).map((x) => x.cronExpression ?? "").join(", ")}>{(r.triggers ?? []).map((x) => (x.cronExpression ? cronText(x.cronExpression) : x.kind)).join("，") || "—"}</td>
               <td>{r.status ?? ""}</td>
             </tr>
           ))}
@@ -424,7 +425,7 @@ function ProfileEditor() {
 }
 
 /* ---------------- Settings ---------------- */
-const SETTINGS_TABS = [
+export const SETTINGS_TABS = [
   ["general", "通用"],
   ["router", "路由"],
   ["feishu", "飞书"],
@@ -434,13 +435,10 @@ const SETTINGS_TABS = [
   ["profile", "关于我"],
   ["advanced", "高级"],
 ] as const;
-type SettingsTab = (typeof SETTINGS_TABS)[number][0];
+export type SettingsTab = (typeof SETTINGS_TABS)[number][0];
 
-export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => void }) {
-  const { t, setSkinId } = useSkin();
-  const [s, setS] = useState<Settings>(ctx.settings);
-  const [saved, setSaved] = useState(false);
-  const [feishuStatus, setFeishuStatus] = useState<string | null>(null);
+/** The settings tab lives in the URL hash so a link (and the breadcrumb) can name it. */
+export function useSettingsTab(): [SettingsTab, (k: SettingsTab) => void] {
   const [tab, setTabState] = useState<SettingsTab>(() => {
     const h = typeof location !== "undefined" ? location.hash.slice(1) : "";
     return (SETTINGS_TABS.some(([k]) => k === h) ? h : "general") as SettingsTab;
@@ -448,11 +446,20 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
   const setTab = (k: SettingsTab) => {
     setTabState(k);
     try {
-      history.replaceState(null, "", `#${k}`);
+      history.replaceState(history.state, "", `#${k}`);
     } catch {
       /* ignore */
     }
   };
+  return [tab, setTab];
+}
+export const settingsTabLabel = (k: SettingsTab) => SETTINGS_TABS.find(([key]) => key === k)?.[1] ?? "";
+
+export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSaved: () => void; tab: SettingsTab; setTab: (k: SettingsTab) => void }) {
+  const { t, setSkinId } = useSkin();
+  const [s, setS] = useState<Settings>(ctx.settings);
+  const [saved, setSaved] = useState(false);
+  const [feishuStatus, setFeishuStatus] = useState<string | null>(null);
   useEffect(() => setS(ctx.settings), [ctx.settings]);
   useEffect(() => {
     as.get<{ status: string }>("/feishu/status").then((r) => setFeishuStatus(r.status)).catch(() => setFeishuStatus(null));
@@ -987,7 +994,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
             <p className="hint">默认给{t("lead")}装上「{t("lead")}技能 / 记忆技能」，给{t("employee")}装上「{t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
             <div className="grid2">
               <label className="field">
-                {t("routine")}（cron，可选）
+                {t("routine")}（cron，可选）{routineCron.trim() && cronText(routineCron) !== routineCron.trim() ? `：${cronText(routineCron)}` : ""}
                 <input className="input" placeholder="0 9 * * 1-5" value={routineCron} onChange={(e) => setRoutineCron(e.target.value)} />
               </label>
               <label className="field">

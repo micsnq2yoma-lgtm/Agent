@@ -26,6 +26,7 @@ page.on("pageerror", (e) => errors.push(String(e)));
 await page.goto(base, { waitUntil: "domcontentloaded" });
 await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
 await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "朝堂" }).getByRole("button", { name: /^使用/ }).click();
 await page.waitForTimeout(800);
 await page.getByRole("link", { name: "御书房", exact: true }).first().click();
@@ -35,6 +36,7 @@ results.courtTerms = ["御书房", "朝堂", "待朱批", "通政司"].every((w)
 results.courtLayoutRight = (await page.evaluate(() => document.documentElement.dataset.layoutSidebar)) === "right";
 await page.screenshot({ path: "spikes/shots/p3-court.png" });
 await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "办公室" }).getByRole("button", { name: /^使用/ }).click();
 await page.waitForTimeout(800);
 const officeText = await page.locator("body").innerText();

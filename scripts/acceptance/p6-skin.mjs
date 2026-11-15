@@ -35,6 +35,7 @@ page.on("pageerror", (e) => errors.push(String(e)));
 await page.goto(base, { waitUntil: "domcontentloaded" });
 await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
 await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator("input[type=file]").setInputFiles(file);
 await page.waitForTimeout(2500);
 const row = page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "实验室" });
@@ -50,6 +51,7 @@ await page.screenshot({ path: "spikes/shots/p6-skin-lab.png" });
 
 // export
 await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.waitForTimeout(500);
 const [download] = await Promise.all([page.waitForEvent("download"), row.getByRole("button", { name: "导出" }).click()]);
 const exported = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
@@ -63,6 +65,7 @@ results.persisted = (await page.locator("body").innerText()).includes("实验台
 
 // back to the default skin
 await page.getByRole("link", { name: "设置", exact: true }).click();
+await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "办公室" }).getByRole("button", { name: "使用" }).click();
 await page.waitForTimeout(800);
 await browser.close();

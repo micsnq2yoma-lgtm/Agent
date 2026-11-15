@@ -82,12 +82,15 @@ export function AgentselfSidebar() {
         </div>
         {depts.map((d) => {
           const lead = ctx?.agents.find((a) => a.id === d.leadAgentId);
-          const n = s?.pendingByDept[d.name] ?? 0;
+          const n = s?.pendingByDept[d.key] ?? 0;
           const to = `${AS_BASE}/departments/${d.key}`;
+          // Always the lead's name; a team without a lead (made before plan B) says so instead of
+          // passing its team name off as a lead.
           return (
-            <Link key={d.key} to={to} className={`nav-item ${isActive(to) ? "active" : ""}`} title={d.name}>
+            <Link key={d.key} to={to} className={`nav-item ${isActive(to) ? "active" : ""}`} title={lead ? `${lead.name} · ${d.name}` : `${d.name}：还没有${t("lead")}`}>
               <PackIcon name={d.icon} />
               <span className="label">{lead?.name ?? d.name}</span>
+              {!lead && <span className="nav-note">无{t("lead")}</span>}
               {n ? <span className="count hot">{n}</span> : null}
             </Link>
           );
