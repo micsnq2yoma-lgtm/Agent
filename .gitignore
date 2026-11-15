@@ -7,3 +7,12 @@ spikes/work/
 spikes/**/dist/
 spikes/decision/created.json
 *.zip
+spikes/acceptance/
+spikes/*.id
+spikes/cid
+spikes/runs-*.json
+spikes/openapi/*.json
+spikes/gate/ids.json
+spikes/shots/
+spikes/soak/
+agentself-handoff-v0.3-fresh/
