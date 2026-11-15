@@ -10,6 +10,7 @@ export const PROFILE_FILES = {
   user: "user.md",
   decisions: "decisions.md",
   declined: "declined.md",
+  askfirst: "askfirst.md",
 };
 
 const TEMPLATES = {
@@ -24,6 +25,16 @@ const TEMPLATES = {
   declined: `# 我拒绝过的事
 
 （你明确拒绝过的建议和做法，由主管追加。主管和员工不再提同样的建议。）
+`,
+  askfirst: `# 先问清单
+
+遇到下面这些情况必须先停下来问（员工问主管，主管拿不准再问我），其余的事自己判断、事后在报告里说明。可以随时增删。
+
+- 结果与预期不符：指标明显不对、复现不出论文结果、或结论推翻了原方案
+- 要花大钱或很长时间：比如占用显卡十几个小时、调用付费接口、额度快用完
+- 要改动重要的东西：改主分支代码、删除或覆盖已有数据和实验结果
+- 对外发送任何内容：邮件、发布、推送代码、付款
+- 反复失败卡住了：同一个问题换了三种办法还没解决
 `,
 };
 
@@ -86,4 +97,46 @@ export function importRef(p, homedir = os.homedir()) {
   const rel = path.relative(homedir, p);
   if (rel && !rel.startsWith("..") && !path.isAbsolute(rel)) return `~/${rel.split(path.sep).join("/")}`;
   return p.split(path.sep).join("/");
+}
+
+/* ---------------- memory proposals: consolidation proposes, the user confirms ---------------- */
+// Written by the team-layer plugin (same format), read and resolved here.
+
+const proposalsFile = (home) => path.join(profileDir(home), "proposals.json");
+
+export function listProposals(home) {
+  try {
+    const list = JSON.parse(fs.readFileSync(proposalsFile(home), "utf8"));
+    return Array.isArray(list) ? list : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveProposals(home, list) {
+  fs.mkdirSync(profileDir(home), { recursive: true });
+  const f = proposalsFile(home);
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify(list.slice(-200), null, 2));
+  fs.renameSync(`${f}.tmp`, f);
+}
+
+/** accept → appended to "about me" (optionally edited text); reject → kept as rejected. */
+export function resolveProposal(home, id, action, editedText) {
+  const list = listProposals(home);
+  const p = list.find((x) => x.id === id);
+  if (!p) throw Object.assign(new Error("没有这条建议"), { status: 404 });
+  if (p.status !== "pending") return p;
+  if (action === "accept") {
+    ensureProfile(home);
+    const text = String(editedText ?? p.text).replace(/\s+/g, " ").trim();
+    const file = profilePath(home, "user");
+    fs.writeFileSync(file, `${fs.readFileSync(file, "utf8").trimEnd()}\n- ${text}\n`);
+    p.status = "accepted";
+    p.text = text;
+  } else {
+    p.status = "rejected";
+  }
+  p.resolvedAt = new Date().toISOString();
+  saveProposals(home, list);
+  return p;
 }

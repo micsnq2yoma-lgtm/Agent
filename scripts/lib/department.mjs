@@ -76,7 +76,7 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
   const home = agentselfHome();
   const workspacesDir = path.join(home, "workspaces");
   ensureProfile(home);
-  const profile = { user: importRef(profilePath(home, "user")), decisions: importRef(profilePath(home, "decisions")), declined: importRef(profilePath(home, "declined")) };
+  const profile = Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
   const company = await ensureCompany(companyName);
   log(`company ${company.name} ${company.id}`);
 
@@ -210,4 +210,52 @@ export function listTemplates() {
 export function readTemplate(key) {
   if (!/^[a-z0-9-]+$/.test(key)) throw Object.assign(new Error("bad key"), { status: 400 });
   return JSON.parse(fs.readFileSync(path.join(repoRoot, "packs", "departments", `${key}.json`), "utf8"));
+}
+
+/**
+ * Add one employee under an existing lead (plan B step 2: the lead proposes, the user approves,
+ * this creates it). The employee joins the lead's team, project, skills and memory layout.
+ */
+export async function addEmployee(leadAgentId, member, { api = defaultApi, log = console.log } = {}) {
+  const lead = await api("GET", `/agents/${leadAgentId}`);
+  const m = lead?.metadata?.agentself;
+  if (!m?.isLead) throw Object.assign(new Error("只能加到主管的团队里"), { status: 400 });
+  const name = String(member.name ?? "").trim();
+  if (!name) throw Object.assign(new Error("新员工要有名字"), { status: 400 });
+  const adapterType = member.adapterType === "codex_local" ? "codex_local" : "claude_local";
+  const companyId = lead.companyId;
+  const home = agentselfHome();
+  ensureProfile(home);
+  const profile = Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
+  const skills = list(await api("GET", `/companies/${companyId}/skills`));
+  const desiredSkills = EMPLOYEE_SKILLS.map((n) => skills.find((s) => s.slug === n || s.name === n)).filter(Boolean).map((s) => s.key ?? s.slug);
+  const memberKey = `${slugKey(name).replace(/^team-/, "m-")}-${Date.now().toString(36)}`;
+  const cwd = path.join(home, "workspaces", m.department, memberKey);
+  fs.mkdirSync(cwd, { recursive: true });
+  initMemory(cwd, {
+    role: "employee",
+    profile,
+    name,
+    title: member.title ?? "",
+    department: m.departmentName ?? m.department,
+    reportsTo: lead.name,
+    capabilities: member.capabilities ?? "",
+    identity: member.identity ?? `你是用户的员工「${name}」，在${lead.name}的团队里负责：${member.capabilities ?? ""}`,
+  });
+  const agent = await api("POST", `/companies/${companyId}/agents`, {
+    name,
+    title: member.title ?? null,
+    role: "general",
+    icon: "bot",
+    reportsTo: lead.id,
+    capabilities: member.capabilities ?? null,
+    adapterType,
+    adapterConfig: { cwd, ...(member.model ? { model: member.model } : {}) },
+    budgetMonthlyCents: member.budgetMonthlyCents ?? 0,
+    permissions: { canCreateAgents: false },
+    desiredSkills,
+    metadata: { agentself: { department: m.department, departmentName: m.departmentName, isLead: false, memberKey, projectId: m.projectId } },
+  });
+  log(`agent ${name} (${adapterType}) ${agent.id} under ${lead.name}`);
+  return agent;
 }

@@ -11,9 +11,9 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
-import { createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
+import { addEmployee, createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
-import { appendDecision, ensureProfile, PROFILE_FILES, readProfile, writeProfile } from "../../../scripts/lib/profile.mjs";
+import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
@@ -37,9 +37,9 @@ const DEFAULT_SETTINGS = {
 function loadStore() {
   try {
     const s = JSON.parse(fs.readFileSync(STORE, "utf8"));
-    return { answers: [], ...s, settings: { ...DEFAULT_SETTINGS, ...(s.settings ?? {}) } };
+    return { answers: [], hireRequests: [], ...s, settings: { ...DEFAULT_SETTINGS, ...(s.settings ?? {}) } };
   } catch {
-    return { answers: [], settings: { ...DEFAULT_SETTINGS } };
+    return { answers: [], hireRequests: [], settings: { ...DEFAULT_SETTINGS } };
   }
 }
 let store = loadStore();
@@ -179,6 +179,67 @@ async function frontdesk(body) {
   };
 }
 
+/* ---------------- hiring (plan B step 2) ---------------- */
+const MAX_PENDING_HIRES_PER_LEAD = 3;
+
+async function proposeHire(body) {
+  const ctx = await loadContext();
+  const lead = ctx.agents.find((a) => a.id === body.leadAgentId && a.metadata?.agentself?.isLead);
+  if (!lead) throw Object.assign(new Error("leadAgentId 必须是一位主管（用 $PAPERCLIP_AGENT_ID）"), { status: 400 });
+  const name = String(body.name ?? "").trim().slice(0, 40);
+  const capabilities = String(body.capabilities ?? body.focus ?? "").trim().slice(0, 300);
+  if (!name || !capabilities) throw Object.assign(new Error("要写清新员工的名字（name）和负责什么（capabilities）"), { status: 400 });
+  const pending = store.hireRequests.filter((h) => h.leadAgentId === lead.id && h.status === "pending");
+  if (pending.length >= MAX_PENDING_HIRES_PER_LEAD) throw Object.assign(new Error(`已有 ${pending.length} 条待批准的新建请求，先等用户处理`), { status: 409 });
+  const h = {
+    id: `hire_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+    companyId: ctx.company.id,
+    leadAgentId: lead.id,
+    leadName: lead.name,
+    team: lead.metadata.agentself.departmentName ?? "",
+    issueId: body.issueId ?? null,
+    name,
+    capabilities,
+    adapterType: body.adapterType === "codex_local" ? "codex_local" : "claude_local",
+    model: body.model ? String(body.model).slice(0, 60) : null,
+    skills: Array.isArray(body.skills) ? body.skills.map(String).slice(0, 10) : [],
+    reason: String(body.reason ?? "").slice(0, 600),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  };
+  store.hireRequests = [h, ...store.hireRequests].slice(0, 100);
+  saveStore();
+  return { id: h.id, status: h.status, message: "已提交，等用户批准。结束本轮；批准或拒绝后你会在任务评论里收到消息并被唤醒。" };
+}
+
+async function resolveHire(id, action, body) {
+  const h = store.hireRequests.find((x) => x.id === id);
+  if (!h) throw Object.assign(new Error("没有这条请求"), { status: 404 });
+  if (h.status !== "pending") return h;
+  if (action === "approve") {
+    const agent = await addEmployee(
+      h.leadAgentId,
+      {
+        name: String(body.name ?? h.name).trim() || h.name,
+        capabilities: String(body.capabilities ?? h.capabilities),
+        adapterType: body.adapterType ?? h.adapterType,
+        model: body.model ?? h.model ?? undefined,
+      },
+      { api: pc, log: () => {} },
+    );
+    h.status = "approved";
+    h.agentId = agent.id;
+    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户同意了新建员工：「${agent.name}」（${agent.id}，${agent.adapterType === "codex_local" ? "Codex" : "Claude"}），负责：${agent.capabilities ?? ""}。现在可以派活给他。` }).catch(() => {});
+  } else {
+    h.status = "rejected";
+    h.rejectReason = String(body.reason ?? "").slice(0, 300);
+    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户没有同意新建员工「${h.name}」${h.rejectReason ? `：${h.rejectReason}` : ""}。请交给现有员工，或调整方案后再说明。` }).catch(() => {});
+  }
+  h.resolvedAt = new Date().toISOString();
+  saveStore();
+  return h;
+}
+
 /* ---------------- http ---------------- */
 async function readJson(req) {
   const chunks = [];
@@ -208,7 +269,7 @@ async function handleAgentself(req, res, url) {
   }
 
   /* global profile (plan B): about me + decision records, read by every lead */
-  const pm = p.match(/^\/profile\/(user|decisions|declined)$/);
+  const pm = p.match(/^\/profile\/(user|decisions|declined|askfirst)$/);
   if (pm && req.method === "GET") return send(res, 200, { text: (ensureProfile(HOME), readProfile(HOME, pm[1], 200_000)) });
   if (pm && req.method === "PUT") {
     const body = await readJson(req);
@@ -221,6 +282,30 @@ async function handleAgentself(req, res, url) {
     return send(res, 200, appendDecision(HOME, { kind: body.kind, text: body.text, scope: body.scope, source: body.source }));
   }
   if (req.method === "GET" && p === "/profile") return send(res, 200, { files: PROFILE_FILES });
+  if (req.method === "GET" && p === "/profile/proposals") {
+    const status = url.searchParams.get("status");
+    return send(res, 200, listProposals(HOME).filter((x) => !status || x.status === status));
+  }
+  const ppm = p.match(/^\/profile\/proposals\/([\w-]+)\/(accept|reject)$/);
+  if (req.method === "POST" && ppm) {
+    const body = await readJson(req);
+    return send(res, 200, resolveProposal(HOME, ppm[1], ppm[2], body.text));
+  }
+
+  /* hiring (plan B step 2): a lead proposes, the user approves, this service creates the employee */
+  if (req.method === "POST" && p === "/hire-requests") {
+    const body = await readJson(req);
+    return send(res, 200, await proposeHire(body));
+  }
+  if (req.method === "GET" && p === "/hire-requests") {
+    const status = url.searchParams.get("status");
+    return send(res, 200, store.hireRequests.filter((h) => !status || h.status === status));
+  }
+  const hm = p.match(/^\/hire-requests\/([\w-]+)\/(approve|reject)$/);
+  if (req.method === "POST" && hm) {
+    const body = await readJson(req);
+    return send(res, 200, await resolveHire(hm[1], hm[2], body));
+  }
   if (req.method === "GET" && p === "/answers") {
     const companyId = url.searchParams.get("companyId");
     return send(res, 200, store.answers.filter((a) => !companyId || a.companyId === companyId));

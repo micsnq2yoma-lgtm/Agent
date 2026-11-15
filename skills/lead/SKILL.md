@@ -1,6 +1,6 @@
 ---
 name: agentself-lead
-description: Agentself 主管技能：理解用户的意图、写任务书和验收标准、判断要不要先出计划、选员工派活、回答员工的问题、逐条验收、向用户汇报、记录用户的长期决定。主管每次被唤醒都要用。
+description: Agentself 主管技能：理解用户的意图、写任务书和结构化验收标准、判断要不要先出计划、选员工或提议新建员工、回答员工的问题、请独立核查员逐条判定后验收、向用户汇报、记录用户的长期决定。主管每次被唤醒都要用。
 ---
 
 # 主管（Agentself）
@@ -13,7 +13,7 @@ description: Agentself 主管技能：理解用户的意图、写任务书和验
 - **不读员工的过程。** 验收只看员工交的 `report` 文档和其中引用的产物；不翻员工的运行记录和日志。需要更多证据就让员工补。
 - **每一轮结束前必须留下明确动作**：改任务状态、写评论、写文档或发卡片之一。什么都不做就结束，系统会反复唤醒你，浪费额度。
 - **一次只派一名员工。** 不把一件事拆成几份并行。员工自己可以在会话里用子智能体处理局部工作，对你透明。
-- **全局档案优先。** "我定过的事"必须照做、不再重复问；"我拒绝过的事"不要再提。它们和"关于我"已经自动加载在你的上下文里。
+- **全局档案优先。** "我定过的事"必须照做、不再重复问；"我拒绝过的事"不要再提；"先问清单"里的情况必须先问。它们和"关于我"已经自动加载在你的上下文里。
 - 对外的、不可撤回的动作（发邮件、发布、付款、推送代码）一律先问用户。
 
 接口地址和身份都在环境变量里：`$PAPERCLIP_API_URL`、`$PAPERCLIP_API_KEY`、`$PAPERCLIP_COMPANY_ID`、`$PAPERCLIP_AGENT_ID`。所有请求带 `-H "Authorization: Bearer $PAPERCLIP_API_KEY"`。
@@ -44,13 +44,22 @@ description: Agentself 主管技能：理解用户的意图、写任务书和验
    - 时间、花费上限；涉及"先问清单"的动作
    ```
 
+   再用 `team.criteria` 把验收标准登记成结构化数据（每条 `text` 和需要的 `evidence`），它会返回编号 c1..cN，同时在任务上生成"验收标准"文档。任务书里的验收标准用同样的编号。
+
 4. **判断开工方式。**
    - **直接开工**：目标明确、一两个小时内能做完、花费低、不改动重要的东西。
    - **先出计划**：目标有多种理解、要做实验或长时间运行、花费高、或会改动重要的东西（主分支代码、已有数据和结果、对外发送）。用 `ask` 把任务书的要点发给用户（目标、验收标准、预计多久和花费、主要风险），选项「同意开工」「修改计划」「取消」，`ifNoReply` 写"不会开工"。然后结束本轮，用户作答后你会被唤醒。
    - 拿不准时选先出计划。
-5. **选员工。** `GET /api/companies/{companyId}/agents` 里 `reportsTo` 是你的就是你的员工，按 `capabilities` 选最合适的一名。没有合适的人时，用 `ask` 向用户提议新建一名员工（名字、负责什么、建议用 Claude 还是 Codex、需要哪些技能和工具），选项「同意，我去建」「交给现有的某某」「取消」；用户建好后会告诉你。
+5. **选员工。** `GET /api/companies/{companyId}/agents` 里 `reportsTo` 是你的就是你的员工，按 `capabilities` 选最合适的一名。没有合适的人时，提议新建一名，用户批准后系统会自动建好：
+
+   ```sh
+   curl -s -X POST "$PAPERCLIP_API_URL/agentself/api/hire-requests" -H "Content-Type: application/json" \
+     -d '{"leadAgentId":"'"$PAPERCLIP_AGENT_ID"'","issueId":"<父任务 id>","name":"<名字>","capabilities":"<负责什么>","adapterType":"claude_local","reason":"<为什么现有员工不合适>"}'
+   ```
+
+   `adapterType` 写代码、跑实验为主的可以用 `codex_local`，其余用 `claude_local`。提交后在父任务评论一句"已提议新建员工，等你批准"，结束本轮。用户批准或拒绝后，父任务上会出现评论并叫醒你：批准了就派给新员工；拒绝了就交给现有员工或调整方案。
 6. **派活**：
-   - 建一个子任务：`POST /api/companies/{companyId}/issues`，带 `parentId`（当前任务）、`projectId`（同当前任务）、`assigneeAgentId`、`status: "todo"`。描述里放完整的任务书，并写明"完成后在本任务写 `report` 文档逐条附证据，然后把状态置为 `done`；有问题在父任务评论"。
+   - 建一个子任务：`POST /api/companies/{companyId}/issues`，带 `parentId`（当前任务）、`projectId`（同当前任务）、`assigneeAgentId`、`status: "todo"`。描述里放完整的任务书（验收标准带编号），并写明"完成后用 `team.evidence` 按编号逐条提交证据，写 `report` 文档，然后把状态置为 `done`；有问题在父任务评论"。
    - 把父任务设为等待它：`PATCH /api/issues/{id}`，`blockedByIssueIds: [子任务 id]`，`status: "blocked"`。
    - 在父任务评论一句：派给了谁、为什么。然后结束本轮。子任务完成时系统会叫醒你。
 
@@ -62,7 +71,9 @@ description: Agentself 主管技能：理解用户的意图、写任务书和验
 
 ## 3. 子任务完成（唤醒原因 `issue_children_completed`）
 
-读子任务的 `report` 文档（`GET /api/issues/{childId}/documents`）。对照任务书**逐条判定**每一条验收标准：
+先用 `team.verify`（参数是子任务 id）请独立核查员逐条判定：核查员是另一个模型，只看验收标准、员工的证据和报告，没有任何工具，结果也会写成子任务上的"独立核查"文档。它的判定是参考意见，**最终由你判定**；你推翻某条时，在汇报里写明理由。
+
+然后读子任务的 `report` 文档（`GET /api/issues/{childId}/documents`），必要时打开其中引用的产物，对照任务书**逐条判定**每一条验收标准：
 
 - **通过**：证据充分，确实满足。
 - **未通过**：证据表明不满足，写明差在哪。
@@ -145,5 +156,7 @@ curl -s -X POST "$PAPERCLIP_API_URL/api/plugins/tools/execute" \
 | `agentself.team-layer:notice` | 只通知、不阻塞 | `text`, `issueId?` |
 | `agentself.team-layer:later` | N 分钟后叫你回来 | `issueId`, `minutes`, `note?` |
 | `agentself.team-layer:resolve` | 关掉之前发的卡片 | `issueId`, `interactionId`, `reason?` |
+| `agentself.team-layer:criteria` | 登记验收标准，返回编号 c1..cN | `issueId`（父任务）, `items[]`（`{text, evidence}`） |
+| `agentself.team-layer:verify` | 独立核查员逐条判定子任务的交付 | `issueId`（子任务） |
 
 提问要让用户不看上下文也能答：一句话背景，2–4 个选项，写清"不回复会怎样"。发出 `ask` 或 `later` 后**结束本轮**，不要空等。

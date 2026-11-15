@@ -17,3 +17,6 @@ spikes/shots/
 spikes/soak/
 agentself-handoff-v0.3-fresh/
 spikes/*-result.txt
+
+# built by `node build.mjs` in each plugin; rebuild after pulling
+plugins/*/dist/
