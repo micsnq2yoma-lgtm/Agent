@@ -2,9 +2,9 @@
 
 把注意力放在真正有价值的事情上 · Put your attention on what truly matters.
 
-Agentself 是一支自动化 AI 团队：你下达目标，部门主管拆活、派给员工（本机已登录的 Claude Code / Codex），员工在你不在场时把活干完，只把需要你决定的事做成卡片。基座是 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，源码内置于 `vendor/paperclip`）。
+Agentself 是一支自动化 AI 团队：你说一句话就可以离开。路由把它交给最合适的主管；主管理解你的意图、写好验收标准，大事先给你计划，再派一名员工（本机已登录的 Claude Code / Codex）从头做到尾；员工逐条附证据交付，主管验收后给你一页结论。主管和员工都由你命名，没有预设。基座是 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，源码内置于 `vendor/paperclip`）。
 
-方案：`docs/PLAN.md`（v0.4）。各阶段计划与报告：`docs/phase-*-plan.md` / `docs/phase-*-report.md`。
+方案：`docs/PLAN.md`（v0.5）；当前方向与需求清单：`docs/v0.6-direction.md`。各阶段计划与报告：`docs/phase-*-plan.md` / `docs/phase-*-report.md`。
 
 ## 目录
 
@@ -16,7 +16,7 @@ packages/shared/     类型：卡片、消息、部门包、办公室快照
 packages/skins/      皮肤：办公室（默认）、朝堂；共享皮肤校验与注册
 packages/pixel-office/ 像素办公室 canvas 渲染（原创 8×8 像素机器人）
 skills/              主管 / 员工 / 记忆技能包
-packs/departments/   部门包示例：科研部、公司部、生活部
+packs/departments/   新建团队用的空白模板（主管和员工都由你命名）
 scripts/             启动、建部门、开机自启、验收脚本、界面中文化工具
 vendor/paperclip/    Paperclip 源码（已为 Windows 与中文化修改，见 docs/paperclip-changes.md）
 ```
@@ -36,7 +36,7 @@ node scripts\start.mjs
 
 # 3. 首次：安装团队层插件并建一个示例部门
 #    （插件：POST /api/plugins/install {packageName:"<repo>\\plugins\\team-layer", isLocalPath:true}）
-node scripts\setup-department.mjs packs\departments\research.json
+node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 验收用的示例团队；日常在应用里用向导新建
 
 # 4. 打开 http://127.0.0.1:3100（默认首页就是工作台）
 ```

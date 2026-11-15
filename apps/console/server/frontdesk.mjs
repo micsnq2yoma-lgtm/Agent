@@ -1,35 +1,40 @@
-// Front desk (PLAN 4.1): classify each input with a fast model, then answer / create task / add follow-up.
+// Router (plan B): one cheap model call per input. It only answers instant questions, picks the lead
+// for a task, or spots a follow-up to an open task. Understanding the request is the lead's job, so the
+// task goes to the lead with the user's original words.
 // Uses the locally logged-in Claude Code CLI (`claude -p`), so no extra API key is needed.
 import { spawn } from "node:child_process";
 
-export function buildPrompt({ text, departments, openIssues, now }) {
-  const depts = departments.map((d) => `- ${d.key}: ${d.name}（${d.description ?? ""}）`).join("\n") || "- （暂无部门）";
+export const DEFAULT_ROUTER_MODEL = "haiku";
+
+/** `leads`: [{ id, name, team, description }]; `profile`: the user's "about me" (optional). */
+export function buildPrompt({ text, leads = [], openIssues = [], now, profile = "" }) {
+  const roster = leads.map((l) => `- ${l.id} | ${l.name} | 团队：${l.team ?? ""} | 负责：${l.description ?? ""}`).join("\n") || "- （还没有主管）";
   const issues =
     openIssues
       .slice(0, 30)
-      .map((i) => `- ${i.id} | ${i.identifier ?? ""} | ${i.title} | ${i.departmentName ?? ""} | ${i.status}`)
+      .map((i) => `- ${i.id} | ${i.identifier ?? ""} | ${i.title} | 负责主管：${i.assigneeName ?? ""} | ${i.status}`)
       .join("\n") || "- （无）";
-  return `你是一个自动化团队的"前台"。用户只在一个输入框里说话。你要判断这句话属于哪一类，并只输出一个 JSON 对象，不要输出其他文字。
+  return `你是一个自动化团队的"路由"。用户只在一个输入框里说话。你不理解细节、不做决定，只判断这句话该怎么走，并只输出一个 JSON 对象，不要输出其他文字。
 
 当前时间：${now}
-
-部门：
-${depts}
+${profile.trim() ? `\n关于用户：\n${profile.trim().slice(0, 3000)}\n` : ""}
+主管（每人带一个团队，负责一个领域）：
+${roster}
 
 进行中的任务：
 ${issues}
 
-分类规则：
-1. "answer"：即时问答（查事实、天气、换算、问团队进度等，能直接回答、不需要部门干活的）。直接给出简洁中文答案。问团队进度时根据上面的任务列表回答。需要实时信息时可以联网搜索。
-2. "task"：需要部门花时间去做的事。选出最合适的部门 key，并把用户的话整理成任务标题（不超过 40 字）和描述（保留用户全部要求）。
-3. "followup"：明显是在补充 / 修改上面某个进行中任务的要求。给出该任务 id 和要转达的评论。
-4. "unclear"：是任务但判断不出归属部门。
+怎么走：
+1. "answer"：即时问答（查事实、天气、换算、问团队整体进度等，能直接回答、不需要谁花时间去做）。直接给出简洁中文答案。问进度时根据上面的任务列表回答。需要实时信息时可以联网搜索。
+2. "task"：需要团队花时间去做的事。按主管负责的领域选一位，并给一个不超过 40 字的任务标题。不要改写用户的要求，主管会读用户的原话。
+3. "followup"：明显是在补充或修改上面某个进行中任务的要求。给出该任务 id。
+4. "unclear"：是任务，但没有合适的主管，或者几位主管都说得通。给出候选主管 id（可以为空）。
 
 只输出下面几种格式之一：
 {"route":"answer","answer":"..."}
-{"route":"task","department":"<key>","title":"...","description":"..."}
-{"route":"followup","issueId":"<id>","comment":"..."}
-{"route":"unclear","title":"...","description":"...","candidates":["<key>", "..."]}
+{"route":"task","lead":"<主管 id>","title":"...","why":"一句话：为什么交给他"}
+{"route":"followup","issueId":"<任务 id>"}
+{"route":"unclear","title":"...","candidates":["<主管 id>"]}
 
 用户说：
 ${text}`;
@@ -39,7 +44,7 @@ export function parseRoute(raw) {
   const text = typeof raw === "string" ? raw : String(raw ?? "");
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) return { route: "answer", answer: text.trim() || "（前台没有给出回答）" };
+  if (start < 0 || end <= start) return { route: "answer", answer: text.trim() || "（路由没有给出回答）" };
   try {
     const obj = JSON.parse(text.slice(start, end + 1));
     if (!["answer", "task", "followup", "unclear"].includes(obj.route)) throw new Error("bad route");
@@ -50,7 +55,7 @@ export function parseRoute(raw) {
 }
 
 /** Run `claude -p` with the prompt on stdin; resolves with the model's text result. */
-export function runClaude(prompt, { model = "haiku", timeoutMs = 120_000, claudeBin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude" } = {}) {
+export function runClaude(prompt, { model = DEFAULT_ROUTER_MODEL, timeoutMs = 120_000, claudeBin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude" } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       claudeBin,
@@ -61,7 +66,7 @@ export function runClaude(prompt, { model = "haiku", timeoutMs = 120_000, claude
     let err = "";
     const timer = setTimeout(() => {
       child.kill();
-      reject(new Error("前台模型超时"));
+      reject(new Error("路由模型超时"));
     }, timeoutMs);
     child.stdout.on("data", (d) => (out += d));
     child.stderr.on("data", (d) => (err += d));

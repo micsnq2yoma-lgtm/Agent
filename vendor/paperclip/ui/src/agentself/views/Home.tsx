@@ -10,9 +10,9 @@ import { useDialogActions } from "@/context/DialogContext";
 /** 高级新建 (P10): opens the full Paperclip new-task form, prefilled with the chosen department or employee. */
 function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
   const { openNewIssue } = useDialogActions();
-  const dept = to.startsWith("department:") ? ctx.departments.find((d) => d.key === to.slice(11)) : null;
-  const agentId = to.startsWith("agent:") ? to.slice(6) : (dept?.leadAgentId ?? undefined);
-  const projectId = dept?.projectId ?? undefined;
+  const agentId = to.startsWith("lead:") ? to.slice(5) : undefined;
+  const lead = ctx.agents.find((a) => a.id === agentId);
+  const projectId = ctx.departments.find((d) => d.key === lead?.metadata?.agentself?.department)?.projectId ?? undefined;
   return (
     <button
       type="button"
@@ -27,8 +27,8 @@ function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
 
 type FrontdeskResult =
   | { route: "answer"; answer: { answer: string } }
-  | { route: "task"; department: string | null; issue: { identifier: string; id: string } }
-  | { route: "followup"; issue: { identifier: string } }
+  | { route: "task"; department: string | null; assigneeName?: string | null; issue: { identifier: string; id: string } }
+  | { route: "followup"; assigneeName?: string | null; issue: { identifier: string } }
   | { route: "unclear"; title: string; description: string; external: string; candidates: string[] };
 
 export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) {
@@ -41,6 +41,8 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
   const [err, setErr] = useState<string | null>(null);
 
   const deptName = (key: string | null) => ctx.departments.find((d) => d.key === key)?.name ?? key ?? "";
+  // Plan B: everything from the input box goes to a lead; employees only get work from their lead.
+  const leads = ctx.agents.filter((a) => a.metadata?.agentself?.isLead);
 
   async function send() {
     if (!text.trim() || busy) return;
@@ -61,11 +63,11 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
     }
   }
 
-  async function pick(dept: string) {
+  async function pick(agentId: string) {
     if (result?.route !== "unclear") return;
     setBusy(true);
     try {
-      const r = await as.post<FrontdeskResult>("/frontdesk/assign", { department: dept, title: result.title, description: result.description, external });
+      const r = await as.post<FrontdeskResult>("/frontdesk/assign", { agentId, title: result.title, description: result.description, external });
       setResult(r);
       setText("");
       onDone();
@@ -90,20 +92,11 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
       <div className="composer-bar">
         <select className="chip-select" aria-label="交给" value={to} onChange={(e) => setTo(e.target.value)}>
           <option value="auto">交给：{t("frontdesk")}自动分派</option>
-          {ctx.departments
-            .filter((d) => !d.archived)
-            .map((d) => (
-              <option key={d.key} value={`department:${d.key}`}>
-                交给：{d.name}
-              </option>
-            ))}
-          {ctx.agents
-            .filter((a) => a.metadata?.agentself)
-            .map((a) => (
-              <option key={a.id} value={`agent:${a.id}`}>
-                交给：{a.name}（{a.metadata?.agentself?.departmentName}）
-              </option>
-            ))}
+          {leads.map((a) => (
+            <option key={a.id} value={`lead:${a.id}`}>
+              交给：{a.name}（{a.metadata?.agentself?.departmentName}）
+            </option>
+          ))}
         </select>
         <select className="chip-select" aria-label="对外动作" value={external} onChange={(e) => setExternal(e.target.value as "ask" | "direct")}>
           <option value="ask">对外动作：先问我</option>
@@ -116,23 +109,23 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
         </button>
       </div>
       <div className="hint">
-        即时问题{t("frontdesk")}直接回答；任务会派给对应{t("department")}的{t("lead")}，完成后以{t("card")}回到这里。Ctrl+Enter 发送。
+        即时问题直接回答；任务交给最合适的{t("lead")}，由{t("lead")}理解你的意思、派{t("employee")}去做、验收后汇报。大事会先给你一份计划。完成后以{t("card")}回到这里。Ctrl+Enter 发送。
       </div>
       {err && <div className="notice" style={{ color: "var(--as-high)" }}>{err}</div>}
       {result?.route === "answer" && <div className="notice">{result.answer.answer}</div>}
       {result?.route === "task" && (
         <div className="notice">
-          已交给{deptName(result.department)}（{result.issue.identifier}），完成后会以{t("card")}回到这里。
+          已交给{result.assigneeName ?? deptName(result.department)}（{result.issue.identifier}），完成后会以{t("card")}回到这里。
         </div>
       )}
-      {result?.route === "followup" && <div className="notice">已作为补充发给 {result.issue.identifier} 的负责人。</div>}
+      {result?.route === "followup" && <div className="notice">已作为补充发给 {result.issue.identifier} 的{result.assigneeName ?? t("lead")}。</div>}
       {result?.route === "unclear" && (
         <div className="notice">
-          判断不出该交给哪个{t("department")}，请选一个：
+          判断不出该交给哪位{t("lead")}，请选一位：
           <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-            {(result.candidates.length ? result.candidates : ctx.departments.map((d) => d.key)).map((k) => (
+            {(result.candidates.length ? result.candidates : leads.map((a) => a.id)).map((k) => (
               <button key={k} className="btn" disabled={busy} onClick={() => void pick(k)}>
-                {deptName(k)}
+                {leads.find((a) => a.id === k)?.name ?? k}
               </button>
             ))}
           </div>

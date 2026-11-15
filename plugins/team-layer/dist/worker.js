@@ -2,7 +2,7 @@
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 
 // src/rules/index.ts
-var DEFAULT_REWORK_LIMIT = 3;
+var DEFAULT_REWORK_LIMIT = 2;
 function applyRework(input) {
   const limit = input.limit ?? DEFAULT_REWORK_LIMIT;
   const wasDelivered = input.prevStatus === "in_review" || input.prevStatus === "done";
@@ -265,7 +265,7 @@ function runClaudeJson(prompt, model = "haiku", timeoutMs = 18e4, bin = process.
 
 // src/worker.ts
 var DEFAULTS = {
-  reworkLimit: 3,
+  reworkLimit: 2,
   maxDepth: 8,
   burstMax: 20,
   burstWindowMinutes: 10,

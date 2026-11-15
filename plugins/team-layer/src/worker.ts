@@ -19,7 +19,7 @@ interface Config {
 }
 
 const DEFAULTS: Config = {
-  reworkLimit: 3,
+  reworkLimit: 2,
   maxDepth: 8,
   burstMax: 20,
   burstWindowMinutes: 10,

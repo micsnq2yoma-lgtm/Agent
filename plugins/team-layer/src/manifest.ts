@@ -6,7 +6,7 @@ export default {
   apiVersion: 1,
   version: "0.1.0",
   displayName: "Agentself 团队层",
-  description: "部门、前台、Studio 闸门兜底、返工计数、跳数上限、卡片工具、三档消息流",
+  description: "主管与员工：返工上限、跳数上限、卡片工具、三档消息流、员工记忆",
   author: "Agentself",
   categories: ["automation"],
   capabilities: [
@@ -36,7 +36,7 @@ export default {
   instanceConfigSchema: {
     type: "object",
     properties: {
-      reworkLimit: { type: "integer", default: 3, minimum: 1 },
+      reworkLimit: { type: "integer", default: 2, minimum: 1 },
       maxDepth: { type: "integer", default: 8, minimum: 1 },
       burstMax: { type: "integer", default: 20, minimum: 1 },
       burstWindowMinutes: { type: "integer", default: 10, minimum: 1 },

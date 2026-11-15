@@ -8,11 +8,12 @@ import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildPrompt, parseRoute, runClaude } from "./frontdesk.mjs";
+import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
 import { createDepartment, listTemplates, readTemplate } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
+import { appendDecision, ensureProfile, PROFILE_FILES, readProfile, writeProfile } from "../../../scripts/lib/profile.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
@@ -26,7 +27,7 @@ const STORE = path.join(HOME, "console.json");
 /* ---------------- store ---------------- */
 const DEFAULT_SETTINGS = {
   companyName: "Agentself",
-  frontdeskModel: "haiku",
+  frontdeskModel: DEFAULT_ROUTER_MODEL, // the router model (key kept for existing settings files)
   askWhenUnclear: true,
   skin: "office",
   externalDefault: "ask",
@@ -83,20 +84,31 @@ export async function loadContext() {
   return { company, departments, agents: arr(agents), projects: arr(projects) };
 }
 
-/* ---------------- front desk ---------------- */
+/* ---------------- router (plan B) ---------------- */
 function externalNote(mode) {
-  return mode === "direct" ? "\n\n—— 对外动作：可以直接做（用户已授权）。" : "\n\n—— 对外动作：先问我（发邮件、发布、推代码、花钱前用 team.ask 确认）。";
+  return mode === "direct" ? "\n\n—— 对外动作：可以直接做（用户已授权）。" : "\n\n—— 对外动作：先问我（发邮件、发布、推代码、花钱前先问）。";
 }
 
-async function createTask(ctx, dept, { title, description, external, assigneeAgentId }) {
+/** Leads = agents created by Agentself with isLead; their team description helps the router. */
+export function leadsOf(ctx) {
+  return ctx.agents
+    .filter((a) => a.metadata?.agentself?.isLead && a.status !== "terminated")
+    .map((a) => {
+      const dept = ctx.departments.find((d) => d.key === a.metadata.agentself.department);
+      return { id: a.id, name: a.name, team: dept?.name ?? a.metadata.agentself.departmentName ?? "", description: [a.capabilities, dept?.description].filter(Boolean).join("；"), projectId: dept?.projectId ?? null };
+    });
+}
+
+/** Every task from the input box goes to a lead, with the user's original words as the description. */
+async function createTask(ctx, lead, { title, text, external, routerNote }) {
   const issue = await pc("POST", `/companies/${ctx.company.id}/issues`, {
-    title: title.slice(0, 200),
-    description: (description ?? title) + externalNote(external),
-    projectId: dept?.projectId ?? undefined,
-    assigneeAgentId: assigneeAgentId ?? dept?.leadAgentId ?? undefined,
+    title: String(title || text.split(/\r?\n/)[0]).slice(0, 200),
+    description: text + (routerNote ? `\n\n—— 路由说明（自动判断，可能不准）：${routerNote}` : "") + externalNote(external),
+    projectId: lead.projectId ?? undefined,
+    assigneeAgentId: lead.id,
     status: "todo",
   });
-  return issue;
+  return { route: "task", leadId: lead.id, assigneeAgentId: lead.id, assigneeName: lead.name, department: ctx.agents.find((a) => a.id === lead.id)?.metadata?.agentself?.department ?? null, issue };
 }
 
 function addAnswer(companyId, text, question, extra = {}) {
@@ -116,30 +128,27 @@ function addAnswer(companyId, text, question, extra = {}) {
 
 async function frontdesk(body) {
   const ctx = await loadContext();
-  if (!ctx.company) throw Object.assign(new Error("还没有团队，请先创建部门"), { status: 409 });
+  if (!ctx.company) throw Object.assign(new Error("还没有团队，请先新建一位主管和他的员工"), { status: 409 });
   const text = String(body.text ?? "").trim();
   if (!text) throw Object.assign(new Error("内容为空"), { status: 400 });
   const external = body.external === "direct" ? "direct" : "ask";
   const to = body.to ?? { kind: "auto" };
-  const firstLine = text.split(/\r?\n/)[0].slice(0, 60);
+  const leads = leadsOf(ctx);
 
-  if (to.kind === "department") {
-    const dept = ctx.departments.find((d) => d.key === to.id);
-    if (!dept) throw Object.assign(new Error("部门不存在"), { status: 400 });
-    const issue = await createTask(ctx, dept, { title: firstLine, description: text, external });
-    return { route: "task", department: dept.key, issue };
-  }
-  if (to.kind === "agent") {
-    const agent = ctx.agents.find((a) => a.id === to.id);
-    const dept = ctx.departments.find((d) => d.key === agent?.metadata?.agentself?.department);
-    const issue = await createTask(ctx, dept, { title: firstLine, description: text, external, assigneeAgentId: to.id });
-    return { route: "task", department: dept?.key ?? null, issue };
+  // Picked by hand: a lead, or (older UI) a team, which means its lead.
+  if (to.kind === "lead" || to.kind === "agent" || to.kind === "department") {
+    const lead =
+      to.kind === "department"
+        ? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agentself?.department === to.id)
+        : leads.find((l) => l.id === to.id);
+    if (!lead) throw Object.assign(new Error("找不到这位主管"), { status: 400 });
+    return createTask(ctx, lead, { text, external, routerNote: "用户手动指定" });
   }
 
   const issues = arr(await pc("GET", `/companies/${ctx.company.id}/issues`))
     .filter((i) => !i.parentId && !["done", "cancelled"].includes(i.status))
-    .map((i) => ({ ...i, departmentName: ctx.departments.find((d) => d.projectId === i.projectId)?.name }));
-  const prompt = buildPrompt({ text, departments: ctx.departments, openIssues: issues, now: new Date().toLocaleString("zh-CN") });
+    .map((i) => ({ ...i, assigneeName: ctx.agents.find((a) => a.id === i.assigneeAgentId)?.name }));
+  const prompt = buildPrompt({ text, leads, openIssues: issues, now: new Date().toLocaleString("zh-CN"), profile: readProfile(HOME, "user") });
   const { text: raw } = await runClaude(prompt, { model: store.settings.frontdeskModel });
   const r = parseRoute(raw);
   if (body.dryRun) return { dryRun: true, ...r };
@@ -148,26 +157,25 @@ async function frontdesk(body) {
     return { route: "answer", answer: addAnswer(ctx.company.id, r.answer, text) };
   }
   if (r.route === "task") {
-    const dept = ctx.departments.find((d) => d.key === r.department);
-    if (dept) {
-      const issue = await createTask(ctx, dept, { title: r.title ?? firstLine, description: r.description ?? text, external });
-      return { route: "task", department: dept.key, issue };
-    }
+    const lead = leads.find((l) => l.id === r.lead);
+    if (lead) return createTask(ctx, lead, { title: r.title, text, external, routerNote: r.why ?? "" });
   }
   if (r.route === "followup" && r.issueId) {
     const issue = issues.find((i) => i.id === r.issueId);
     if (issue) {
-      await pc("POST", `/issues/${issue.id}/comments`, { body: `用户补充：${r.comment ?? text}` });
-      return { route: "followup", issue };
+      // A comment wakes the issue's assignee: the lead who owns it decides what to pass on.
+      await pc("POST", `/issues/${issue.id}/comments`, { body: `用户补充：${text}` });
+      return { route: "followup", issue, assigneeName: issue.assigneeName ?? null };
     }
   }
-  // unclear: let the user pick the department in the UI (ask card behaviour)
+  // unclear, or the router named a lead that does not exist: the user picks the lead.
+  const ids = new Set(leads.map((l) => l.id));
   return {
     route: "unclear",
-    title: r.title ?? firstLine,
-    description: r.description ?? text,
+    title: r.title ?? text.split(/\r?\n/)[0].slice(0, 60),
+    description: text,
     external,
-    candidates: (r.candidates ?? ctx.departments.map((d) => d.key)).filter((k) => ctx.departments.some((d) => d.key === k)),
+    candidates: (Array.isArray(r.candidates) ? r.candidates : []).filter((id) => ids.has(id)),
   };
 }
 
@@ -193,11 +201,26 @@ async function handleAgentself(req, res, url) {
   if (req.method === "POST" && p === "/frontdesk/assign") {
     const body = await readJson(req);
     const ctx = await loadContext();
-    const dept = ctx.departments.find((d) => d.key === body.department);
-    if (!dept) return send(res, 400, { error: "部门不存在" });
-    const issue = await createTask(ctx, dept, { title: body.title, description: body.description, external: body.external });
-    return send(res, 200, { route: "task", department: dept.key, issue });
+    const leads = leadsOf(ctx);
+    const lead = leads.find((l) => l.id === body.agentId) ?? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agentself?.department === body.department);
+    if (!lead) return send(res, 400, { error: "找不到这位主管" });
+    return send(res, 200, await createTask(ctx, lead, { title: body.title, text: String(body.description ?? body.title ?? ""), external: body.external, routerNote: "用户在网页上选定" }));
   }
+
+  /* global profile (plan B): about me + decision records, read by every lead */
+  const pm = p.match(/^\/profile\/(user|decisions|declined)$/);
+  if (pm && req.method === "GET") return send(res, 200, { text: (ensureProfile(HOME), readProfile(HOME, pm[1], 200_000)) });
+  if (pm && req.method === "PUT") {
+    const body = await readJson(req);
+    writeProfile(HOME, pm[1], body.text);
+    return send(res, 200, { ok: true });
+  }
+  if (req.method === "POST" && p === "/profile/decisions") {
+    // Called by leads (curl) when the user says "from now on…"; appends one line.
+    const body = await readJson(req);
+    return send(res, 200, appendDecision(HOME, { kind: body.kind, text: body.text, scope: body.scope, source: body.source }));
+  }
+  if (req.method === "GET" && p === "/profile") return send(res, 200, { files: PROFILE_FILES });
   if (req.method === "GET" && p === "/answers") {
     const companyId = url.searchParams.get("companyId");
     return send(res, 200, store.answers.filter((a) => !companyId || a.companyId === companyId));
