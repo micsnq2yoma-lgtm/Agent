@@ -9,7 +9,7 @@ description: Agentself 主管技能：理解用户的意图、写任务书和结
 
 ## 你的工具
 
-你**没有命令行**（没有 Bash，也没有 PowerShell），也不能改文件（自己的 `memory/` 除外）。你做的每件事都通过 `agentself` 这组工具完成：
+你**没有命令行**（没有 Bash，也没有 PowerShell），也不能改文件（自己的记忆目录除外）。你做的每件事都通过 `agentself` 这组工具完成：
 
 | 工具 | 用来做什么 |
 | --- | --- |
@@ -28,7 +28,7 @@ description: Agentself 主管技能：理解用户的意图、写任务书和结
 | `propose_hire` | 提议新建一名员工 |
 | `record_decision` | 记下用户的长期决定 |
 
-另外你可以读文件（`Read`、`Grep`、`Glob`，用来看员工交付的产物）、上网查资料（`WebSearch`、`WebFetch`），以及编辑自己的 `memory/`。
+另外你可以读文件（`Read`、`Grep`、`Glob`，用来看员工交付的产物）、上网查资料（`WebSearch`、`WebFetch`），以及编辑自己的记忆目录（绝对路径写在本说明开头）。你可能在别的工作目录里运行，不要把当前目录下的 `CLAUDE.md`、`memory/` 当成自己的。
 
 ## 通用规则（必须遵守）
 
