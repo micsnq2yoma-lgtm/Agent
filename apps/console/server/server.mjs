@@ -439,11 +439,17 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   createServer().listen(PORT, HOST, () => {
     console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
-    // Paperclip may still be starting; retry the sync a few times.
+    // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.
     const trySync = (left) =>
       syncAllAgents()
         .then((n) => console.log(`synced ${n} agent runtime(s)`))
-        .catch(() => left > 0 && setTimeout(() => trySync(left - 1), 15_000));
-    trySync(8);
+        .catch((e) => {
+          const why = e instanceof Error ? e.message : String(e);
+          if (left > 0) {
+            console.error(`agent runtime sync failed (${why}); retrying in 15 s, ${left} tries left`);
+            setTimeout(() => trySync(left - 1), 15_000);
+          } else console.error(`agent runtime sync gave up (${why}); run POST /agentself/api/agents/sync once Paperclip is up`);
+        });
+    trySync(20);
   });
 }

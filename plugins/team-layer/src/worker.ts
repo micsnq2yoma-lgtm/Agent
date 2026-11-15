@@ -127,7 +127,7 @@ async function memoryIdleTick(ctx: Ctx) {
         const added = addProfileProposals(r.profileProposals, { agentId: agent.id, name: agent.name ?? "" });
         if (added) await addNotice(ctx, c.id, { text: `有 ${added} 条关于你的新了解待确认（设置 → 关于我）`, issueId: null, agentId: agent.id });
       } catch (err) {
-        ctx.logger.error("memory consolidation failed", { agentId: agent.id, err: String(err) });
+        ctx.logger.error(`memory consolidation failed: ${errText(err)}`, { agentId: agent.id, err: String(err) });
       }
     }
   }
@@ -306,6 +306,54 @@ async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payl
 /* Acceptance + watch helpers (plan B step 2)                          */
 /* ------------------------------------------------------------------ */
 
+interface VerificationState {
+  status: "running" | "done" | "failed";
+  evidenceAt: string | null;
+  startedAt?: number;
+  verdicts?: CriterionVerdict[];
+  model?: string;
+  error?: string;
+}
+
+/** A finished verifier run waiting for the verify-tick job to record it (local file, no host calls). */
+interface VerifyJob {
+  companyId: string;
+  childId: string;
+  ownerId: string;
+  evidenceAt: string | null;
+  model: string;
+  criteria: Criterion[];
+  raw: string | null;
+  error: string | null;
+  attempts: number;
+}
+
+const verifyDir = () => path.join(agentselfHome(), "verify");
+const verifyFile = (childId: string) => path.join(verifyDir(), `${childId.replace(/[^\w-]/g, "_")}.json`);
+
+function writeVerifyJob(job: VerifyJob) {
+  fs.mkdirSync(verifyDir(), { recursive: true });
+  const f = verifyFile(job.childId);
+  fs.writeFileSync(`${f}.tmp`, JSON.stringify(job));
+  fs.renameSync(`${f}.tmp`, f);
+}
+
+function readVerifyJobs(): VerifyJob[] {
+  if (!fs.existsSync(verifyDir())) return [];
+  const out: VerifyJob[] = [];
+  for (const f of fs.readdirSync(verifyDir())) {
+    if (!f.endsWith(".json")) continue;
+    try {
+      out.push(JSON.parse(fs.readFileSync(path.join(verifyDir(), f), "utf8")));
+    } catch {
+      /* half-written or broken: skip */
+    }
+  }
+  return out;
+}
+
+const removeVerifyJob = (job: VerifyJob) => fs.rmSync(verifyFile(job.childId), { force: true });
+
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 /** Criteria live on the lead's (parent) task; a child task resolves them through its parent. */
@@ -372,7 +420,7 @@ const plugin = definePlugin({
       try {
         await onIssueCreated(ctx, e.companyId, e.entityId, { id: e.actorId, type: e.actorType });
       } catch (err) {
-        ctx.logger.error("issue.created handler failed", { err: String(err) });
+        ctx.logger.error(`issue.created handler failed: ${errText(err)}`, { err: String(err) });
       }
     });
 
@@ -384,7 +432,7 @@ const plugin = definePlugin({
         const id = e.entityId;
         await serialize(id, () => onIssueUpdated(ctx, e.companyId, id, payload, { id: e.actorId, type: e.actorType }));
       } catch (err) {
-        ctx.logger.error("issue.updated handler failed", { err: String(err) });
+        ctx.logger.error(`issue.updated handler failed: ${errText(err)}`, { err: String(err) });
       }
     });
 
@@ -393,7 +441,7 @@ const plugin = definePlugin({
         try {
           await onRunEnded(ctx, e.companyId, (e.payload ?? {}) as { agentId?: string; issueId?: string | null; status?: string; error?: string | null });
         } catch (err) {
-          ctx.logger.error("run log failed", { err: String(err) });
+          ctx.logger.error(`run log failed: ${errText(err)}`, { err: String(err) });
         }
       });
     }
@@ -509,10 +557,12 @@ const plugin = definePlugin({
       },
     );
 
-    // Paperclip calls plugin tools with a 30 s RPC timeout; a verifier run takes 30 s to a few minutes.
-    // So verify starts the check in the background and returns at once; when the verdicts are in, it
-    // writes the "verification" document and comments on the lead's task, which wakes the lead.
-    // Calling verify again returns the stored verdicts while the evidence is unchanged.
+    // Paperclip calls plugin tools with a 30 s RPC timeout, and a tool call's invocation scope ends when
+    // it returns: host calls made afterwards are refused ("missing, expired, or unknown invocation
+    // scope", seen in P1). So verify does every host read inside the call, starts the verifier as a
+    // plain child process that writes its output to a local file, and returns. The "verify-tick" job,
+    // which runs with its own scope, picks the file up, stores the verdicts, writes the "verification"
+    // document and comments on the lead's task, which wakes the lead.
     ctx.tools.register(
       "verify",
       { displayName: "team.verify", description: "Lead: independent per-criterion check of a child task", parametersSchema: { type: "object" } },
@@ -527,9 +577,7 @@ const plugin = definePlugin({
         const ev = ((await ctx.state.get(issueKey(childId, "evidence"))) ?? { items: [], disputes: [] }) as { items: EvidenceItem[]; disputes: Dispute[]; at?: string };
         const evidenceAt = ev.at ?? null;
         const vKey = issueKey(childId, "verification");
-        const cur = (await ctx.state.get(vKey)) as
-          | { status?: "running" | "done" | "failed"; evidenceAt?: string | null; startedAt?: number; verdicts?: CriterionVerdict[]; model?: string; error?: string }
-          | null;
+        const cur = (await ctx.state.get(vKey)) as VerificationState | null;
         const text = { passed: "通过", failed: "未通过", uncertain: "无法判断" } as const;
 
         if (cur?.status === "done" && cur.evidenceAt === evidenceAt && cur.verdicts) {
@@ -544,40 +592,59 @@ const plugin = definePlugin({
         if (cur?.status === "running" && cur.evidenceAt === evidenceAt && Date.now() - (cur.startedAt ?? 0) < 10 * 60_000) {
           return { content: "核查还在进行中。结束本轮；完成后会在你的任务上留言叫醒你。", data: { status: "running" } };
         }
+        // A failed check is not retried silently: tell the lead why, so it can judge by itself.
+        if (cur?.status === "failed" && cur.evidenceAt === evidenceAt) {
+          return { content: `上一次独立核查失败：${cur.error ?? "原因未知"}。员工的证据没有变化，不再重试；请自己逐条判定。员工补交证据后可以再调用。`, data: { status: "failed" } };
+        }
 
-        await ctx.state.set(vKey, { status: "running", evidenceAt, startedAt: Date.now(), model: cfg.verifierModel });
-        const ownerId = found.ownerId;
-        void (async () => {
-          try {
-            const prompt = verifierPrompt({
-              goal: (await docBody(ctx, ownerId, "brief", companyId)) || ((await ctx.issues.get(ownerId, companyId))?.title ?? ""),
-              criteria: found.criteria,
-              items: ev.items,
-              disputes: ev.disputes,
-              report: await docBody(ctx, childId, "report", companyId),
-            });
-            // No tools: the verifier judges only the material it is given.
-            const raw = await runClaudeJson(prompt, cfg.verifierModel, 300_000, undefined, [
-              "--disallowedTools",
-              "Bash,PowerShell,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit",
-            ]);
-            const verdicts = parseVerdicts(raw, found.criteria);
-            if (!verdicts) throw new Error("核查员的输出无法解析");
-            await ctx.state.set(vKey, { status: "done", evidenceAt, verdicts, model: cfg.verifierModel });
-            await ctx.issues.documents.upsert({ issueId: childId, key: "verification", title: "独立核查", body: verificationMarkdown(found.criteria, verdicts, cfg.verifierModel), companyId, changeSummary: "独立核查" });
-            const sum = verdictSummary(verdicts);
-            await ctx.issues.createComment(ownerId, `🔎 独立核查完成（子任务 ${childId}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。再调用一次 verify 查看逐条结果。`, companyId);
-          } catch (e) {
-            await ctx.state.set(vKey, { status: "failed", evidenceAt, error: errText(e) });
-            await ctx.issues
-              .createComment(ownerId, `🔎 独立核查没跑成（子任务 ${childId}）：${errText(e).slice(0, 300)}。请自己逐条判定。`, companyId)
-              .catch(() => {});
-            ctx.logger.error("verify failed", { childId, err: errText(e) });
-          }
-        })();
+        // Every host read happens here, inside the call.
+        const prompt = verifierPrompt({
+          goal: (await docBody(ctx, found.ownerId, "brief", companyId)) || ((await ctx.issues.get(found.ownerId, companyId))?.title ?? ""),
+          criteria: found.criteria,
+          items: ev.items,
+          disputes: ev.disputes,
+          report: await docBody(ctx, childId, "report", companyId),
+        });
+        await ctx.state.set(vKey, { status: "running", evidenceAt, startedAt: Date.now(), model: cfg.verifierModel } satisfies VerificationState);
+        await rememberCompany(ctx, companyId);
+        const job: VerifyJob = { companyId, childId, ownerId: found.ownerId, evidenceAt, model: cfg.verifierModel, criteria: found.criteria, raw: null, error: null, attempts: 0 };
+        // No host calls from here on: the call's scope ends when we return.
+        void runClaudeJson(prompt, cfg.verifierModel, 300_000, undefined, [
+          "--disallowedTools",
+          "Bash,PowerShell,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit",
+        ])
+          .then((raw) => writeVerifyJob({ ...job, raw }))
+          .catch((e) => writeVerifyJob({ ...job, error: errText(e) }));
         return { content: `已开始独立核查（${cfg.verifierModel}，一般 1–3 分钟）。结束本轮；完成后会在你的任务上留言叫醒你，那时再调用一次 verify 拿逐条结果。`, data: { status: "running" } };
       },
     );
+
+    ctx.jobs.register("verify-tick", async () => {
+      for (const job of readVerifyJobs()) {
+        const vKey = issueKey(job.childId, "verification");
+        try {
+          const verdicts = job.raw != null ? parseVerdicts(job.raw, job.criteria) : null;
+          if (!verdicts) {
+            const error = job.error ?? "核查员的输出无法解析";
+            await ctx.state.set(vKey, { status: "failed", evidenceAt: job.evidenceAt, error, model: job.model } satisfies VerificationState);
+            await ctx.issues.createComment(job.ownerId, `🔎 独立核查没跑成（子任务 ${job.childId}）：${error.slice(0, 300)}。请自己逐条判定。`, job.companyId);
+            ctx.logger.error(`verify failed for ${job.childId}: ${error}`);
+          } else {
+            await ctx.state.set(vKey, { status: "done", evidenceAt: job.evidenceAt, verdicts, model: job.model } satisfies VerificationState);
+            await ctx.issues.documents.upsert({ issueId: job.childId, key: "verification", title: "独立核查", body: verificationMarkdown(job.criteria, verdicts, job.model), companyId: job.companyId, changeSummary: "独立核查" });
+            const sum = verdictSummary(verdicts);
+            await ctx.issues.createComment(job.ownerId, `🔎 独立核查完成（子任务 ${job.childId}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。再调用一次 verify 查看逐条结果。`, job.companyId);
+          }
+          removeVerifyJob(job);
+        } catch (e) {
+          // Keep the file and retry next minute; give up after a few attempts so it cannot loop forever.
+          const attempts = job.attempts + 1;
+          ctx.logger.error(`verify-tick could not record ${job.childId} (attempt ${attempts}): ${errText(e)}`);
+          if (attempts >= 5) removeVerifyJob(job);
+          else writeVerifyJob({ ...job, attempts });
+        }
+      }
+    });
 
     /* ---------------- long-running experiment watch (plan B step 2) ---------------- */
 
@@ -621,7 +688,7 @@ const plugin = definePlugin({
             await ctx.issues.createComment(w.issueId, wakeComment(w, res.wake, r.spawnError ?? r.output), cid);
             await ctx.issues.requestWakeup(w.issueId, cid, { reason: "agentself_watch" } as never);
           } catch (err) {
-            ctx.logger.error("watch wake failed", { issueId: w.issueId, err: errText(err) });
+            ctx.logger.error(`watch wake failed: ${errText(err)}`, { issueId: w.issueId, err: errText(err) });
           }
         }
         // Re-read so watches added while probes ran are kept.
@@ -645,7 +712,7 @@ const plugin = definePlugin({
             if (r.note) await ctx.issues.createComment(r.issueId, `⏰ 稍后提醒：${r.note}`, c.id);
             await ctx.issues.requestWakeup(r.issueId, c.id, { reason: "agentself_later" } as never);
           } catch (err) {
-            ctx.logger.error("later wake failed", { issueId: r.issueId, err: String(err) });
+            ctx.logger.error(`later wake failed: ${errText(err)}`, { issueId: r.issueId, err: String(err) });
           }
         }
         if (due.length) await ctx.state.set(key, rest);
