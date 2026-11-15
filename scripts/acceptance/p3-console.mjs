@@ -4,6 +4,7 @@
 import { createRequire } from "node:module";
 import fs from "node:fs";
 import path from "node:path";
+import { removeTeam } from "../lib/teardown.mjs";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
@@ -44,8 +45,10 @@ results.backToOffice = officeText.includes("工作台") && !officeText.includes(
 
 // 2. wizard (plan B / SETO): nothing is preset — name a team, its lead and one employee through the UI
 const TEAM = "验收团队";
-const before = (await j("GET", "/agentself/api/context")).departments.map((d) => d.name);
-if (!before.includes(TEAM)) {
+// leftovers from earlier runs (before this script cleaned up after itself) go first
+const leftovers = await j("GET", "/agentself/api/context");
+for (const d of leftovers.departments.filter((d) => d.name === TEAM)) await removeTeam({ companyId: leftovers.company.id, projectId: d.projectId, members: d.members });
+{
   await page.getByRole("link", { name: "新建主管" }).first().click(); // the + next to 主管 in the sidebar
   await page.getByPlaceholder("团队名称，由你来定").fill(TEAM);
   await page.getByRole("button", { name: "下一步" }).click();
@@ -85,9 +88,15 @@ await page.screenshot({ path: "spikes/shots/p3-team.png" });
 await page.getByRole("tab", { name: "工作台" }).click();
 await browser.close();
 
+// leave no test team behind: the wizard's lead, employee and project
+const after = await j("GET", "/agentself/api/context");
+results.cleanup = [];
+for (const d of after.departments.filter((d) => d.name === TEAM)) results.cleanup.push(...(await removeTeam({ companyId: after.company.id, projectId: d.projectId, members: d.members })));
+results.cleanedUp = !(await j("GET", "/agentself/api/context")).departments.some((d) => d.name === TEAM);
+
 results.pageErrors = errors;
 const pass =
-  results.courtTerms && results.courtLayoutRight && results.backToOffice && results.wizardCreated && results.wizardIdentityFile && results.usageByDepartment &&
+  results.courtTerms && results.courtLayoutRight && results.backToOffice && results.wizardCreated && results.wizardIdentityFile && results.usageByDepartment && results.cleanedUp &&
   plates === office.people.length && errors.length === 0;
 console.log("RESULT", pass ? "PASS" : "FAIL", JSON.stringify(results, null, 1));
 process.exit(pass ? 0 : 1);
