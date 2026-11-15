@@ -53,32 +53,35 @@ export const office: Skin = {
   id: "office",
   name: "办公室",
   description: "默认皮肤",
+  // Style: docs/design/DESIGN-claude.md — warm cream canvas, coral primary, serif display,
+  // warm dark surfaces. Colours only; no logos or brand marks.
   tokens: {
-    bg: "#faf9f7",
-    sidebar: "#f3f1ed",
-    surface: "#ffffff",
-    border: "#e6e2db",
-    text: "#26241f",
-    muted: "#625d55",
-    accent: "#d9480f",
-    accentStrong: "#b4410c",
-    high: "#c23b3b",
-    medium: "#3a5a8c",
-    low: "#8a847a",
-    success: "#2b7a3b",
-    radius: "10px",
-    fontBody: "'Inter', 'Noto Sans SC', sans-serif",
-    fontDisplay: "'Space Grotesk', 'Inter', 'Noto Sans SC', sans-serif",
+    bg: "#faf9f5", // canvas
+    sidebar: "#f5f0e8", // surface-soft
+    surface: "#faf9f5", // canvas + hairline (cards are colour-blocked, not shadowed)
+    border: "#e6dfd8", // hairline
+    text: "#141413", // ink
+    muted: "#6c6a64", // muted
+    accent: "#cc785c", // primary (coral)
+    accentStrong: "#a9583e", // primary-active
+    high: "#c64545", // error
+    medium: "#3f8f80", // accent-teal, darkened for text on cream
+    low: "#8e8b82", // muted-soft
+    success: "#5db872",
+    radius: "12px", // rounded.lg (cards); buttons/inputs use 8px
+    fontBody: "'Inter', 'Noto Sans SC', -apple-system, 'Segoe UI', sans-serif",
+    fontDisplay: "'Tiempos Headline', 'Cormorant Garamond', 'EB Garamond', 'Noto Serif SC', 'Source Han Serif SC', 'Songti SC', serif",
   },
   darkTokens: {
-    bg: "#1d1a24",
-    sidebar: "#1b1722",
-    surface: "#2b2230",
-    border: "#3a3542",
-    text: "#f1eee8",
-    muted: "#9aa3b5",
-    accent: "#ff7a3d",
-    accentStrong: "#ffc56b",
+    bg: "#181715", // surface-dark
+    sidebar: "#1f1e1b", // surface-dark-soft
+    surface: "#252320", // surface-dark-elevated
+    border: "#34312c",
+    text: "#faf9f5", // on-dark
+    muted: "#a09d96", // on-dark-soft
+    accent: "#cc785c",
+    accentStrong: "#e8a55a", // accent-amber: readable links on dark
+    medium: "#5db8a6",
   },
   terms: {
     department: "团队",
@@ -99,7 +102,7 @@ export const office: Skin = {
     user: "我",
   },
   layout: { sidebar: "left", cardColumns: "row" },
-  office: { floor: "#e9e5de", wall: "#f1eee8", desk: "#8a6bd6", accent: "#d9480f" },
+  office: { floor: "#efe9de", wall: "#f5f0e8", desk: "#3d3d3a", accent: "#cc785c" },
 };
 
 export const court: Skin = {

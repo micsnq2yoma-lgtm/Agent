@@ -11,9 +11,9 @@ describe("skins", () => {
     expect(getSkin("nope").id).toBe("office");
   });
   it("exposes css variables, with dark overrides", () => {
-    expect(cssVars(office)["--as-accent"]).toBe("#d9480f");
-    expect(cssVars(office, true)["--as-bg"]).toBe("#1d1a24");
-    expect(cssVars(office)["--as-accent-strong"]).toBe("#b4410c");
+    expect(cssVars(office)["--as-accent"]).toBe("#cc785c");
+    expect(cssVars(office, true)["--as-bg"]).toBe("#181715");
+    expect(cssVars(office)["--as-accent-strong"]).toBe("#a9583e");
   });
   it("built-in skins are valid and complete", () => {
     expect(validateSkin(office)).toEqual([]);

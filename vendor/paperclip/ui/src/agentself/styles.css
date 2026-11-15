@@ -1,21 +1,23 @@
 /* Agentself views inside the Paperclip UI. Everything is scoped under .agentself so
    Paperclip pages are untouched (P8). Colours come from skin tokens (--as-*), set at runtime. */
 :root {
-  --as-bg: #faf9f7;
-  --as-sidebar: #f3f1ed;
-  --as-surface: #ffffff;
-  --as-border: #e6e2db;
-  --as-text: #26241f;
-  --as-muted: #625d55;
-  --as-accent: #d9480f;
-  --as-accent-strong: #b4410c;
-  --as-high: #c23b3b;
-  --as-medium: #3a5a8c;
-  --as-low: #8a847a;
-  --as-success: #2b7a3b;
-  --as-radius: 10px;
-  --as-font-body: "Inter", "Noto Sans SC", sans-serif;
-  --as-font-display: "Space Grotesk", "Inter", "Noto Sans SC", sans-serif;
+  /* Defaults = office skin (docs/design/DESIGN-claude.md); SkinProvider overrides at runtime. */
+  --as-bg: #faf9f5;
+  --as-sidebar: #f5f0e8;
+  --as-surface: #faf9f5;
+  --as-border: #e6dfd8;
+  --as-text: #141413;
+  --as-muted: #6c6a64;
+  --as-accent: #cc785c;
+  --as-accent-strong: #a9583e;
+  --as-high: #c64545;
+  --as-medium: #3f8f80;
+  --as-low: #8e8b82;
+  --as-success: #5db872;
+  --as-radius: 12px;
+  --as-font-body: "Inter", "Noto Sans SC", -apple-system, "Segoe UI", sans-serif;
+  --as-font-display: "Tiempos Headline", "Cormorant Garamond", "EB Garamond", "Noto Serif SC", "Source Han Serif SC", "Songti SC", serif;
+  --as-card: color-mix(in srgb, var(--as-sidebar) 55%, var(--as-border)); /* surface-card #efe9de on cream */
   color-scheme: light dark;
 }
 .agentself, .agentself * { box-sizing: border-box; }
@@ -24,6 +26,8 @@
 .agentself button:where(:not([data-embedded-paperclip] *)) { font: inherit; color: inherit; cursor: pointer; }
 .agentself input:where(:not([data-embedded-paperclip] *)), .agentself textarea:where(:not([data-embedded-paperclip] *)), .agentself select:where(:not([data-embedded-paperclip] *)) { font: inherit; color: inherit; }
 .agentself :focus-visible:where(:not([data-embedded-paperclip] *)) { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+/* Display type: serif, regular weight, negative tracking — emphasis by size, never bold. */
+.agentself :where(h1, h2):where(:not([data-embedded-paperclip] *)) { font-family: var(--as-font-display); font-weight: 400; letter-spacing: -0.3px; }
 
 .agentself.as-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 html[data-layout-sidebar="right"] .agentself .shell { flex-direction: row-reverse; }
@@ -32,10 +36,10 @@ html[data-layout-sidebar="right"] .agentself .shell { flex-direction: row-revers
 .agentself .sidebar { width: 100%; height: 100%; flex: none; background: var(--as-sidebar); border-right: 1px solid var(--as-border); display: flex; flex-direction: column; padding: 16px 10px; gap: 2px; overflow-y: auto; }
 html[data-layout-sidebar="right"] .agentself .sidebar { border-right: none; border-left: 1px solid var(--as-border); }
 .agentself .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 14px; }
-.agentself .wordmark { display: inline-flex; align-items: baseline; letter-spacing: 0.16em; font-family: var(--as-font-display); font-weight: 600; line-height: 1; }
+.agentself .wordmark { display: inline-flex; align-items: baseline; letter-spacing: -0.5px; font-family: var(--as-font-display); font-weight: 400; line-height: 1; }
 .agentself .nav-item { display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: 8px; border: none; background: none; text-align: left; width: 100%; color: var(--as-text); }
 .agentself .nav-item:hover { background: color-mix(in srgb, var(--as-text) 6%, transparent); }
-.agentself .nav-item.active { background: var(--as-surface); box-shadow: 0 1px 2px rgba(38, 36, 31, 0.06); font-weight: 600; }
+.agentself .nav-item.active { background: var(--as-card); font-weight: 500; }
 .agentself .nav-item .count { margin-left: auto; font-size: 12px; color: var(--as-muted); }
 .agentself .nav-item .count.hot { color: #fff; background: var(--as-high); border-radius: 999px; padding: 0 7px; }
 .agentself .nav-section { margin: 14px 10px 4px; font-size: 12px; color: var(--as-muted); display: flex; justify-content: space-between; align-items: center; }
@@ -47,27 +51,28 @@ html[data-layout-sidebar="right"] .agentself .sidebar { border-right: none; bord
 .agentself .topbar { height: 52px; flex: none; display: flex; align-items: center; justify-content: center; position: relative; border-bottom: 1px solid var(--as-border); }
 .agentself .toggle { display: inline-flex; background: var(--as-sidebar); border-radius: 999px; padding: 3px; border: 1px solid var(--as-border); }
 .agentself .toggle button { border: none; background: none; padding: 5px 16px; border-radius: 999px; color: var(--as-muted); }
-.agentself .toggle button.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: 0 1px 2px rgba(38, 36, 31, 0.08); }
+.agentself .toggle button.on { background: var(--as-card); color: var(--as-text); font-weight: 500; }
 .agentself .pending-badge { position: absolute; right: 18px; border: none; background: color-mix(in srgb, var(--as-high) 12%, transparent); color: var(--as-high); border-radius: 999px; padding: 4px 12px; font-weight: 600; }
 .agentself .content { flex: 1; overflow-y: auto; }
 .agentself .page { max-width: 1120px; margin: 0 auto; padding: 28px 32px 60px; }
 
 /* ---------- home ---------- */
 .agentself .hero { text-align: center; margin: 18px 0 22px; }
-.agentself .hero .wordmark { font-size: 40px; }
+.agentself .hero .wordmark { font-size: 48px; letter-spacing: -1px; }
 .agentself .hero .tagline { margin-top: 12px; font-size: 16px; }
 .agentself .hero .tagline-en { margin-top: 4px; font-size: 13px; color: var(--as-muted); }
-.agentself .composer { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: 14px; padding: 12px 14px; box-shadow: 0 1px 3px rgba(38, 36, 31, 0.06); }
+.agentself .composer { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 12px 14px; }
 .agentself .composer textarea { width: 100%; border: none; resize: none; min-height: 64px; background: transparent; outline: none; font-size: 15px; }
 .agentself .composer-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agentself .chip-select { border: 1px solid var(--as-border); background: var(--as-bg); border-radius: 999px; padding: 4px 10px; font-size: 13px; }
-.agentself .btn { border: 1px solid var(--as-border); background: var(--as-surface); border-radius: 8px; padding: 6px 12px; white-space: nowrap; }
+.agentself .btn { border: 1px solid var(--as-border); background: var(--as-bg); border-radius: 8px; padding: 7px 14px; white-space: nowrap; font-weight: 500; }
 .agentself .btn:hover { border-color: var(--as-muted); }
-.agentself .btn.primary { background: var(--as-accent); border-color: var(--as-accent); color: #fff; font-weight: 600; }
+.agentself .btn.primary { background: var(--as-accent); border-color: var(--as-accent); color: #fff; font-weight: 500; }
 .agentself .btn.primary:hover { background: var(--as-accent-strong); }
 .agentself .btn.danger { color: var(--as-high); }
 .agentself .btn.ghost { border-color: transparent; background: none; color: var(--as-muted); }
 .agentself .btn:disabled { opacity: 0.5; cursor: default; }
+.agentself .btn.primary:disabled { opacity: 1; background: var(--as-border); border-color: var(--as-border); color: var(--as-muted); }
 .agentself .hint { font-size: 12px; color: var(--as-muted); margin-top: 8px; }
 .agentself .notice { margin-top: 10px; padding: 10px 12px; border-radius: 8px; background: var(--as-sidebar); font-size: 13px; }
 
@@ -137,7 +142,8 @@ html[data-card-columns="grid"] .agentself .cards { grid-template-columns: repeat
 .agentself .row:first-of-type { border-top: none; }
 .agentself .row .label { font-weight: 500; }
 .agentself .row .sub { font-size: 12px; color: var(--as-muted); }
-.agentself .input { border: 1px solid var(--as-border); border-radius: 8px; padding: 6px 10px; background: var(--as-bg); }
+.agentself .input { border: 1px solid var(--as-border); border-radius: 8px; padding: 7px 12px; background: var(--as-bg); }
+.agentself .input:focus { outline: none; border-color: var(--as-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--as-accent) 15%, transparent); }
 .agentself table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
 .agentself table.data th, .agentself table.data td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--as-border); }
 .agentself table.data th { color: var(--as-muted); font-weight: 500; }
@@ -174,13 +180,13 @@ html[data-layout-sidebar="right"] [data-agentself-row] [data-agentself-sidebar] 
 
 /* ---------- P10: tabs, stats bar, embedded Paperclip pages, employee page ---------- */
 .agentself .page.wide { max-width: 1280px; }
-.agentself .tabbar { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--as-border); margin: 14px 0 16px; }
-.agentself .tabbar a { padding: 7px 12px; color: var(--as-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 14px; }
+.agentself .tabbar { display: flex; gap: 4px; flex-wrap: wrap; margin: 14px 0 16px; padding-bottom: 10px; border-bottom: 1px solid var(--as-border); }
+.agentself .tabbar a { padding: 7px 14px; color: var(--as-muted); text-decoration: none; border-radius: 8px; font-size: 14px; font-weight: 500; }
 .agentself .tabbar a:hover { color: var(--as-text); }
-.agentself .tabbar a.on { color: var(--as-text); border-bottom-color: var(--as-accent); font-weight: 600; }
+.agentself .tabbar a.on { color: var(--as-text); background: var(--as-card); }
 .agentself .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
 .agentself .stats > div { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 10px 14px; display: flex; flex-direction: column; }
-.agentself .stats b { font-size: 20px; font-family: var(--as-font-display); }
+.agentself .stats b { font-size: 24px; font-family: var(--as-font-display); font-weight: 400; letter-spacing: -0.3px; }
 .agentself .stats span { font-size: 12px; color: var(--as-muted); }
 .agentself .stats .hot b { color: var(--as-high); }
 .agentself .embedded-paperclip { font: initial; font-family: var(--font-sans); color: var(--foreground); }

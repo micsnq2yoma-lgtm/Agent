@@ -21,7 +21,7 @@ const exe = fs.existsSync(msDir)
 const ctx = await (await fetch(`${base}/agentself/api/context`)).json();
 const prefix = ctx.company.issuePrefix;
 const research = ctx.departments.find((d) => d.key === "research");
-const skinBg = ctx.settings.skin === "court" ? "#f6efe2" : "#faf9f7";
+const skinBg = ctx.settings.skin === "court" ? "#f6efe2" : "#faf9f5";
 
 const browser = await pw.chromium.launch({ executablePath: exe });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });

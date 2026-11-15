@@ -26,7 +26,7 @@ const prefix = ctx.company.issuePrefix;
 const research = ctx.departments.find((d) => d.key === "research");
 const original = ctx.settings.skin;
 const SKINS = {
-  office: { bg: "#faf9f7", employee: "员工", user: "我", workbench: "工作台" },
+  office: { bg: "#faf9f5", employee: "员工", user: "我", workbench: "工作台" },
   court: { bg: "#f6efe2", employee: "侍郎", user: "朕", workbench: "御书房" },
 };
 const pages = [

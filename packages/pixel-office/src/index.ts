@@ -46,12 +46,12 @@ export const DEFAULT_PALETTE: OfficePalette = {
   plantDark: "#33703a",
   pot: "#c56a3d",
   rug: "#ede3d4",
-  rugB: "#d9480f",
+  rugB: "#cc785c",
   chair: "#4a4458",
   mug: "#ffffff",
   shelf: "#7c5a3c",
   books: ["#c23b3b", "#3a5a8c", "#ffc56b", "#2b7a3b"],
-  accent: "#d9480f",
+  accent: "#cc785c",
 };
 
 export const EYE_COLORS = { claude: "#ffc56b", codex: "#4fd1e8", other: "#c9c3ff" } as const;
