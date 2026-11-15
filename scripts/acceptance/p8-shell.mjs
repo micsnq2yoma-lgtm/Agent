@@ -66,7 +66,8 @@ const sidebarCheck = async (label) => {
     page: label,
     path: new URL(page.url()).pathname,
     agentselfSidebars: await page.locator("[data-agentself-sidebar]").count(),
-    asides: await page.locator("aside:visible").count(),
+    // navigation sidebars only: the workbench progress panel and the drawers are <aside> too
+    asides: await page.evaluate(() => [...document.querySelectorAll("aside")].filter((a) => a.getBoundingClientRect().width > 0 && !a.matches(".progress, .drawer")).length),
     paperclipNewTask: await page.getByRole("button", { name: /New issue|新建任务/ }).count(),
   };
 };

@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { as, list, pc, type Agent, type Context } from "../lib/api";
 import { useSkin } from "../lib/skin";
-import { Robot, eyeOf, modelName } from "../components/Brand";
+import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 
 interface MemoryFile {
@@ -66,7 +66,7 @@ export function EmployeeProfile({ ctx, agentId, toast }: { ctx: Context; agentId
         <div className="row">
           <span className="label">状态</span>
           <span>
-            {agent?.status}{" "}
+            {AGENT_STATUS[agent?.status ?? ""] ?? agent?.status}{" "}
             <button className="btn" disabled={busy} onClick={() => void togglePause()}>
               {agent?.status === "paused" ? "恢复" : "暂停"}
             </button>

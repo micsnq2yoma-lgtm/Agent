@@ -8,6 +8,7 @@ import { useNavigate, useParams } from "@/lib/router";
 import { as, usePoll, type Context } from "./lib/api";
 import { act, loadFeed, type Feed } from "./lib/feed";
 import type { Card, Filter } from "./lib/cards";
+import { cardsOfLead } from "./lib/progress";
 import { SkinProvider, useSkin } from "./lib/skin";
 import { registerAgentAdapters } from "./lib/avatar";
 import { Composer, Home } from "./views/Home";
@@ -15,7 +16,7 @@ import { CapabilitiesHub, DepartmentPage, EmployeePage, OrgPage, RecordsHub, Usa
 import { Team } from "./views/Team";
 import { ProjectDrawer } from "./views/ProjectDrawer";
 import { EmployeeDrawer } from "./views/EmployeeDrawer";
-import { Archived, NewDepartment, Projects, Routines, SettingsPage } from "./views/Pages";
+import { Archived, NewDepartment, Projects, Routines, SettingsPage, settingsTabLabel, useSettingsTab } from "./views/Pages";
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "./components/Skeleton";
 import "./styles.css";
@@ -55,14 +56,21 @@ const EMPTY_FEED_DEPS: unknown[] = [];
 export function AgentselfRoot({ children }: { children: ReactNode }) {
   const [ctx, ctxError, reloadCtx] = usePoll<Context>(
     async () => {
-      // shared skins from ~/.agentself/skins must be registered before the provider reads them
-      for (const s of await as.get<Skin[]>("/skins").catch(() => [])) registerSkin(s);
-      const c = await as.get<Context>("/context");
+      // shared skins from ~/.agentself/skins must be registered before the provider reads them;
+      // both requests go out together
+      const [skinList, c] = await Promise.all([as.get<Skin[]>("/skins").catch(() => [] as Skin[]), as.get<Context>("/context")]);
+      for (const s of skinList) registerSkin(s);
       registerAgentAdapters(c.agents);
       return c;
     },
     30000,
+    [],
+    "context",
   );
+  // agents from the cached context need their adapters registered too (robot eyes)
+  useEffect(() => {
+    if (ctx) registerAgentAdapters(ctx.agents);
+  }, [ctx]);
   return (
     <SkinProvider initial={ctx?.settings?.skin ?? "office"}>
       <FeedLayer ctx={ctx} ctxError={ctxError} reloadCtx={reloadCtx}>
@@ -78,6 +86,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
     () => (ctx?.company ? loadFeed(ctx) : Promise.resolve(null)),
     5000,
     ctx ? [ctx.company?.id, ctx.agents.length] : EMPTY_FEED_DEPS,
+    ctx?.company ? `feed.${ctx.company.id}` : undefined,
   );
   const [filter, setFilter] = useState<Filter>("all");
   const [project, setProject] = useState<string | null>(null);
@@ -123,8 +132,9 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
   }, [feed, t]);
 
   const value = useMemo<AgentselfState>(() => {
+    // keyed by team key, with the same membership rules as the lead page
     const pendingByDept: Record<string, number> = {};
-    for (const c of feed?.cards ?? []) if ((c.type === "decide" || c.type === "hire") && c.department) pendingByDept[c.department] = (pendingByDept[c.department] ?? 0) + 1;
+    if (ctx && feed) for (const d of ctx.departments) pendingByDept[d.key] = cardsOfLead(ctx, feed.issues, feed.cards, d).length;
     return {
       ctx,
       ctxError,
@@ -254,6 +264,24 @@ function TeamStats({ ctx }: { ctx: Context }) {
   );
 }
 
+/** "工作台 · 2 位主管 · 3 名员工" (DESIGN §4.2) */
+function WorkbenchCrumb({ ctx }: { ctx: Context | null }) {
+  const { t } = useSkin();
+  const live = (ctx?.departments ?? []).filter((d) => !d.archived);
+  const leadIds = new Set(live.map((d) => d.leadAgentId).filter(Boolean));
+  const employees = new Set(live.flatMap((d) => d.members).filter((id) => !leadIds.has(id) && ctx?.agents.find((a) => a.id === id)?.status !== "terminated"));
+  return (
+    <span>
+      {t("workbench")}
+      {ctx && (
+        <span className="crumb-meta">
+          {" "}· {leadIds.size} 位{t("lead")} · {employees.size} 名{t("employee")}
+        </span>
+      )}
+    </span>
+  );
+}
+
 /** 工作台 / 像素团队 */
 export function WorkbenchPage() {
   const s = useAgentself();
@@ -279,7 +307,7 @@ export function WorkbenchPage() {
     </div>
   );
   return (
-    <PageFrame ctx={s.ctx} crumbs={[t("workbench")]} center={toggle}>
+    <PageFrame ctx={s.ctx} crumbs={[<WorkbenchCrumb key="w" ctx={s.ctx} />]} center={toggle}>
       {(ctx) =>
         view === "team" ? (
           <div className="page">
@@ -352,7 +380,12 @@ export function EmployeeRoute({ detail }: { detail: ReactNode }) {
 }
 export function SettingsRoutePage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx} crumbs={["设置"]}>{(ctx) => <SettingsPage ctx={ctx} onSaved={s.reloadCtx} />}</PageFrame>;
+  const [tab, setTab] = useSettingsTab();
+  return (
+    <PageFrame ctx={s.ctx} crumbs={["设置", settingsTabLabel(tab)]}>
+      {(ctx) => <SettingsPage ctx={ctx} onSaved={s.reloadCtx} tab={tab} setTab={setTab} />}
+    </PageFrame>
+  );
 }
 export function ArchivedPage() {
   const s = useAgentself();

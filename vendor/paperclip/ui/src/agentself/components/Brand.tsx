@@ -39,3 +39,6 @@ export function modelName(a: { adapterType?: string; adapterConfig?: { model?: s
   if (a.adapterConfig?.model) return a.adapterConfig.model;
   return a.adapterType === "claude_local" ? "Claude" : a.adapterType === "codex_local" ? "Codex" : (a.adapterType ?? "");
 }
+
+/** Paperclip agent status in plain words. */
+export const AGENT_STATUS: Record<string, string> = { running: "运行中", active: "空闲", idle: "空闲", paused: "已暂停", error: "出错", terminated: "已停用", pending_approval: "待批准" };

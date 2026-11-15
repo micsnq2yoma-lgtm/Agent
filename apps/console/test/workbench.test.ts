@@ -1,6 +1,7 @@
 // SETO workbench logic (docs/handoff/design/DESIGN.md §4.7–4.9): stages and acceptance documents.
 import { describe, expect, it } from "vitest";
-import { progressOf } from "../../../vendor/paperclip/ui/src/agentself/lib/progress";
+import { cardsOfLead, progressOf, statusOf, tasksOfLead } from "../../../vendor/paperclip/ui/src/agentself/lib/progress";
+import { cronText } from "../../../vendor/paperclip/ui/src/agentself/lib/cron";
 import { parseAcceptance } from "../../../vendor/paperclip/ui/src/agentself/lib/acceptance-parse";
 import { criteriaMarkdown, evidenceMarkdown, verificationMarkdown } from "../../../plugins/team-layer/src/acceptance";
 
@@ -27,6 +28,59 @@ describe("stages (§4.8)", () => {
     const old = issue({ id: "k0", parentId: "top", status: "cancelled", createdAt: "2026-11-15T11:00:00Z" });
     const cur = issue({ id: "k1", parentId: "top", status: "in_progress" });
     expect(progressOf(top, [top, old, cur], []).childId).toBe("k1");
+  });
+});
+
+describe("one status everywhere (PR #3 review: AGE-129)", () => {
+  // a task waiting for the user's answer while its employee's subtask runs
+  const t129 = issue({ id: "t129", status: "in_progress", projectId: "other", assigneeAgentId: "lead" });
+  const kid = issue({ id: "k129", parentId: "t129", status: "in_progress", assigneeAgentId: "emp" });
+  const ask = { type: "decide", issueId: "t129", title: "要不要换数据集？", department: "某个项目名", source: { kind: "interaction" } } as never;
+  const ctx = {
+    agents: [
+      { id: "lead", name: "科研主管", metadata: { agentself: { isLead: true, department: "research" } } },
+      { id: "emp", name: "小码", metadata: { agentself: { department: "research" } } },
+    ],
+    departments: [{ key: "research", name: "科研", projectId: "p-research", leadAgentId: "lead", members: ["lead", "emp"] }],
+  } as never;
+  const dept = (ctx as { departments: never[] }).departments[0];
+
+  it("drawer header says 等你决定 like the progress panel", () => {
+    const p = progressOf(t129, [t129, kid], [ask]);
+    expect(p).toMatchObject({ stage: 1, waiting: true, text: "等你决定" });
+    expect(statusOf(t129, p)).toEqual({ text: "等你决定", tone: "hot" });
+    expect(statusOf(t129, progressOf(t129, [t129, kid], []))).toEqual({ text: "员工在做", tone: "" });
+    expect(statusOf(issue({ status: "in_review" }), null)).toEqual({ text: "待你确认", tone: "good" });
+  });
+  it("an ask on the employee's subtask counts for the parent", () => {
+    const onKid = { ...(ask as object), issueId: "k129" } as never;
+    expect(progressOf(t129, [t129, kid], [onKid]).waiting).toBe(true);
+  });
+  it("lead page counts a task the lead owns outside the team project, and its ask card", () => {
+    expect(tasksOfLead(ctx, [t129, kid], dept).map((i: { id: string }) => i.id)).toEqual(["t129"]);
+    expect(cardsOfLead(ctx, [t129, kid], [ask], dept)).toHaveLength(1);
+  });
+  it("hire cards go to the lead who asked; other teams' tasks do not count", () => {
+    const hire = { type: "hire", issueId: null, title: "新建员工", department: "x", source: { kind: "hire", leadAgentId: "lead" } } as never;
+    const foreign = issue({ id: "f", status: "todo", projectId: "p-life", assigneeAgentId: "someone" });
+    const foreignAsk = { type: "decide", issueId: "f", title: "?", department: null, source: { kind: "interaction" } } as never;
+    expect(cardsOfLead(ctx, [t129, foreign], [hire, foreignAsk], dept)).toEqual([hire]);
+    expect(tasksOfLead(ctx, [foreign], dept)).toEqual([]);
+  });
+});
+
+describe("cron in words (PR #3 review: 盯守 time)", () => {
+  it("reads the schedules the UI offers", () => {
+    expect(cronText("30 8 * * *")).toBe("每天 08:30");
+    expect(cronText("0 9 * * 1-5")).toBe("工作日 09:00");
+    expect(cronText("0 9 * * 1")).toBe("每周一 09:00");
+    expect(cronText("*/15 * * * *")).toBe("每 15 分钟");
+    expect(cronText("0 */4 * * *")).toBe("每 4 小时");
+    expect(cronText("0 9 1 * *")).toBe("每月 1 日 09:00");
+  });
+  it("leaves anything else as written", () => {
+    expect(cronText("0 9 * 1 *")).toBe("0 9 * 1 *");
+    expect(cronText("@daily")).toBe("@daily");
   });
 });
 

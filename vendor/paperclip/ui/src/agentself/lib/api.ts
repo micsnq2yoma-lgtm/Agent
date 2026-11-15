@@ -30,8 +30,13 @@ export const as = {
 export const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : (((x as { items?: T[] })?.items ?? []) as T[]));
 
 /** Poll a loader; returns [data, error, reload]. */
-export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = []): [T | null, string | null, () => void] {
-  const [data, setData] = useState<T | null>(null);
+/**
+ * Poll `load` every `ms`. With `cacheKey`, the last result is kept in localStorage and shown at
+ * once on the next visit while the first load is in flight (stale-while-revalidate), so the
+ * workbench does not sit on a skeleton for the seconds the first round trips take.
+ */
+export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] = [], cacheKey?: string): [T | null, string | null, () => void] {
+  const [data, setData] = useState<T | null>(() => (cacheKey ? readCache<T>(cacheKey) : null));
   const [error, setError] = useState<string | null>(null);
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -41,8 +46,10 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
       .then((d) => {
         setData(d);
         setError(null);
+        if (cacheKey) writeCache(cacheKey, d);
       })
       .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
     run();
@@ -51,6 +58,24 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
   return [data, error, run];
+}
+
+const CACHE_PREFIX = "agentself.cache.";
+function readCache<T>(key: string): T | null {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+}
+function writeCache(key: string, value: unknown) {
+  try {
+    if (value === null || value === undefined) localStorage.removeItem(CACHE_PREFIX + key);
+    else localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(value));
+  } catch {
+    /* quota or blocked storage: the cache is only a convenience */
+  }
 }
 
 /* ---------------- domain types (subset of Paperclip) ---------------- */
