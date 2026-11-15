@@ -67,13 +67,13 @@ export function ensureMemoryEntry(cwd, { role = "employee", profile = null } = {
 @${profile.user}
 @${profile.decisions}
 @${profile.declined}
-
-"我定过的事"必须照做，不要再问；"我拒绝过的事"不要再提。
+${profile.askfirst ? `@${profile.askfirst}\n` : ""}
+"我定过的事"必须照做，不要再问；"我拒绝过的事"不要再提；"先问清单"里的情况必须先停下来问。
 
 `
     : "";
   const profileCodex = profile
-    ? `先读用户的全局档案（所有人共用）："${profile.user}"（关于用户）、"${profile.decisions}"（用户定过的事，必须照做，不要再问）、"${profile.declined}"（用户拒绝过的事，不要再提）。
+    ? `先读用户的全局档案（所有人共用）："${profile.user}"（关于用户）、"${profile.decisions}"（用户定过的事，必须照做，不要再问）、"${profile.declined}"（用户拒绝过的事，不要再提）${profile.askfirst ? `、"${profile.askfirst}"（先问清单：这些情况必须先停下来问）` : ""}。
 
 `
     : "";

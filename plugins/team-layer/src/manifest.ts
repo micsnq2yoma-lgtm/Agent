@@ -27,6 +27,7 @@ export default {
     "issue.interactions.create",
     "issue.interactions.respond",
     "issue.documents.read",
+    "issue.documents.write",
     "agents.read",
     "activity.read",
     "costs.read",
@@ -43,12 +44,14 @@ export default {
       boardUserId: { type: "string", default: "local-board" },
       idleMinutes: { type: "integer", default: 30, minimum: 1 },
       consolidationModel: { type: "string", default: "haiku" },
+      verifierModel: { type: "string", default: "sonnet" },
     },
   },
   jobs: [
     { jobKey: "later-tick", displayName: "稍后提醒检查", schedule: "* * * * *" },
     { jobKey: "memory-idle", displayName: "空闲时整理员工记忆", schedule: "*/5 * * * *" },
     { jobKey: "memory-weekly", displayName: "每周归档记忆", schedule: "0 3 * * 1" },
+    { jobKey: "watch-tick", displayName: "长任务看守（不调用模型）", schedule: "* * * * *" },
   ],
   tools: [
     {
@@ -85,6 +88,72 @@ export default {
       parametersSchema: toolSchema(
         { issueId: { type: "string" }, minutes: { type: "integer", minimum: 1 }, note: { type: "string" } },
         ["issueId", "minutes"],
+      ),
+    },
+    {
+      name: "criteria",
+      displayName: "team.criteria",
+      description: "主管用：为你负责的父任务设定验收标准（3–7 条，每条可核对，写明需要什么证据）。返回编号 c1..cN，把它们写进子任务描述。",
+      parametersSchema: toolSchema(
+        {
+          issueId: { type: "string", description: "你负责的父任务 id" },
+          items: {
+            type: "array",
+            minItems: 1,
+            maxItems: 12,
+            items: { type: "object", properties: { text: { type: "string" }, evidence: { type: "string", description: "需要什么证据" } }, required: ["text"] },
+          },
+        },
+        ["issueId", "items"],
+      ),
+    },
+    {
+      name: "evidence",
+      displayName: "team.evidence",
+      description: "员工用：按验收标准编号逐条提交证据。只交证据，不判定是否通过；没有证据就标 missing。对不合理的标准可以提出异议。",
+      parametersSchema: toolSchema(
+        {
+          issueId: { type: "string", description: "你自己的任务 id" },
+          items: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { criterionId: { type: "string" }, evidence: { type: "string", description: "文件路径、数字、命令输出、链接；截图和文件写明它说明了什么" }, missing: { type: "boolean" } },
+              required: ["criterionId"],
+            },
+          },
+          disputes: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: { criterionId: { type: "string" }, kind: { type: "string", enum: ["invalid_criterion", "missed_evidence"] }, reason: { type: "string" } },
+              required: ["criterionId", "reason"],
+            },
+          },
+        },
+        ["issueId", "items"],
+      ),
+    },
+    {
+      name: "verify",
+      displayName: "team.verify",
+      description: "主管用：让一名独立核查员（另一个模型、没有工具）对照验收标准逐条判定员工的交付，返回通过 / 未通过 / 无法判断。结果是参考，最终由你判定。",
+      parametersSchema: toolSchema({ issueId: { type: "string", description: "员工交付的子任务 id" } }, ["issueId"]),
+    },
+    {
+      name: "watch",
+      displayName: "team.watch",
+      description:
+        "员工用：长时间实验放到后台后，登记一条探测命令。系统定时运行它（不调用模型）：退出码 0 = 结束，1 = 还在跑，其他 = 出错。结束、出错或超时才叫醒你。",
+      parametersSchema: toolSchema(
+        {
+          issueId: { type: "string" },
+          command: { type: "string", description: "探测命令，例如 ssh gpu1 'test -f ~/exp/done && exit 0 || (pgrep -f train.py >/dev/null && exit 1 || exit 2)'" },
+          everyMinutes: { type: "integer", minimum: 2, maximum: 240 },
+          maxHours: { type: "number", minimum: 0.1, maximum: 72 },
+          note: { type: "string" },
+        },
+        ["issueId", "command"],
       ),
     },
   ],

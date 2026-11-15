@@ -313,18 +313,59 @@ const PROFILE_SECTIONS = [
   { key: "user", label: "关于我", sub: "你的课题、项目、习惯和偏好。所有主管理解你的话之前都会读，员工也会参考" },
   { key: "decisions", label: "我定过的事", sub: "你在卡片里说过\"以后都这样\"的决定，由主管追加。主管照做，不再重复问" },
   { key: "declined", label: "我拒绝过的事", sub: "你明确拒绝过的建议和做法，不会再被提起" },
+  { key: "askfirst", label: "先问清单", sub: "遇到这些情况，员工必须先停下来问主管，主管拿不准再问你。其余的事他们自己判断" },
 ] as const;
+
+interface Proposal {
+  id: string;
+  text: string;
+  from: string;
+  createdAt: string;
+}
+
+/** Memory consolidation proposes; nothing enters "about me" until you accept it here. */
+function ProfileProposals({ onAccepted }: { onAccepted: () => void }) {
+  const [list, setList] = useState<Proposal[]>([]);
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const load = () => as.get<Proposal[]>("/profile/proposals?status=pending").then(setList).catch(() => setList([]));
+  useEffect(() => void load(), []);
+  async function resolve(p: Proposal, action: "accept" | "reject") {
+    await as.post(`/profile/proposals/${p.id}/${action}`, action === "accept" ? { text: edits[p.id] ?? p.text } : {});
+    await load();
+    if (action === "accept") onAccepted();
+  }
+  if (list.length === 0) return null;
+  return (
+    <div style={{ marginBottom: 14 }}>
+      <div className="label">新的了解，待你确认（{list.length}）</div>
+      <div className="sub" style={{ marginBottom: 6 }}>记忆整理时从工作日志里提炼出来的。确认后才会写进"关于我"，可以先改措辞。</div>
+      {list.map((p) => (
+        <div key={p.id} className="row" style={{ gap: 8 }}>
+          <input className="input" style={{ flex: 1 }} value={edits[p.id] ?? p.text} onChange={(e) => setEdits({ ...edits, [p.id]: e.target.value })} />
+          <span className="sub">{p.from}</span>
+          <button className="btn" onClick={() => void resolve(p, "accept")}>
+            记下
+          </button>
+          <button className="btn ghost" onClick={() => void resolve(p, "reject")}>
+            忽略
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function ProfileEditor() {
   const [texts, setTexts] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
-  useEffect(() => {
+  const loadTexts = () => {
     for (const { key } of PROFILE_SECTIONS) {
       as.get<{ text: string }>(`/profile/${key}`)
         .then((r) => setTexts((t) => ({ ...t, [key]: r.text })))
         .catch(() => {});
     }
-  }, []);
+  };
+  useEffect(loadTexts, []);
   async function save(key: string) {
     await as.put(`/profile/${key}`, { text: texts[key] ?? "" });
     setSaved(key);
@@ -333,6 +374,7 @@ function ProfileEditor() {
   return (
     <div className="section">
       <h2>关于我</h2>
+      <ProfileProposals onAccepted={loadTexts} />
       {PROFILE_SECTIONS.map(({ key, label, sub }) => (
         <label key={key} className="field" style={{ marginBottom: 12 }}>
           <span className="label">
@@ -654,6 +696,13 @@ interface Template {
   icon: string;
   description: string;
 }
+// Plan B entry 2: scheduled watching goes straight to an employee; the lead is not woken.
+const WATCH_TEMPLATES = [
+  { label: "新论文", cron: "30 8 * * *", prompt: "检索过去 24 小时与我课题相关的新论文（arXiv、主要会议和期刊），只挑真正值得我看的 0–3 篇，每篇一句话说明为什么值得看并附链接；没有就写\"无事\"。关键词和课题见全局档案\"关于我\"。" },
+  { label: "邮件", cron: "0 8 * * 1-5", prompt: "整理过去 24 小时的未读邮件：标出需要我回复或决定的，写好回复草稿但不要发送；其余的一句话归类。没有需要我处理的就写\"无事\"。" },
+  { label: "新闻", cron: "0 19 * * *", prompt: "汇总今天与我关注领域相关的重要新闻和动态（关注点见全局档案\"关于我\"），只保留真正重要的 0–5 条，每条一句话加来源链接；没有就写\"无事\"。" },
+];
+
 // Plan B: nothing is preset. These only differ by the agent they run on; the user names everyone.
 const ROLE_TEMPLATES: Array<Omit<PackMember, "key">> = [
   { name: "新员工", title: "", role: "general", adapterType: "claude_local", capabilities: "", budgetMonthlyCents: 1500, identity: "" },
@@ -827,6 +876,14 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 2 && (
           <>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+              常用盯守（交给第一名{t("employee")}，有情况才通知你）：
+              {WATCH_TEMPLATES.map((w) => (
+                <button key={w.label} className="btn" onClick={() => { setRoutineCron(w.cron); setRoutinePrompt(w.prompt); }}>
+                  {w.label}
+                </button>
+              ))}
+            </div>
             <p className="hint">默认给{t("lead")}装上「{t("lead")}技能 / 记忆技能」，给{t("employee")}装上「{t("employee")}通用技能 / 记忆技能」。连接器在高级设置里绑定，对外动作默认先问你。</p>
             <div className="grid2">
               <label className="field">

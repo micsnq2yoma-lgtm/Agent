@@ -135,6 +135,71 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
   );
 }
 
+/* Plan B step 2: a lead proposed a new employee; the user approves (it is then created) or declines. */
+interface HireRequest {
+  id: string;
+  leadName: string;
+  team: string;
+  name: string;
+  capabilities: string;
+  adapterType: "claude_local" | "codex_local";
+  reason: string;
+  createdAt: string;
+}
+
+function HireRequests({ onChanged, toast }: { onChanged: () => void; toast: (s: string) => void }) {
+  const { t } = useSkin();
+  const [list, setList] = useState<HireRequest[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = () => as.get<HireRequest[]>("/hire-requests?status=pending").then(setList).catch(() => setList([]));
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => void load(), 30_000);
+    return () => clearInterval(timer);
+  }, []);
+  async function decide(h: HireRequest, action: "approve" | "reject") {
+    setBusy(h.id);
+    try {
+      await as.post(`/hire-requests/${h.id}/${action}`, action === "approve" ? { name: names[h.id] ?? h.name } : {});
+      toast(action === "approve" ? `已新建${t("employee")}「${names[h.id] ?? h.name}」` : "已拒绝");
+      await load();
+      onChanged();
+    } catch (e) {
+      toast(`失败：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
+  if (list.length === 0) return null;
+  return (
+    <div className="section" style={{ marginBottom: 16 }}>
+      <h2>
+        {t("lead")}想新建{t("employee")}（{list.length}）
+      </h2>
+      {list.map((h) => (
+        <div key={h.id} className="row" style={{ alignItems: "flex-start", gap: 10 }}>
+          <div style={{ flex: 1 }}>
+            <div className="label">
+              {h.leadName}（{h.team}）提议：
+              <input className="input" style={{ width: 120, marginLeft: 6 }} value={names[h.id] ?? h.name} onChange={(e) => setNames({ ...names, [h.id]: e.target.value })} />
+              <span className="sub" style={{ marginLeft: 6 }}>{h.adapterType === "codex_local" ? "Codex" : "Claude"}</span>
+            </div>
+            <div className="sub">负责：{h.capabilities}</div>
+            {h.reason && <div className="sub">理由：{h.reason}</div>}
+          </div>
+          <button className="btn primary" disabled={busy === h.id} onClick={() => void decide(h, "approve")}>
+            同意并新建
+          </button>
+          <button className="btn ghost" disabled={busy === h.id} onClick={() => void decide(h, "reject")}>
+            不同意
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const TAG: Record<Card["type"], "decide" | "deliverable" | "instantAnswer"> = { decide: "decide", deliver: "deliverable", failed: "deliverable", answer: "instantAnswer" };
 
 export function whoLabel(who: string, t: (k: "frontdesk" | "lead") => string) {
@@ -318,6 +383,7 @@ export function Home(props: {
         <div className="tagline-en">Put your attention on what truly matters.</div>
       </div>
       <Composer ctx={ctx} onDone={props.reload} />
+      <HireRequests onChanged={props.reload} toast={props.toast} />
       <div className="results-head">
         <h2>结果</h2>
         <span style={{ color: "var(--as-muted)" }}>{counts.all}</span>

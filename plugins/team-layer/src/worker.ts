@@ -3,8 +3,26 @@ import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import type { FeedMessage } from "@agentself/shared";
 import { applyRework, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
 import { addNotice, dueReminders, type Reminder } from "./store.js";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { appendRunLog, consolidate, logLine, runClaudeJson, shouldConsolidate, weeklyArchive } from "./memory-jobs.js";
+import {
+  criteriaMarkdown,
+  evidenceMarkdown,
+  normalizeCriteria,
+  normalizeEvidence,
+  parseVerdicts,
+  verdictSummary,
+  verificationMarkdown,
+  verifierPrompt,
+  type Criterion,
+  type CriterionVerdict,
+  type Dispute,
+  type EvidenceItem,
+} from "./acceptance.js";
+import { afterCheck, classifyProbe, dueWatches, newWatch, WATCH_LIMITS, wakeComment, type Watch } from "./watch.js";
 
 type Ctx = Parameters<Parameters<typeof definePlugin>[0]["setup"]>[0];
 
@@ -16,6 +34,8 @@ interface Config {
   boardUserId: string;
   idleMinutes: number;
   consolidationModel: string;
+  /** Independent verifier: a different model from the lead, run with no tools. */
+  verifierModel: string;
 }
 
 const DEFAULTS: Config = {
@@ -26,7 +46,38 @@ const DEFAULTS: Config = {
   boardUserId: "local-board",
   idleMinutes: 30,
   consolidationModel: "haiku",
+  verifierModel: "sonnet",
 };
+
+/* ------------------------------------------------------------------ */
+/* Profile proposals (plan B step 2): consolidation proposes, the user  */
+/* confirms in Settings, then it is written into the global "about me". */
+/* Same file format as scripts/lib/profile.mjs.                         */
+/* ------------------------------------------------------------------ */
+
+const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+
+function addProfileProposals(items: string[], from: { agentId: string; name: string }) {
+  if (items.length === 0) return 0;
+  const file = path.join(agentselfHome(), "profile", "proposals.json");
+  let list: Array<{ id: string; text: string; status: string }> = [];
+  try {
+    list = JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    list = [];
+  }
+  const open = new Set(list.filter((p) => p.status === "pending").map((p) => p.text));
+  let added = 0;
+  for (const text of items) {
+    if (open.has(text)) continue;
+    list.push({ id: `prop_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, text, from: from.name, agentId: from.agentId, createdAt: new Date().toISOString(), status: "pending" } as never);
+    added++;
+  }
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(`${file}.tmp`, JSON.stringify(list.slice(-200), null, 2));
+  fs.renameSync(`${file}.tmp`, file);
+  return added;
+}
 
 /* ------------------------------------------------------------------ */
 /* Memory (PLAN 5)                                                     */
@@ -73,6 +124,8 @@ async function memoryIdleTick(ctx: Ctx) {
         for (const s of r.suggestions) {
           await addNotice(ctx, c.id, { text: `记忆整理建议（${agent.name ?? ""}）：${s}`, issueId: null, agentId: agent.id });
         }
+        const added = addProfileProposals(r.profileProposals, { agentId: agent.id, name: agent.name ?? "" });
+        if (added) await addNotice(ctx, c.id, { text: `有 ${added} 条关于你的新了解待确认（设置 → 关于我）`, issueId: null, agentId: agent.id });
       } catch (err) {
         ctx.logger.error("memory consolidation failed", { agentId: agent.id, err: String(err) });
       }
@@ -240,6 +293,61 @@ async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payl
 }
 
 /* ------------------------------------------------------------------ */
+/* Acceptance + watch helpers (plan B step 2)                          */
+/* ------------------------------------------------------------------ */
+
+const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+/** Criteria live on the lead's (parent) task; a child task resolves them through its parent. */
+async function criteriaFor(ctx: Ctx, issueId: string, companyId: string): Promise<{ ownerId: string; criteria: Criterion[] } | null> {
+  const own = (await ctx.state.get(issueKey(issueId, "criteria"))) as Criterion[] | null;
+  if (own?.length) return { ownerId: issueId, criteria: own };
+  const issue = await ctx.issues.get(issueId, companyId);
+  if (!issue?.parentId) return null;
+  const parent = (await ctx.state.get(issueKey(issue.parentId, "criteria"))) as Criterion[] | null;
+  return parent?.length ? { ownerId: issue.parentId, criteria: parent } : null;
+}
+
+async function docBody(ctx: Ctx, issueId: string, key: string, companyId: string): Promise<string> {
+  try {
+    return (await ctx.issues.documents.get(issueId, key, companyId))?.body ?? "";
+  } catch {
+    return "";
+  }
+}
+
+/** Run a probe command with a hard timeout; never throws. */
+function runProbe(command: string, cwd: string | null, timeoutMs = 60_000): Promise<{ code: number | null; timedOut: boolean; spawnError: string | null; output: string }> {
+  return new Promise((resolve) => {
+    let output = "";
+    let timedOut = false;
+    let child: ReturnType<typeof spawn>;
+    try {
+      child = spawn(command, { shell: true, cwd: cwd && fs.existsSync(cwd) ? cwd : undefined, windowsHide: true });
+    } catch (e) {
+      return resolve({ code: null, timedOut: false, spawnError: errText(e), output: "" });
+    }
+    const timer = setTimeout(() => {
+      timedOut = true;
+      child.kill();
+    }, timeoutMs);
+    const add = (d: Buffer) => {
+      output = (output + d.toString()).slice(-8000);
+    };
+    child.stdout?.on("data", add);
+    child.stderr?.on("data", add);
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ code: null, timedOut, spawnError: errText(e), output });
+    });
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code, timedOut, spawnError: null, output });
+    });
+  });
+}
+
+/* ------------------------------------------------------------------ */
 /* Plugin                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -339,6 +447,152 @@ const plugin = definePlugin({
         return { content: `好的，${p.minutes} 分钟后（${dueAt}）唤醒你。结束本轮即可。` };
       },
     );
+
+    /* ---------------- acceptance (plan B step 2, after LobeHub) ---------------- */
+
+    ctx.tools.register(
+      "criteria",
+      { displayName: "team.criteria", description: "Lead: set acceptance criteria on a task", parametersSchema: { type: "object" } },
+      async (params, run) => {
+        const p = params as { issueId?: string; items?: unknown };
+        if (!p.issueId) return { content: "缺少 issueId（填你负责的父任务）" };
+        let criteria: Criterion[];
+        try {
+          criteria = normalizeCriteria(p.items);
+        } catch (e) {
+          return { content: errText(e) };
+        }
+        await ctx.state.set(issueKey(p.issueId, "criteria"), criteria);
+        await ctx.issues.documents.upsert({ issueId: p.issueId, key: "criteria", title: "验收标准", body: criteriaMarkdown(criteria), companyId: run.companyId, changeSummary: "主管设定验收标准" });
+        return {
+          content: `已保存 ${criteria.length} 条验收标准：\n${criteria.map((c) => `${c.id}：${c.text}`).join("\n")}\n把这些编号原样写进子任务的描述，员工会按编号提交证据。`,
+          data: { criteria },
+        };
+      },
+    );
+
+    ctx.tools.register(
+      "evidence",
+      { displayName: "team.evidence", description: "Employee: submit evidence per criterion", parametersSchema: { type: "object" } },
+      async (params, run) => {
+        const p = params as { issueId?: string; items?: unknown; disputes?: unknown };
+        if (!p.issueId) return { content: "缺少 issueId（填你自己的任务）" };
+        const found = await criteriaFor(ctx, p.issueId, run.companyId);
+        if (!found) return { content: "这个任务没有结构化的验收标准，直接按任务书写 report 即可。" };
+        let r: ReturnType<typeof normalizeEvidence>;
+        try {
+          r = normalizeEvidence(found.criteria, p);
+        } catch (e) {
+          return { content: errText(e) };
+        }
+        await ctx.state.set(issueKey(p.issueId, "evidence"), { items: r.items, disputes: r.disputes, at: new Date().toISOString() });
+        await ctx.issues.documents.upsert({ issueId: p.issueId, key: "evidence", title: "逐条证据", body: evidenceMarkdown(found.criteria, r.items, r.disputes), companyId: run.companyId, changeSummary: "员工提交证据" });
+        return {
+          content: r.missing.length
+            ? `已保存。以下标准还没有证据：${r.missing.join("、")}。能补就补；确实没有就在 report 里说明，再交付。`
+            : `已保存，${found.criteria.length} 条标准都有证据。写好 report 后把任务置为 done。`,
+          data: { missing: r.missing },
+        };
+      },
+    );
+
+    ctx.tools.register(
+      "verify",
+      { displayName: "team.verify", description: "Lead: independent per-criterion check of a child task", parametersSchema: { type: "object" } },
+      async (params, run) => {
+        const p = params as { issueId?: string };
+        if (!p.issueId) return { content: "缺少 issueId（填员工交付的子任务）" };
+        const cfg = await config(ctx, run.companyId);
+        const found = await criteriaFor(ctx, p.issueId, run.companyId);
+        if (!found) return { content: "没有找到结构化的验收标准，请自己对照任务书判定。" };
+        const ev = ((await ctx.state.get(issueKey(p.issueId, "evidence"))) ?? { items: [], disputes: [] }) as { items: EvidenceItem[]; disputes: Dispute[]; at?: string };
+        // Re-use the last verdicts when nothing changed since (re-asking costs a model call).
+        const cached = (await ctx.state.get(issueKey(p.issueId, "verification"))) as { evidenceAt?: string; verdicts: CriterionVerdict[] } | null;
+        let verdicts = cached && cached.evidenceAt === (ev.at ?? null) ? cached.verdicts : null;
+        if (!verdicts) {
+          const prompt = verifierPrompt({
+            goal: (await docBody(ctx, found.ownerId, "brief", run.companyId)) || ((await ctx.issues.get(found.ownerId, run.companyId))?.title ?? ""),
+            criteria: found.criteria,
+            items: ev.items,
+            disputes: ev.disputes,
+            report: await docBody(ctx, p.issueId, "report", run.companyId),
+          });
+          let raw = "";
+          try {
+            // No tools: the verifier judges only the material it is given.
+            raw = await runClaudeJson(prompt, cfg.verifierModel, 240_000, undefined, ["--disallowedTools", "Bash,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit"]);
+          } catch (e) {
+            return { content: `核查员没跑成（${errText(e)}）。请自己逐条判定。` };
+          }
+          verdicts = parseVerdicts(raw, found.criteria);
+          if (!verdicts) return { content: "核查员的输出无法解析，请自己逐条判定。" };
+          await ctx.state.set(issueKey(p.issueId, "verification"), { evidenceAt: ev.at ?? null, verdicts, model: cfg.verifierModel });
+          await ctx.issues.documents.upsert({ issueId: p.issueId, key: "verification", title: "独立核查", body: verificationMarkdown(found.criteria, verdicts, cfg.verifierModel), companyId: run.companyId, changeSummary: "独立核查" });
+        }
+        const sum = verdictSummary(verdicts);
+        const text = { passed: "通过", failed: "未通过", uncertain: "无法判断" } as const;
+        return {
+          content: `独立核查（${cfg.verifierModel}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。\n${verdicts
+            .map((v) => `${v.criterionId} ${text[v.verdict]}：${v.reason}${v.suggestion ? `（建议：${v.suggestion}）` : ""}`)
+            .join("\n")}\n这是参考意见，最终由你判定；推翻某条时在汇报里写明理由。`,
+          data: { verdicts, ...sum },
+        };
+      },
+    );
+
+    /* ---------------- long-running experiment watch (plan B step 2) ---------------- */
+
+    ctx.tools.register(
+      "watch",
+      { displayName: "team.watch", description: "Employee: wake me when a long job finishes", parametersSchema: { type: "object" } },
+      async (params, run) => {
+        const key = companyKey(run.companyId, "watches");
+        const list = await getState<Watch[]>(ctx, key, []);
+        if (list.length >= WATCH_LIMITS.maxPerCompany) return { content: "看守太多了，先结束一些再加。" };
+        const agent = (await ctx.agents.get(run.agentId, run.companyId)) as AgentLike | null;
+        const cwd = typeof agent?.adapterConfig?.cwd === "string" ? agent.adapterConfig.cwd : null;
+        let w: Watch;
+        try {
+          w = newWatch(params as Record<string, unknown>, { companyId: run.companyId, agentId: run.agentId, cwd, now: Date.now(), id: `watch_${Date.now().toString(36)}` });
+        } catch (e) {
+          return { content: errText(e) };
+        }
+        await ctx.state.set(key, [...list, w]);
+        await rememberCompany(ctx, run.companyId);
+        return {
+          content: `已开始看守：每 ${w.everyMinutes} 分钟运行一次探测命令（不消耗模型额度），退出码 0 表示结束、1 表示还在跑、其他表示出错；结束、出错或到 ${w.expiresAt} 时叫醒你。现在结束本轮。`,
+          data: { watchId: w.id },
+        };
+      },
+    );
+
+    ctx.jobs.register("watch-tick", async () => {
+      for (const cid of await knownCompanies(ctx)) {
+        const key = companyKey(cid, "watches");
+        const list = await getState<Watch[]>(ctx, key, []);
+        const due = dueWatches(list, Date.now());
+        if (due.length === 0) continue;
+        const next = new Map(list.map((w) => [w.id, w as Watch | null]));
+        for (const w of due) {
+          const r = await runProbe(w.command, w.cwd);
+          const res = afterCheck(w, classifyProbe(r), Date.now());
+          next.set(w.id, res.keep);
+          if (!res.wake) continue;
+          try {
+            await ctx.issues.createComment(w.issueId, wakeComment(w, res.wake, r.spawnError ?? r.output), cid);
+            await ctx.issues.requestWakeup(w.issueId, cid, { reason: "agentself_watch" } as never);
+          } catch (err) {
+            ctx.logger.error("watch wake failed", { issueId: w.issueId, err: errText(err) });
+          }
+        }
+        // Re-read so watches added while probes ran are kept.
+        const latest = await getState<Watch[]>(ctx, key, []);
+        await ctx.state.set(
+          key,
+          latest.flatMap((w) => (next.has(w.id) ? (next.get(w.id) ? [next.get(w.id)!] : []) : [w])),
+        );
+      }
+    });
 
     ctx.jobs.register("later-tick", async () => {
       for (const cid of await knownCompanies(ctx)) {

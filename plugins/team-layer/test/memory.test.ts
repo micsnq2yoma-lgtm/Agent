@@ -49,7 +49,9 @@ describe("memory: text helpers", () => {
     expect(l).toBe("- 09:05 AGE-4 写说明 — 完成一轮 · $0.123");
   });
   it("parses model output and rejects junk", () => {
-    expect(parseConsolidation('x {"notes":"n","user":"u","suggestions":["s"]} y')).toEqual({ notes: "n", user: "u", suggestions: ["s"] });
+    expect(parseConsolidation('x {"notes":"n","user":"u","suggestions":["s"]} y')).toEqual({ notes: "n", user: "u", suggestions: ["s"], profileProposals: [] });
+    // Global "about me" changes are only proposed; the user confirms them in Settings.
+    expect(parseConsolidation('{"notes":"n","user":"u","profileProposals":["偏好表格", " "]}')?.profileProposals).toEqual(["偏好表格"]);
     expect(parseConsolidation("no json")).toBeNull();
     expect(parseConsolidation('{"notes":1}')).toBeNull();
   });

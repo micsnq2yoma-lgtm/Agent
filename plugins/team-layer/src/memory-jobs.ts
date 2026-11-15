@@ -46,11 +46,11 @@ export async function consolidate(memDir: string, run: (prompt: string) => Promi
     logs: recentLogs(memDir),
   });
   const parsed = parseConsolidation(await run(prompt));
-  if (!parsed) return { ok: false as const, reason: "模型输出无法解析", suggestions: [] as string[] };
+  if (!parsed) return { ok: false as const, reason: "模型输出无法解析", suggestions: [] as string[], profileProposals: [] as string[] };
   fs.writeFileSync(path.join(memDir, "notes.md"), capNotes(redactSecrets(parsed.notes)).trimEnd() + "\n");
   fs.writeFileSync(path.join(memDir, "user.md"), redactSecrets(parsed.user).trimEnd() + "\n");
   const commit = gitCommit(memDir, "整理记忆：提炼最近日志到 notes/user");
-  return { ok: true as const, commit, suggestions: parsed.suggestions };
+  return { ok: true as const, commit, suggestions: parsed.suggestions, profileProposals: parsed.profileProposals.map(redactSecrets) };
 }
 
 export function weeklyArchive(memDir: string, now = new Date(), logDays = 14, topicDays = 60) {
@@ -110,8 +110,9 @@ export function consolidationPrompt(input: { notes: string; user: string; identi
 - user.md：用户明确表达过的偏好和背景，同样合并去重。没有新信息就原样返回。
 - 不要编造日志里没有的东西；不要写入任何密钥、令牌、密码。
 - identity.md / style.md 不能改；如果日志显示需要调整，写进 suggestions（每条一句话），否则返回空数组。
+- 用户的偏好和背景如果对所有主管和员工都有用（不只是这名员工的领域），写进 profileProposals（每条一句话，写清依据），由用户确认后才会记入全局"关于我"。没有就返回空数组。
 
-只输出一个 JSON 对象：{"notes": "<完整的新 notes.md>", "user": "<完整的新 user.md>", "suggestions": ["..."]}
+只输出一个 JSON 对象：{"notes": "<完整的新 notes.md>", "user": "<完整的新 user.md>", "suggestions": ["..."], "profileProposals": ["..."]}
 
 ## identity.md
 ${input.identity}
@@ -129,14 +130,15 @@ ${input.user}
 ${input.logs}`;
 }
 
-export function parseConsolidation(raw: string): { notes: string; user: string; suggestions: string[] } | null {
+export function parseConsolidation(raw: string): { notes: string; user: string; suggestions: string[]; profileProposals: string[] } | null {
   const s = raw.indexOf("{");
   const e = raw.lastIndexOf("}");
   if (s < 0 || e <= s) return null;
   try {
     const o = JSON.parse(raw.slice(s, e + 1));
     if (typeof o.notes !== "string" || typeof o.user !== "string") return null;
-    return { notes: o.notes, user: o.user, suggestions: Array.isArray(o.suggestions) ? o.suggestions.map(String) : [] };
+    const list = (x: unknown) => (Array.isArray(x) ? x.map((v) => String(v).trim()).filter(Boolean).slice(0, 10) : []);
+    return { notes: o.notes, user: o.user, suggestions: list(o.suggestions), profileProposals: list(o.profileProposals) };
   } catch {
     return null;
   }
@@ -172,9 +174,15 @@ export function recentLogs(memDir: string, days = 7, now = new Date()): string {
     .slice(-20000);
 }
 
-export function runClaudeJson(prompt: string, model = "haiku", timeoutMs = 180_000, bin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude"): Promise<string> {
+export function runClaudeJson(
+  prompt: string,
+  model = "haiku",
+  timeoutMs = 180_000,
+  bin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude",
+  extraArgs: string[] = [],
+): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn(bin, ["-p", "--model", model, "--output-format", "json"], { shell: process.platform === "win32", windowsHide: true });
+    const child = spawn(bin, ["-p", "--model", model, "--output-format", "json", ...extraArgs], { shell: process.platform === "win32", windowsHide: true });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
