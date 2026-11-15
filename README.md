@@ -4,20 +4,21 @@
 
 Agentself 是一支自动化 AI 团队：你说一句话就可以离开。路由把它交给最合适的主管；主管理解你的意图、写好验收标准，大事先给你计划，再派一名员工（本机已登录的 Claude Code / Codex）从头做到尾；员工逐条附证据交付，主管验收后给你一页结论。主管和员工都由你命名，没有预设。基座是 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，源码内置于 `vendor/paperclip`）。
 
-方案：`docs/PLAN.md`（v0.5）；当前方向与需求清单：`docs/v0.6-direction.md`。各阶段计划与报告：`docs/phase-*-plan.md` / `docs/phase-*-report.md`。
+方案：`docs/PLAN.md`（v0.5）；当前方向与需求清单：`docs/v0.6-direction.md`（与 PLAN 冲突时以它为准）；界面设计规范：`docs/handoff/design/DESIGN.md`（v0.6 SETO 风格）。各阶段计划与报告：`docs/phase-*-plan.md` / `docs/phase-*-report.md`（历史记录）。
 
 ## 目录
 
 ```
-apps/console/        工作台网页（React）+ 本地服务（前台、IM、设置、记忆、部门向导、办公室快照）
-plugins/team-layer/  Paperclip 插件：返工计数、跳数上限、卡片工具 team.ask/notice/resolve/later、记忆任务
+apps/console/        本地服务 :3200（路由、IM、设置、记忆、全局档案、团队向导、招人审批）+ 主管 / 员工用的团队 MCP 服务
+vendor/paperclip/ui/src/agentself/  工作台等 Agentself 页面（挂在 Paperclip 界面里）
+plugins/team-layer/  Paperclip 插件：返工上限、跳数上限、卡片与稍后提醒、结构化验收与独立核查、盯守、记忆整理
 plugins/im-feishu/   飞书通道（长连接，无需公网地址）
 packages/shared/     类型：卡片、消息、部门包、办公室快照
 packages/skins/      皮肤：办公室（默认）、朝堂；共享皮肤校验与注册
 packages/pixel-office/ 像素办公室 canvas 渲染（原创 8×8 像素机器人）
 skills/              主管 / 员工 / 记忆技能包
 packs/departments/   新建团队用的空白模板（主管和员工都由你命名）
-scripts/             启动、建部门、开机自启、验收脚本、界面中文化工具
+scripts/             启动、建团队、开机自启、验收脚本、界面中文化工具；dev/ 下是截图和删除团队的小工具
 vendor/paperclip/    Paperclip 源码（已为 Windows 与中文化修改，见 docs/paperclip-changes.md）
 ```
 
@@ -49,16 +50,19 @@ node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 
 
 ```powershell
 pnpm test                                   # 团队层规则、卡片、前台、办公室、记忆、IM、皮肤（Vitest）
-node scripts\acceptance\p1-rules.mjs        # 第 3 次返工 / 第 9 层子任务生成卡片（不耗额度）
-node scripts\acceptance\p1-research.mjs     # 科研部真实拆活→并行→闸门→汇报（耗额度）
-node scripts\acceptance\p2-console.mjs      # 只用工作台完成前台即答、答卡片、稍后、确认汇报
-node scripts\acceptance\p3-console.mjs      # 皮肤切换、向导建部门、用量面板、像素办公室
+node scripts\acceptance\p1-rules.mjs        # 第 2 次返工 / 第 9 层子任务生成卡片（不耗额度）
+node scripts\acceptance\p1-research.mjs     # 主管写任务书和验收标准→派一名员工→证据→独立核查→汇报待确认（耗额度）
+node scripts\acceptance\p2-console.mjs      # 只用工作台完成即时回答、答卡片、稍后、确认汇报、新建员工审批
+node scripts\acceptance\p3-console.mjs      # 皮肤切换、向导建团队（跑完自动删除）、用量面板、像素办公室
 node scripts\acceptance\p4-memory.mjs       # 跨项目记忆 + 空闲整理 git 提交（耗额度）
 node scripts\acceptance\p6-skin.mjs         # 皮肤包导入导出
 node scripts\acceptance\p8-shell.mjs        # 一个端口、一条侧栏、卡片→抽屉→任务页→运行记录、隐藏页可直达（耗少量额度）
-node scripts\acceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
-node scripts\acceptance\p10-pages.mjs       # 侧栏每项都在应用内、无重复入口、部门页 / 员工完整页 / 合并页 / 统计条 / 高级新建
+node scriptscceptance\p6-share.mjs        # 共享皮肤（需另起一个实例）
+node scriptscceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
+node scripts\acceptance\p10-pages.mjs       # 侧栏结构、无重复入口、主管页 / 员工完整页 / 合并页 / 设置分标签 / 项目抽屉 / 高级
 ```
+
+删除测试或不用的团队：`node scripts\devemove-team.mjs <团队名>`（先列出要删的内容，加 `--yes` 才执行）。
 
 ## 许可
 
