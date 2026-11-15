@@ -14,7 +14,13 @@ export interface AgentCharacterProps extends Omit<AgentAvatarProps, "pose"> {
   followCursor?: boolean;
   followRotation?: boolean;
 }
-export function AgentCharacter({ agent, appearance, size = 256, state = "idle", muted = false, motion = "auto", trackingRegion, trackingScope = "region", followCursor = true, followRotation = true, className, label, name }: AgentCharacterProps) {
+// Agentself (P9): every employee portrait is the static pixel robot (see AgentAvatar);
+// the animated Paperclip character is kept below, unused.
+export function AgentCharacter({ agent, appearance, size = 256, muted = false, className, label, name }: AgentCharacterProps) {
+  return <AgentAvatar agent={agent} appearance={appearance} size={size} muted={muted} className={className} label={label} name={name} />;
+}
+
+export function PaperclipAgentCharacter({ agent, appearance, size = 256, state = "idle", muted = false, motion = "auto", trackingRegion, trackingScope = "region", followCursor = true, followRotation = true, className, label, name }: AgentCharacterProps) {
   const identity = useMemo(() => resolveAgentAppearance(appearance ?? agent?.appearance, agent?.id), [appearance, agent?.appearance, agent?.id]);
   const root = useRef<HTMLSpanElement>(null), host = useRef<HTMLSpanElement>(null), player = useRef<Player | null>(null);
   const slotId = useRef(Symbol("agent-character"));

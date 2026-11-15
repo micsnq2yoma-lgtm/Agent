@@ -45,7 +45,19 @@ const PATTERNS: Pattern[] = [
   [/^(\d+) of (\d+)$/i, (m) => `${m[1]} / ${m[2]}`],
 ];
 
+// Agentself (P9): skin terminology on top of the dictionary, e.g. 智能体 → 员工, 管理台 → 我.
+let TERMS: Array<[string, string]> = [];
+function applyTerms(s: string): string {
+  for (const [from, to] of TERMS) if (s.includes(from)) s = s.split(from).join(to);
+  return s;
+}
+
 export function translateText(raw: string): string {
+  const english = translateEnglish(raw);
+  return TERMS.length ? applyTerms(english) : english;
+}
+
+function translateEnglish(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed || !/[A-Za-z]/.test(trimmed)) return raw;
   const direct = DICT.get(trimmed.replace(/\s+/g, " "));
@@ -98,39 +110,57 @@ function skipped(el: Element | null): boolean {
   return !!el && !!el.closest(SKIP_SELECTOR);
 }
 
-function translateTextNode(node: Text) {
+function translateTextNode(node: Text, fromOriginal = false) {
   const parent = node.parentElement;
   if (!parent || skipped(parent)) return;
   const value = node.nodeValue ?? "";
-  const next = translateText(value);
+  const source = fromOriginal ? (originals.get(node) ?? value) : value;
+  // Skin terms apply everywhere: Agentself copy already uses them, data text (skill
+  // descriptions, Paperclip strings) gets them here.
+  const next = translateText(source);
   if (next !== value) {
-    originals.set(node, value);
+    originals.set(node, source);
     node.nodeValue = next;
   }
 }
 
-function translateAttrs(el: Element) {
+const attrOriginals = new WeakMap<Element, Record<string, string>>();
+function translateAttrs(el: Element, fromOriginal = false) {
   if (skipped(el) && el.tagName !== "INPUT" && el.tagName !== "TEXTAREA") return;
   if (el.closest("[data-no-translate],[translate='no']")) return;
   for (const a of ATTRS) {
     const v = el.getAttribute(a);
     if (!v) continue;
-    const next = translateText(v);
-    if (next !== v) el.setAttribute(a, next);
+    const saved = attrOriginals.get(el);
+    const source = fromOriginal && saved?.[a] != null ? saved[a] : v;
+    const next = translateText(source);
+    if (next !== v) {
+      attrOriginals.set(el, { ...(saved ?? {}), [a]: source });
+      el.setAttribute(a, next);
+    }
   }
 }
 
-function walk(root: Node) {
-  if (root.nodeType === Node.TEXT_NODE) return translateTextNode(root as Text);
+function walk(root: Node, fromOriginal = false) {
+  if (root.nodeType === Node.TEXT_NODE) return translateTextNode(root as Text, fromOriginal);
   if (root.nodeType !== Node.ELEMENT_NODE && root.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return;
-  if (root.nodeType === Node.ELEMENT_NODE) translateAttrs(root as Element);
+  if (root.nodeType === Node.ELEMENT_NODE) translateAttrs(root as Element, fromOriginal);
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
   let n = walker.nextNode();
   while (n) {
-    if (n.nodeType === Node.TEXT_NODE) translateTextNode(n as Text);
-    else translateAttrs(n as Element);
+    if (n.nodeType === Node.TEXT_NODE) translateTextNode(n as Text, fromOriginal);
+    else translateAttrs(n as Element, fromOriginal);
     n = walker.nextNode();
   }
+}
+
+let retranslate: (() => void) | null = null;
+/** Agentself (P9): set the skin terminology and re-render already-translated text. */
+export function setTermOverrides(pairs: Array<[string, string]>) {
+  const next = pairs.filter(([from, to]) => from && from !== to);
+  if (JSON.stringify(next) === JSON.stringify(TERMS)) return;
+  TERMS = next;
+  retranslate?.();
 }
 
 export function isChineseEnabled(): boolean {
@@ -181,9 +211,15 @@ export function startDomTranslation() {
   });
   const observe = () =>
     observer.observe(document.documentElement, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: [...ATTRS] });
+  retranslate = () => {
+    observer.disconnect();
+    walk(document.body, true);
+    fixTitle();
+    observe();
+  };
   walk(document.body);
   fixTitle();
   observe();
 }
 
-export const __test = { DICT, PATTERNS, originals };
+export const __test = { DICT, PATTERNS, originals, setTerms: (p: Array<[string, string]>) => (TERMS = p) };

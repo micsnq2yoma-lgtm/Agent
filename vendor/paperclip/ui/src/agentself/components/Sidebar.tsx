@@ -49,7 +49,7 @@ export function AgentselfSidebar() {
 
   const depts = (ctx?.departments ?? []).filter((d) => !d.archived);
   const archived = (ctx?.departments ?? []).filter((d) => d.archived).length;
-  const manageActive = ["/org", "/agents", "/agentself/capabilities", "/agentself/routines", "/routines", "/agentself/usage", "/costs", "/activity", "/approvals", "/skills"].some((p) => isActive(p));
+  const manageActive = ["/agentself/org", "/org", "/agents", "/agentself/capabilities", "/agentself/routines", "/routines", "/agentself/usage", "/agentself/records", "/costs", "/activity", "/approvals", "/skills", "/apps", "/artifacts"].some((p) => isActive(p));
 
   return (
     <div className="agentself" style={{ height: "100%", width: "100%" }} data-agentself-sidebar="">
@@ -88,12 +88,12 @@ export function AgentselfSidebar() {
         </button>
         {manageOpen && (
           <div className="nav-group">
-            {item("/org", "组织图")}
-            {item("/agents", `全部${t("employee")}`)}
+            {item(`${AS_BASE}/org`, "组织图")}
+            {item("/agents/all", `全部${t("employee")}`)}
             {item(`${AS_BASE}/capabilities`, "能力与工具")}
             {item(`${AS_BASE}/routines`, t("routine"))}
             {item(`${AS_BASE}/usage`, "用量与预算")}
-            {item("/activity", "记录")}
+            {item(`${AS_BASE}/records`, "记录")}
           </div>
         )}
         <div className="spacer" />

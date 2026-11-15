@@ -24,3 +24,16 @@ describe("Agentself zh-CN DOM translation", () => {
     expect(translateText("已经是中文")).toBe("已经是中文");
   });
 });
+
+describe("Agentself skin terminology (P9)", () => {
+  it("rewrites dictionary words with the skin terms, including already-Chinese text", () => {
+    __test.setTerms([["智能体", "员工"], ["管理台", "我"]]);
+    expect(translateText("1 agent")).toBe("1 个员工");
+    expect(translateText("新智能体")).toBe("新员工");
+    expect(translateText("管理台")).toBe("我");
+    __test.setTerms([["智能体", "侍郎"]]);
+    expect(translateText("新智能体")).toBe("新侍郎");
+    __test.setTerms([]);
+    expect(translateText("新智能体")).toBe("新智能体");
+  });
+});

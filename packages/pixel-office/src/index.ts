@@ -450,3 +450,25 @@ export class OfficeRenderer {
     }
   }
 }
+
+/**
+ * The pixel robot as a standalone SVG string (P9): used as every employee avatar in the
+ * Paperclip admin pages. Body colour comes from the seed (agent id), eyes from the adapter.
+ */
+export function robotSvg(seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false, background = "#26241f"): string {
+  const body = seed === "frontdesk" ? BODY_COLORS[0] : hashColor(seed);
+  const pal: Record<string, string> = {
+    a: "#9aa3b5",
+    f: muted ? "#5a5a5a" : "#2f2f3a",
+    s: "#1b1722",
+    e: muted ? "#6b6b6b" : EYE_COLORS[eye],
+    b: muted ? grey(body) : body,
+  };
+  const rects = ROBOT.flatMap((row, y) => [...row].map((ch, x) => (ch === "." ? "" : `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`))).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 10 10" shape-rendering="crispEdges"><rect x="-1" y="-1" width="10" height="10" rx="1.2" fill="${background}"/>${rects}</svg>`;
+}
+
+/** robotSvg as a data: URL for <img src>. */
+export function robotDataUrl(seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false): string {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(robotSvg(seed, eye, muted))}`;
+}

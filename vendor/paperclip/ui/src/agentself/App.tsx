@@ -4,16 +4,18 @@
 // they work from any page. Pages are registered in routes.tsx.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { registerSkin, type Skin } from "@agentself/skins";
-import { useNavigate, useParams } from "@/lib/router";
+import { useNavigate } from "@/lib/router";
 import { as, usePoll, type Context } from "./lib/api";
 import { act, loadFeed, type Feed } from "./lib/feed";
 import type { Card, Filter } from "./lib/cards";
 import { SkinProvider, useSkin } from "./lib/skin";
-import { Home } from "./views/Home";
+import { registerAgentAdapters } from "./lib/avatar";
+import { Composer, Home } from "./views/Home";
+import { CapabilitiesHub, DepartmentPage, EmployeePage, OrgPage, RecordsHub, UsageHub } from "./views/Hubs";
 import { Team } from "./views/Team";
 import { ProjectDrawer } from "./views/ProjectDrawer";
 import { EmployeeDrawer } from "./views/EmployeeDrawer";
-import { Archived, Capabilities, NewDepartment, Projects, Routines, SettingsPage, Usage } from "./views/Pages";
+import { Archived, NewDepartment, Projects, Routines, SettingsPage } from "./views/Pages";
 import "./styles.css";
 
 export const AS_BASE = "/agentself";
@@ -53,7 +55,9 @@ export function AgentselfRoot({ children }: { children: ReactNode }) {
     async () => {
       // shared skins from ~/.agentself/skins must be registered before the provider reads them
       for (const s of await as.get<Skin[]>("/skins").catch(() => [])) registerSkin(s);
-      return as.get<Context>("/context");
+      const c = await as.get<Context>("/context");
+      registerAgentAdapters(c.agents);
+      return c;
     },
     30000,
   );
@@ -214,11 +218,28 @@ function PageFrame({ ctx, children, topbar }: { ctx: Context | null; children: (
   );
 }
 
-/** 工作台 / 像素团队; with :departmentKey it shows one department. */
+/** 像素团队顶部统计条 (P10): 运行中 / 阻塞 / 等你拍板 / 本月花费 */
+function TeamStats({ ctx }: { ctx: Context }) {
+  const s = useAgentself();
+  const { t } = useSkin();
+  const running = ctx.agents.filter((a) => a.status === "running").length;
+  const blocked = (s.feed?.issues ?? []).filter((i) => i.status === "blocked").length;
+  const spent = (ctx.company?.spentMonthlyCents ?? 0) / 100;
+  const budget = (ctx.company?.budgetMonthlyCents ?? 0) / 100;
+  return (
+    <div className="stats" data-testid="team-stats">
+      <div><b>{running}</b><span>运行中</span></div>
+      <div><b>{blocked}</b><span>阻塞</span></div>
+      <div className={s.pending ? "hot" : ""}><b>{s.pending}</b><span>{t("decide")}</span></div>
+      <div><b>${spent.toFixed(2)}</b><span>本月花费{budget ? ` / $${budget.toFixed(0)}` : ""}</span></div>
+    </div>
+  );
+}
+
+/** 工作台 / 像素团队 */
 export function WorkbenchPage() {
   const s = useAgentself();
   const { t } = useSkin();
-  const { departmentKey } = useParams<{ departmentKey?: string }>();
   const [view, setViewState] = useState<"work" | "team">(readView);
   const setView = (v: "work" | "team") => {
     setViewState(v);
@@ -228,7 +249,6 @@ export function WorkbenchPage() {
       /* ignore */
     }
   };
-  const department = departmentKey ? (s.ctx?.departments.find((d) => d.key === departmentKey)?.name ?? null) : null;
   const toggle = (
     <div className="toggle" role="tablist">
       <button role="tab" aria-selected={view === "work"} className={view === "work" ? "on" : ""} onClick={() => setView("work")}>
@@ -243,15 +263,29 @@ export function WorkbenchPage() {
     <PageFrame ctx={s.ctx} topbar={toggle}>
       {(ctx) =>
         view === "team" ? (
-          <Team ctx={ctx} cards={s.feed?.cards ?? []} department={department} openProject={s.openProject} openEmployee={s.openEmployee} act={(c, o) => void s.runAct(c, o)} />
+          <div className="page">
+            <TeamStats ctx={ctx} />
+            <Team ctx={ctx} cards={s.feed?.cards ?? []} department={null} openProject={s.openProject} openEmployee={s.openEmployee} act={(c, o) => void s.runAct(c, o)} />
+            <div style={{ marginTop: 14 }}>
+              <Composer ctx={ctx} onDone={s.reloadFeed} />
+            </div>
+          </div>
         ) : (
-          <Home ctx={ctx} feed={s.feed} reload={s.reloadFeed} department={department} filter={s.filter} setFilter={s.setFilter} openProject={s.openProject} toast={s.toast} />
+          <Home ctx={ctx} feed={s.feed} reload={s.reloadFeed} department={null} filter={s.filter} setFilter={s.setFilter} openProject={s.openProject} toast={s.toast} />
         )
       }
     </PageFrame>
   );
 }
 
+export function DepartmentRoutePage() {
+  const s = useAgentself();
+  return (
+    <PageFrame ctx={s.ctx}>
+      {(ctx) => <DepartmentPage ctx={ctx} issues={s.feed?.issues ?? []} cards={s.feed?.cards ?? []} openProject={s.openProject} openEmployee={s.openEmployee} act={(c, o) => void s.runAct(c, o)} />}
+    </PageFrame>
+  );
+}
 export function ProjectsPage() {
   const s = useAgentself();
   return <PageFrame ctx={s.ctx}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
@@ -262,11 +296,24 @@ export function RoutinesPage() {
 }
 export function CapabilitiesPage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <Capabilities ctx={ctx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx}>{(ctx) => <CapabilitiesHub ctx={ctx} />}</PageFrame>;
 }
 export function UsagePage() {
   const s = useAgentself();
-  return <PageFrame ctx={s.ctx}>{(ctx) => <Usage ctx={ctx} />}</PageFrame>;
+  return <PageFrame ctx={s.ctx}>{(ctx) => <UsageHub ctx={ctx} />}</PageFrame>;
+}
+export function RecordsPage() {
+  const s = useAgentself();
+  return <PageFrame ctx={s.ctx}>{() => <RecordsHub />}</PageFrame>;
+}
+export function OrgRoutePage() {
+  const s = useAgentself();
+  return <PageFrame ctx={s.ctx}>{() => <OrgPage />}</PageFrame>;
+}
+/** Paperclip's employee detail wrapped with the 档案 / 记忆 tabs (mounted by ui/src/App.tsx). */
+export function EmployeeRoute({ detail }: { detail: ReactNode }) {
+  const s = useAgentselfOptional();
+  return <EmployeePage ctx={s?.ctx ?? null} toast={s?.toast ?? (() => {})} detail={detail} />;
 }
 export function SettingsRoutePage() {
   const s = useAgentself();

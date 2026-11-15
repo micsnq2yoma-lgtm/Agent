@@ -9,13 +9,21 @@ const STATUS: Record<string, string> = { backlog: "排队", todo: "待开始", i
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
 /* ---------------- Projects ---------------- */
-export function Projects({ ctx, issues, openProject }: { ctx: Context; issues: Issue[]; openProject: (id: string) => void }) {
+export function Projects({ ctx, issues, openProject, departmentKey, embedded = false }: { ctx: Context; issues: Issue[]; openProject: (id: string) => void; departmentKey?: string; embedded?: boolean }) {
   const { t } = useSkin();
   const [showDone, setShowDone] = useState(false);
-  const tops = issues.filter((i) => !i.parentId && (showDone || !["done", "cancelled"].includes(i.status))).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const dept = departmentKey ? ctx.departments.find((d) => d.key === departmentKey) : null;
+  const deptIndex = (i: Issue) => {
+    const k = ctx.departments.findIndex((d) => d.projectId === i.projectId);
+    return k < 0 ? 999 : k;
+  };
+  // top-level tasks grouped by department (PLAN 7.0), newest first inside a department
+  const tops = issues
+    .filter((i) => !i.parentId && (showDone || !["done", "cancelled"].includes(i.status)) && (!dept || i.projectId === dept.projectId))
+    .sort((a, b) => deptIndex(a) - deptIndex(b) || b.updatedAt.localeCompare(a.updatedAt));
   return (
-    <div className="page">
-      <h1 style={{ fontSize: 20 }}>{t("project")}</h1>
+    <div className={embedded ? "" : "page"}>
+      {!embedded && <h1 style={{ fontSize: 20 }}>{t("project")}</h1>}
       <label style={{ fontSize: 13 }}>
         <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} /> 显示已完成
       </label>
@@ -67,12 +75,18 @@ interface Routine {
   projectId?: string | null;
   triggers?: Array<{ kind?: string; cronExpression?: string }>;
 }
-export function Routines({ ctx }: { ctx: Context }) {
+export function Routines({ ctx, departmentKey, embedded = false }: { ctx: Context; departmentKey?: string; embedded?: boolean }) {
   const { t } = useSkin();
-  const [routines] = usePoll(async () => list<Routine>(await pc.get(`/companies/${ctx.company!.id}/routines`)), 15000, [ctx.company?.id]);
+  const [all] = usePoll(async () => list<Routine>(await pc.get(`/companies/${ctx.company!.id}/routines`)), 15000, [ctx.company?.id]);
+  const dept = departmentKey ? ctx.departments.find((d) => d.key === departmentKey) : null;
+  const deptIndex = (r: Routine) => {
+    const k = ctx.departments.findIndex((d) => d.projectId === r.projectId);
+    return k < 0 ? 999 : k;
+  };
+  const routines = all ? all.filter((r) => !dept || r.projectId === dept.projectId).sort((x, y) => deptIndex(x) - deptIndex(y)) : null;
   return (
-    <div className="page">
-      <h1 style={{ fontSize: 20 }}>{t("routine")}</h1>
+    <div className={embedded ? "" : "page"}>
+      {!embedded && <h1 style={{ fontSize: 20 }}>{t("routine")}</h1>}
       <p className="hint">定时、Webhook 或接口触发，每次生成一个任务，交给对应{t("department")}的{t("lead")}。在新建{t("department")}向导里添加，或在高级设置里调整。</p>
       <table className="data">
         <thead>
@@ -86,7 +100,9 @@ export function Routines({ ctx }: { ctx: Context }) {
         <tbody>
           {(routines ?? []).map((r) => (
             <tr key={r.id}>
-              <td>{r.title ?? r.name}</td>
+              <td>
+                <Link to={`/routines/${r.id}`}>{r.title ?? r.name}</Link>
+              </td>
               <td>{ctx.departments.find((d) => d.projectId === r.projectId)?.name ?? "—"}</td>
               <td>{(r.triggers ?? []).map((x) => x.cronExpression ?? x.kind).join(", ") || "—"}</td>
               <td>{r.status ?? ""}</td>
@@ -113,12 +129,28 @@ interface Skill {
   slug?: string;
   description?: string | null;
 }
-export function Capabilities({ ctx }: { ctx: Context }) {
+export function Capabilities({ ctx, agentIds, permissionsOnly = false, embedded = false }: { ctx: Context; agentIds?: string[]; permissionsOnly?: boolean; embedded?: boolean }) {
   const { t } = useSkin();
-  const [skillsList] = usePoll(async () => list<Skill>(await pc.get(`/companies/${ctx.company!.id}/skills`)), 30000, [ctx.company?.id]);
+  const [all] = usePoll(
+    async () => {
+      const company = list<Skill>(await pc.get(`/companies/${ctx.company!.id}/skills`));
+      if (!agentIds) return company;
+      // department view: only the skills its members actually use
+      const used = new Set<string>();
+      for (const id of agentIds) {
+        const s = await pc.get<{ desiredSkills?: string[] }>(`/agents/${id}/skills`).catch(() => ({ desiredSkills: [] }));
+        for (const k of s.desiredSkills ?? []) used.add(k.split("/").pop() ?? k);
+      }
+      return company.filter((s) => used.has(s.slug ?? s.key ?? s.name) || used.has(s.name));
+    },
+    30000,
+    [ctx.company?.id, (agentIds ?? []).join(",")],
+  );
+  const skillsList = all;
   return (
-    <div className="page">
-      <h1 style={{ fontSize: 20 }}>能力与工具</h1>
+    <div className={embedded ? "" : "page"}>
+      {!embedded && <h1 style={{ fontSize: 20 }}>能力与工具</h1>}
+      {!permissionsOnly && (
       <div className="section">
         <h2>能力包（技能）</h2>
         <table className="data">
@@ -132,13 +164,17 @@ export function Capabilities({ ctx }: { ctx: Context }) {
           </tbody>
         </table>
       </div>
+      )}
+      {!agentIds && (
       <div className="section">
         <h2>对外动作权限</h2>
         <p className="hint">发邮件、发布、推代码、花钱等不可撤回的动作，默认「先问我」：{t("employee")}只做到草稿就绪，再用{t("card")}请你确认。连接器的 Allowed / Ask first / Off 在高级设置里调整。</p>
-        <Link className="btn" to="/apps">
+        <Link className="btn" to="/agentself/capabilities/connectors">
           打开连接器设置
         </Link>
+        <p className="hint">单个{t("employee")}的权限与信任级别在其完整页的「权限」标签里调整。</p>
       </div>
+      )}
     </div>
   );
 }
@@ -158,7 +194,7 @@ interface QuotaWindow {
   error?: string;
   windows: Array<{ label?: string; usedPercent?: number; resetsAt?: string }>;
 }
-export function Usage({ ctx }: { ctx: Context }) {
+export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; departmentKey?: string; embedded?: boolean }) {
   const { t } = useSkin();
   const cid = ctx.company!.id;
   const [data] = usePoll(
@@ -174,9 +210,10 @@ export function Usage({ ctx }: { ctx: Context }) {
     [cid],
   );
   const agentCost = (id: string) => data?.byAgent.find((x) => x.agentId === id)?.costCents ?? ctx.agents.find((a) => a.id === id)?.spentMonthlyCents ?? 0;
+  const depts = departmentKey ? ctx.departments.filter((d) => d.key === departmentKey) : ctx.departments;
   return (
-    <div className="page">
-      <h1 style={{ fontSize: 20 }}>用量</h1>
+    <div className={embedded ? "" : "page"}>
+      {!embedded && <h1 style={{ fontSize: 20 }}>用量</h1>}
       <div className="section">
         <h2>按{t("department")}（本月 API 折算花费 / 预算）</h2>
         <table className="data">
@@ -190,7 +227,7 @@ export function Usage({ ctx }: { ctx: Context }) {
             </tr>
           </thead>
           <tbody>
-            {ctx.departments.map((d) => {
+            {depts.map((d) => {
               const members = ctx.agents.filter((a) => d.members.includes(a.id));
               const spent = members.reduce((s, a) => s + agentCost(a.id), 0);
               const budget = members.reduce((s, a) => s + (a.budgetMonthlyCents ?? 0), 0);
@@ -223,6 +260,7 @@ export function Usage({ ctx }: { ctx: Context }) {
         </table>
         <p className="hint">订阅内的运行不实际计费；这里是按 API 价格折算的参考值。</p>
       </div>
+      {!departmentKey && (
       <div className="section">
         <h2>订阅额度（Claude / Codex 套餐窗口）</h2>
         {(data?.quota ?? []).map((q) => (
@@ -265,6 +303,7 @@ export function Usage({ ctx }: { ctx: Context }) {
         </table>
         <p className="hint">估算：按 5 小时 / 24 小时 / 7 天窗口汇总 token 用量。要看官方剩余额度，在高级设置的 AI connections 里绑定订阅账号。</p>
       </div>
+      )}
     </div>
   );
 }
@@ -295,6 +334,16 @@ export function SettingsPage({ ctx, onSaved }: { ctx: Context; onSaved: () => vo
   return (
     <div className="page" style={{ maxWidth: 760 }}>
       <h1 style={{ fontSize: 20 }}>设置 {saved && <span style={{ fontSize: 13, color: "var(--as-success)" }}>已保存</span>}</h1>
+      <div className="section">
+        <h2>通用</h2>
+        <div className="row">
+          <div>
+            <div className="label">团队名称</div>
+            <div className="sub">显示在通知和飞书卡片里</div>
+          </div>
+          <input className="input" defaultValue={s.companyName} onBlur={(e) => e.target.value !== s.companyName && void save({ companyName: e.target.value })} />
+        </div>
+      </div>
       <div className="section">
         <h2>{t("frontdesk")}</h2>
         <div className="row">

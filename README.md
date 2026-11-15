@@ -56,6 +56,8 @@ node scripts\acceptance\p3-console.mjs      # 皮肤切换、向导建部门、�
 node scripts\acceptance\p4-memory.mjs       # 跨项目记忆 + 空闲整理 git 提交（耗额度）
 node scripts\acceptance\p6-skin.mjs         # 皮肤包导入导出
 node scripts\acceptance\p8-shell.mjs        # 一个端口、一条侧栏、卡片→抽屉→任务页→运行记录、隐藏页可直达（耗少量额度）
+node scripts\acceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
+node scripts\acceptance\p10-pages.mjs       # 侧栏每项都在应用内、无重复入口、部门页 / 员工完整页 / 合并页 / 统计条 / 高级新建
 ```
 
 ## 许可

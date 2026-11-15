@@ -182,3 +182,55 @@ export function validateSkin(x: unknown): string[] {
   for (const k of Object.keys(office.terms)) if (!s.terms || typeof (s.terms as never)[k] !== "string") errs.push(`terms.${k}`);
   return errs;
 }
+
+/**
+ * P9: map skin tokens onto the Paperclip admin UI's CSS variables (shadcn-style names),
+ * so switching skins recolours the whole app, not just the Agentself views.
+ */
+export function paperclipVars(skin: Skin, dark = false): Record<string, string> {
+  const t = dark ? { ...skin.tokens, ...skin.darkTokens } : skin.tokens;
+  const onAccent = dark ? t.bg : "#ffffff";
+  return {
+    "--background": t.bg,
+    "--foreground": t.text,
+    "--card": t.surface,
+    "--card-foreground": t.text,
+    "--popover": t.surface,
+    "--popover-foreground": t.text,
+    "--primary": t.accent,
+    "--primary-foreground": onAccent,
+    "--secondary": t.sidebar,
+    "--secondary-foreground": t.text,
+    "--muted": t.sidebar,
+    "--muted-foreground": t.muted,
+    "--accent": `color-mix(in srgb, ${t.accent} 10%, ${t.surface})`,
+    "--accent-foreground": t.text,
+    "--border": t.border,
+    "--input": t.border,
+    "--ring": t.accent,
+    "--sidebar": t.sidebar,
+    "--sidebar-foreground": t.text,
+    "--sidebar-primary": t.accent,
+    "--sidebar-primary-foreground": onAccent,
+    "--sidebar-accent": `color-mix(in srgb, ${t.text} 8%, ${t.sidebar})`,
+    "--sidebar-accent-foreground": t.text,
+    "--sidebar-border": t.border,
+    "--sidebar-ring": t.accent,
+    "--radius": t.radius,
+    "--font-sans": t.fontBody,
+  };
+}
+
+/**
+ * P9: terminology overrides for the Paperclip zh-CN translation layer. The left side is the
+ * word the dictionary produces; the right side is the current skin's term.
+ */
+export function termOverrides(skin: Skin): Array<[string, string]> {
+  const pairs: Array<[string, string]> = [
+    ["智能体", term(skin, "employee")],
+    ["管理台", term(skin, "user")],
+    ["例行任务", term(skin, "routine")],
+    ["子任务", term(skin, "subtask")],
+  ];
+  return pairs.filter(([from, to]) => from !== to);
+}

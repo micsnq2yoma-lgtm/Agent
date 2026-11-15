@@ -104,8 +104,12 @@ results.taskPageInApp = results.taskPage.startsWith(`/${prefix}/issues/`) && (aw
 await page.locator(`a[href*="/agents/${member.id}"]`).first().click();
 await page.waitForTimeout(3000);
 results.viaAgentPage = new URL(page.url()).pathname;
-if (!/\/runs/.test(results.viaAgentPage)) await page.getByRole("tab", { name: /运行|Runs/ }).first().click().catch(() => {});
 await page.waitForTimeout(3000);
+// latest runs are on the overview; otherwise the employee page's 运行记录 tab lists them all
+if (!(await page.locator(`a[href*="/runs/${runId}"]`).count())) {
+  await page.locator("[data-testid=employee-page] a[role=tab]", { hasText: "运行记录" }).click().catch(() => {});
+  await page.waitForTimeout(4000);
+}
 const runLink = page.locator(`a[href*="/runs/${runId}"]`).first();
 results.runReachedFromTaskPage = (await runLink.count()) > 0;
 if (results.runReachedFromTaskPage) {

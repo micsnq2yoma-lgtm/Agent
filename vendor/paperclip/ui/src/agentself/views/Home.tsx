@@ -5,6 +5,25 @@ import { FRONTDESK, LEAD, countByType, filterCards, type Card, type Filter } fro
 import { act, dismiss, loadDecisionOptions, snooze, type Feed } from "../lib/feed";
 import { useSkin } from "../lib/skin";
 import { Wordmark } from "../components/Brand";
+import { useDialogActions } from "@/context/DialogContext";
+
+/** 高级新建 (P10): opens the full Paperclip new-task form, prefilled with the chosen department or employee. */
+function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
+  const { openNewIssue } = useDialogActions();
+  const dept = to.startsWith("department:") ? ctx.departments.find((d) => d.key === to.slice(11)) : null;
+  const agentId = to.startsWith("agent:") ? to.slice(6) : (dept?.leadAgentId ?? undefined);
+  const projectId = dept?.projectId ?? undefined;
+  return (
+    <button
+      type="button"
+      className="btn ghost"
+      title="打开完整的新建任务表单（指定负责人、项目、优先级、附件等）"
+      onClick={() => openNewIssue({ ...(agentId ? { assigneeAgentId: agentId } : {}), ...(projectId ? { projectId } : {}), navigateOnCreate: true })}
+    >
+      高级新建
+    </button>
+  );
+}
 
 type FrontdeskResult =
   | { route: "answer"; answer: { answer: string } }
@@ -90,6 +109,7 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
           <option value="ask">对外动作：先问我</option>
           <option value="direct">对外动作：直接做</option>
         </select>
+        <AdvancedNew ctx={ctx} to={to} />
         <span style={{ flex: 1 }} />
         <button className="btn primary" disabled={busy || !text.trim()} onClick={() => void send()}>
           {busy ? "处理中…" : "发送"}

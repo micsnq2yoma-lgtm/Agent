@@ -20,10 +20,10 @@
 }
 .agentself, .agentself * { box-sizing: border-box; }
 .agentself { background: var(--as-bg); color: var(--as-text); font: 14px/1.5 var(--as-font-body); -webkit-font-smoothing: antialiased; }
-.agentself a { color: var(--as-accent-strong); }
-.agentself button { font: inherit; color: inherit; cursor: pointer; }
-.agentself input, .agentself textarea, .agentself select { font: inherit; color: inherit; }
-.agentself :focus-visible { outline: 2px solid var(--as-accent); outline-offset: 2px; }
+.agentself a:where(:not([data-embedded-paperclip] *)) { color: var(--as-accent-strong); }
+.agentself button:where(:not([data-embedded-paperclip] *)) { font: inherit; color: inherit; cursor: pointer; }
+.agentself input:where(:not([data-embedded-paperclip] *)), .agentself textarea:where(:not([data-embedded-paperclip] *)), .agentself select:where(:not([data-embedded-paperclip] *)) { font: inherit; color: inherit; }
+.agentself :focus-visible:where(:not([data-embedded-paperclip] *)) { outline: 2px solid var(--as-accent); outline-offset: 2px; }
 
 .agentself.as-page { height: 100%; display: flex; flex-direction: column; min-height: 0; }
 html[data-layout-sidebar="right"] .agentself .shell { flex-direction: row-reverse; }
@@ -166,3 +166,25 @@ html[data-card-columns="grid"] .agentself .cards { grid-template-columns: repeat
 .agentself .drawer-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
 .agentself .nav-me .nav-item { white-space: nowrap; }
 .agentself .nav-me .nav-item:first-child { flex: 1; }
+
+/* ---------- P9: skin layout knobs on the Paperclip shell ---------- */
+html[data-layout-sidebar="right"] [data-agentself-row] { flex-direction: row-reverse; }
+html[data-layout-sidebar="right"] [data-agentself-row] [data-agentself-sidebar] .sidebar { border-right: none; border-left: 1px solid var(--as-border); }
+.agentself.as-page { min-height: 100%; }
+
+/* ---------- P10: tabs, stats bar, embedded Paperclip pages, employee page ---------- */
+.agentself .page.wide { max-width: 1280px; }
+.agentself .tabbar { display: flex; gap: 2px; flex-wrap: wrap; border-bottom: 1px solid var(--as-border); margin: 14px 0 16px; }
+.agentself .tabbar a { padding: 7px 12px; color: var(--as-muted); text-decoration: none; border-bottom: 2px solid transparent; margin-bottom: -1px; font-size: 14px; }
+.agentself .tabbar a:hover { color: var(--as-text); }
+.agentself .tabbar a.on { color: var(--as-text); border-bottom-color: var(--as-accent); font-weight: 600; }
+.agentself .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.agentself .stats > div { background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius); padding: 10px 14px; display: flex; flex-direction: column; }
+.agentself .stats b { font-size: 20px; font-family: var(--as-font-display); }
+.agentself .stats span { font-size: 12px; color: var(--as-muted); }
+.agentself .stats .hot b { color: var(--as-high); }
+.agentself .embedded-paperclip { font: initial; font-family: var(--font-sans); color: var(--foreground); }
+.agentself .employee-head { padding: 20px 24px 0; }
+.agentself .employee-head .tabbar { margin-bottom: 4px; }
+.agentself .drawer-like { display: flex; flex-direction: column; gap: 18px; max-width: 760px; }
+.agentself .drawer-like h3 { font-size: 13px; color: var(--as-muted); margin: 0 0 8px; font-weight: 600; }

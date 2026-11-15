@@ -24,6 +24,12 @@
 | 2026-11-14 | `ui/src/lib/company-routes.ts`（路由挂载点，P8） | `BOARD_ROUTE_ROOTS` 加 `agentself` | 让 `Link`/`navigate` 给 `/agentself/...` 自动加公司前缀 |
 | 2026-11-14 | `ui/vite.config.ts`、`ui/tsconfig.json`（P8） | 别名 `@agentself/skins`、`shared`、`pixel-office` 指向仓库 `packages/*/src` | Agentself 视图复用外层 monorepo 的包 |
 | 2026-11-14 | 新增 `server/src/agentself/proxy.ts`；`server/src/app.ts` 挂载一行（P8） | `/agentself/api/*` 在 JSON 解析之前反向代理到 Agentself 本地服务（默认 `127.0.0.1:3200`，`AGENTSELF_LOCAL_URL` 可改），不转发 cookie / authorization | 本地服务接口与界面同源，对外只留 3100 |
+| 2026-11-14 | `ui/src/components/AgentAvatar.tsx`（P9） | 有员工 id 时头像用像素机器人（`agentself/lib/avatar`），去掉 2x srcSet | 员工形象只用原创像素机器人 |
+| 2026-11-14 | `ui/src/components/AgentCharacter.tsx`（P9） | `AgentCharacter` 改为渲染静态机器人头像；原动画组件改名 `PaperclipAgentCharacter` 保留 | 员工详情页大头像也换成机器人 |
+| 2026-11-14 | `ui/src/lib/agent-avatar-url.ts`（P9） | `agentAvatarUrl` 返回机器人 SVG（按外观 palette 取种子） | 兜底：拿不到员工 id 的头像也是机器人。该模块本来就是 storybook 可替换的入口 |
+| 2026-11-14 | `ui/src/components/Layout.tsx`（P9） | 主行加 `data-agentself-row`（朝堂皮肤侧栏放右侧）；Agentself 页面隐藏面包屑栏、去掉外层内边距 | 皮肤布局、去掉空白栏 |
+| 2026-11-14 | `ui/src/i18n/dom-translate.ts`（P9） | `setTermOverrides()`：词典翻译之后按皮肤替换术语（智能体→员工、管理台→我、例行任务、子任务），已是中文的文本也替换；切换皮肤时从原文重算 | 一套叫法 |
+| 2026-11-14 | `ui/src/App.tsx`（P10） | `agents/:agentId`、`agents/:agentId/:tab`、`agents/:agentId/runs/:runId` 外包 `EmployeeRoute` | 员工完整页 = Paperclip 详情 + 档案 / 记忆标签，并补回 P8 去掉二级侧栏后缺的子导航 |
 
 ## 待做
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。

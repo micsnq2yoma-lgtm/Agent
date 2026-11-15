@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/i18n";
 import { Layout } from "./components/Layout";
 // Agentself (P8): workbench views as routes + shared state around the company layout.
-import { AgentselfRoot } from "./agentself/App";
+import { AgentselfRoot, EmployeeRoute } from "./agentself/App";
 import { agentselfRoutes } from "./agentself/routes";
 import { ConferenceRoomChatGate } from "./components/ConferenceRoomChatGate";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
@@ -289,9 +289,10 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         />
       ))}
       <Route path="agents/new" element={<NewAgent />} />
-      <Route path="agents/:agentId" element={<AgentDetail />} />
-      <Route path="agents/:agentId/:tab" element={<AgentDetail />} />
-      <Route path="agents/:agentId/runs/:runId" element={<AgentDetail />} />
+      {/* Agentself (P10): employee full page = Paperclip detail + 档案 / 记忆 tabs */}
+      <Route path="agents/:agentId" element={<EmployeeRoute detail={<AgentDetail />} />} />
+      <Route path="agents/:agentId/:tab" element={<EmployeeRoute detail={<AgentDetail />} />} />
+      <Route path="agents/:agentId/runs/:runId" element={<EmployeeRoute detail={<AgentDetail />} />} />
       <Route path="projects" element={<Projects />} />
       <Route path="projects/:projectId" element={<ProjectDetail />} />
       <Route path="projects/:projectId/overview" element={<ProjectDetail />} />
