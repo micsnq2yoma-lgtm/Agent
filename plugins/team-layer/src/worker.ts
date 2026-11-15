@@ -8,6 +8,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { appendRunLog, consolidate, logLine, runClaudeJson, shouldConsolidate, weeklyArchive } from "./memory-jobs.js";
+// Shared with the local service; bundled into the worker by esbuild.
+// @ts-expect-error plain JS module without type declarations
+import { refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import {
   criteriaMarkdown,
   evidenceMarkdown,
@@ -104,6 +107,16 @@ async function onRunEnded(ctx: Ctx, companyId: string, p: { agentId?: string; is
   const now = Date.now();
   await ctx.state.set(agentKey(p.agentId, "lastRunAt"), now);
   await ctx.state.set(agentKey(p.agentId, "lastLogWriteAt"), now);
+  refreshAgentInstructions(memDir);
+}
+
+/** The agent may have written to its memory during the run: put the new contents into its instructions. */
+function refreshAgentInstructions(memDir: string) {
+  try {
+    (refreshInstructions as (cwd: string, home: string) => boolean)(path.dirname(memDir), agentselfHome());
+  } catch {
+    /* an agent without an Agentself runtime, or a transient fs error: next run refreshes again */
+  }
 }
 
 async function memoryIdleTick(ctx: Ctx) {
@@ -120,6 +133,7 @@ async function memoryIdleTick(ctx: Ctx) {
       try {
         const r = await consolidate(memDir, (prompt) => runClaudeJson(prompt, cfg.consolidationModel));
         await ctx.state.set(agentKey(agent.id, "lastConsolidatedAt"), Date.now());
+        refreshAgentInstructions(memDir);
         ctx.logger.info("memory consolidated", { agentId: agent.id, ok: r.ok, commit: r.ok ? r.commit : null });
         for (const s of r.suggestions) {
           await addNotice(ctx, c.id, { text: `记忆整理建议（${agent.name ?? ""}）：${s}`, issueId: null, agentId: agent.id });
@@ -138,7 +152,9 @@ async function memoryWeeklyTick(ctx: Ctx) {
     const c = { id: cid };
     for (const agent of (await ctx.agents.list({ companyId: c.id })) as AgentLike[]) {
       const memDir = memDirOf(agent);
-      if (memDir) ctx.logger.info("memory weekly archive", { agentId: agent.id, ...weeklyArchive(memDir) });
+      if (!memDir) continue;
+      ctx.logger.info("memory weekly archive", { agentId: agent.id, ...weeklyArchive(memDir) });
+      refreshAgentInstructions(memDir);
     }
   }
 }

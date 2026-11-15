@@ -13,6 +13,7 @@ import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
+import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
@@ -289,12 +290,13 @@ async function handleAgentself(req, res, url) {
   if (pm && req.method === "PUT") {
     const body = await readJson(req);
     writeProfile(HOME, pm[1], body.text);
-    return send(res, 200, { ok: true });
+    return send(res, 200, { ok: true, refreshed: refreshAllInstructions(HOME) });
   }
   if (req.method === "POST" && p === "/profile/decisions") {
     // Called by leads (curl) when the user says "from now on…"; appends one line.
     const body = await readJson(req);
-    return send(res, 200, appendDecision(HOME, { kind: body.kind, text: body.text, scope: body.scope, source: body.source }));
+    const r = appendDecision(HOME, { kind: body.kind, text: body.text, scope: body.scope, source: body.source });
+    return send(res, 200, { ...r, refreshed: refreshAllInstructions(HOME) });
   }
   if (req.method === "GET" && p === "/profile") return send(res, 200, { files: PROFILE_FILES });
   if (req.method === "POST" && (p === "/agents/sync" || p === "/leads/sync")) return send(res, 200, { synced: await syncAllAgents(() => {}) });
@@ -305,7 +307,9 @@ async function handleAgentself(req, res, url) {
   const ppm = p.match(/^\/profile\/proposals\/([\w-]+)\/(accept|reject)$/);
   if (req.method === "POST" && ppm) {
     const body = await readJson(req);
-    return send(res, 200, resolveProposal(HOME, ppm[1], ppm[2], body.text));
+    const r = resolveProposal(HOME, ppm[1], ppm[2], body.text);
+    if (r.status === "accepted") refreshAllInstructions(HOME);
+    return send(res, 200, r);
   }
 
   /* hiring (plan B step 2): a lead proposes, the user approves, this service creates the employee */
@@ -377,6 +381,7 @@ async function handleAgentself(req, res, url) {
       fs.mkdirSync(path.dirname(file), { recursive: true });
       fs.writeFileSync(file, String(body.text ?? ""));
       const sha = commitMemory(cwd, `用户编辑 ${url.searchParams.get("path")}`);
+      refreshInstructions(cwd, HOME);
       return send(res, 200, { ok: true, commit: sha });
     }
   }
