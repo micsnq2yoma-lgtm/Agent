@@ -16,6 +16,18 @@ export function dueReminders(list: Reminder[], now: number): { due: Reminder[]; 
   return { due, rest };
 }
 
+/** A task in one of these states needs no wake-ups any more: its pending reminders are dropped. */
+export const SETTLED_STATUSES = new Set(["in_review", "done", "cancelled"]);
+
+/** Remove reminders for the given issues (P1 run 5: a stale reminder woke the lead after it reported). */
+export function dropRemindersFor<T extends { issueId: string }>(list: T[], issueIds: Iterable<string>): { kept: T[]; dropped: T[] } {
+  const ids = new Set(issueIds);
+  const kept: T[] = [];
+  const dropped: T[] = [];
+  for (const r of list) (ids.has(r.issueId) ? dropped : kept).push(r);
+  return { kept, dropped };
+}
+
 export const MAX_NOTICES = 200;
 
 export function appendNotice(list: FeedMessage[], msg: FeedMessage, max = MAX_NOTICES): FeedMessage[] {

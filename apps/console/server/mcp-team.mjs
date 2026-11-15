@@ -55,6 +55,14 @@ async function pluginTool(name, parameters, issueId) {
 }
 
 const companyId = () => env("PAPERCLIP_COMPANY_ID");
+
+/** Move a lead's own top-level task to in_review after its report is written. Returns false if not applicable. */
+async function settleReport(issueId) {
+  const issue = await pc("GET", `/issues/${issueId}`);
+  if (issue.parentId || issue.assigneeAgentId !== env("PAPERCLIP_AGENT_ID")) return false;
+  if (!["in_review", "done", "cancelled"].includes(issue.status)) await pc("PATCH", `/issues/${issueId}`, { status: "in_review" });
+  return true;
+}
 const me = () => env("PAPERCLIP_AGENT_ID");
 const brief = (i) => ({ id: i.id, identifier: i.identifier ?? null, title: i.title, status: i.status, assigneeAgentId: i.assigneeAgentId ?? null, parentId: i.parentId ?? null });
 
@@ -115,9 +123,27 @@ export const TOOLS = {
     roles: ["lead", "employee"],
     description: "在任务上写或覆盖一份 Markdown 文档（主管写 brief、report；员工写 report）。",
     inputSchema: S({ issueId: str("任务 id"), key: str("文档 key，例如 brief 或 report"), body: str("Markdown 正文"), title: str("标题（可选）") }, ["issueId", "key", "body"]),
-    run: async ({ issueId, key, body, title }) => {
+    run: async ({ issueId, key, body, title }, role) => {
       await pc("PUT", `/issues/${issueId}/documents/${encodeURIComponent(key)}`, { format: "markdown", body, ...(title ? { title } : {}) });
+      // A lead writing the report on its own top-level task is reporting: settle the task in code,
+      // not by the skill's wording (P1 run 5: the lead wrote the report and left the task in_progress).
+      if (role === "lead" && key === "report") {
+        const settled = await settleReport(issueId);
+        if (settled) return `已写入汇报，任务已置为待你确认（in_review）`;
+      }
       return `已写入文档 ${key}`;
+    },
+  },
+  submit_report: {
+    roles: ["lead"],
+    description: "向用户汇报：在你负责的父任务上写 report 文档，并把任务置为待用户确认（in_review）。汇报一律用这个工具。",
+    inputSchema: S({ issueId: str("你负责的父任务 id"), body: str("一页以内的汇报（Markdown）") }, ["issueId", "body"]),
+    run: async ({ issueId, body }) => {
+      await pc("PUT", `/issues/${issueId}/documents/report`, { format: "markdown", title: "汇报", body });
+      const settled = await settleReport(issueId);
+      if (!settled) throw new Error("report 已写入，但这不是你负责的顶层任务，状态没有改");
+      await pc("POST", `/issues/${issueId}/comments`, { body: "已汇报，等你确认。" }).catch(() => {});
+      return "已汇报：report 已写入，任务已置为待你确认（in_review），之前设的提醒会自动取消。结束本轮。";
     },
   },
   comment: {
