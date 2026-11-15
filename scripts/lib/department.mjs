@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { api as defaultApi, ensureCompany as defaultEnsureCompany, list } from "./paperclip.mjs";
-import { initMemory } from "./memory.mjs";
+import { ensureMemoryEntry, initMemory } from "./memory.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -16,20 +16,27 @@ export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.ho
 export const DEFAULT_LEAD_MODEL = "claude-opus-5-5";
 
 const SKILL_DIRS = { "agentself-lead": "lead", "agentself-employee": "employee", "agentself-memory": "memory" };
-const LEAD_SKILLS = ["agentself-lead", "agentself-memory"];
+// Leads get their skill through CLAUDE.md (@.agentself/lead-skill.md): Paperclip-mounted skills did not
+// load for CLI-engine runs ("Unknown skill"), and the lead must not depend on that.
+const LEAD_SKILLS = [];
 const EMPLOYEE_SKILLS = ["agentself-employee", "agentself-memory"];
 
 /**
  * Super-Agent's lesson: "the lead does not do the work" must be enforced by the architecture, not by a
- * prompt. A lead's Claude Code gets only what managing needs: talk to the Paperclip API (curl/jq), read
- * reports and artifacts, search the web, and edit its own memory/ folder. No general file writes, no
- * arbitrary shell, no native subagents. Without --dangerously-skip-permissions, anything outside the
- * allow list is denied in non-interactive runs. Only the CLI engine honours these flags.
+ * prompt. A lead's Claude Code gets only what managing needs: the Agentself team MCP server (every
+ * Paperclip action a lead takes: read tasks, write briefs and reports, delegate, comment, ask the user,
+ * criteria, verification, hiring proposals, decisions), reading files and the web, and editing its own
+ * memory/. No shell of any kind (Bash or Windows PowerShell), no general file writes, no subagents.
+ * Without --dangerously-skip-permissions, anything outside the allow list is denied in non-interactive
+ * runs, and the deny list wins over any allow rule from other settings files. Only the CLI engine
+ * honours these flags.
  */
 export const LEAD_TOOLS = {
-  allowed: ["Bash(curl:*)", "Bash(jq:*)", "Read", "Grep", "Glob", "WebSearch", "WebFetch", "Edit(memory/**)", "Write(memory/**)"],
-  disallowed: ["Task", "Agent", "NotebookEdit"],
+  allowed: ["mcp__agentself", "Read", "Grep", "Glob", "WebSearch", "WebFetch", "Edit(memory/**)", "Write(memory/**)"],
+  disallowed: ["Bash", "PowerShell", "Task", "Agent", "NotebookEdit"],
 };
+
+export const TEAM_MCP_SERVER = path.join(repoRoot, "apps", "console", "server", "mcp-team.mjs");
 
 export function leadAdapterConfig({ cwd, model, workspacesDir }) {
   return {
@@ -37,9 +44,64 @@ export function leadAdapterConfig({ cwd, model, workspacesDir }) {
     model: model || DEFAULT_LEAD_MODEL,
     engine: "cli",
     dangerouslySkipPermissions: false,
-    extraArgs: ["--allowedTools", LEAD_TOOLS.allowed.join(","), "--disallowedTools", LEAD_TOOLS.disallowed.join(","), "--add-dir", workspacesDir],
+    extraArgs: [
+      "--allowedTools",
+      LEAD_TOOLS.allowed.join(","),
+      "--disallowedTools",
+      LEAD_TOOLS.disallowed.join(","),
+      "--mcp-config",
+      path.join(cwd, ".agentself", "mcp.json"),
+      "--add-dir",
+      workspacesDir,
+    ],
   };
 }
+
+const stripFrontmatter = (md) => md.replace(/^---\n[\s\S]*?\n---\n+/, "");
+
+/**
+ * Files a lead's Claude Code reads from its workspace. Rewritten on every sync so skill and tool updates
+ * reach existing leads:
+ *  - .agentself/mcp.json: the team MCP server (absolute node + script paths)
+ *  - .agentself/lead-skill.md: the lead skill, imported by CLAUDE.md
+ *  - .claude/settings.local.json: owned by Agentself; a stale one once widened the allow list
+ *    (Claude Code merges it with --allowedTools). The previous file is kept as .bak.
+ */
+export function writeLeadRuntimeFiles(cwd, { nodePath = process.execPath } = {}) {
+  const dir = path.join(cwd, ".agentself");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "mcp.json"), JSON.stringify({ mcpServers: { agentself: { command: nodePath, args: [TEAM_MCP_SERVER, "--role=lead"] } } }, null, 2));
+  fs.writeFileSync(path.join(dir, "lead-skill.md"), stripFrontmatter(fs.readFileSync(path.join(repoRoot, "skills", "lead", "SKILL.md"), "utf8")));
+  const claudeDir = path.join(cwd, ".claude");
+  fs.mkdirSync(claudeDir, { recursive: true });
+  const local = path.join(claudeDir, "settings.local.json");
+  const ours = JSON.stringify({ _agentself: "managed by Agentself; edits are overwritten", permissions: { allow: ["mcp__agentself"], deny: LEAD_TOOLS.disallowed } }, null, 2);
+  if (fs.existsSync(local)) {
+    const old = fs.readFileSync(local, "utf8");
+    if (old !== ours && !old.includes('"_agentself"')) fs.writeFileSync(`${local}.bak`, old);
+  }
+  fs.writeFileSync(local, ours);
+}
+
+/** Bring an existing lead up to date: runtime files, CLAUDE.md block and adapter config. */
+export async function syncLeadRuntime(agent, { api = defaultApi, workspacesDir = path.join(agentselfHome(), "workspaces"), log = console.log } = {}) {
+  const cwd = agent.adapterConfig?.cwd;
+  if (!cwd || !agent.metadata?.agentself?.isLead) return false;
+  fs.mkdirSync(cwd, { recursive: true });
+  const home = agentselfHome();
+  ensureProfile(home);
+  writeLeadRuntimeFiles(cwd);
+  ensureMemoryEntry(cwd, { role: "lead", profile: profileRefs(home) });
+  const want = leadAdapterConfig({ cwd, model: agent.adapterConfig?.model, workspacesDir });
+  const cur = agent.adapterConfig ?? {};
+  if (JSON.stringify({ ...cur, ...want }) !== JSON.stringify(cur)) {
+    await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...cur, ...want } });
+    log(`lead ${agent.name}: runtime updated`);
+  }
+  return true;
+}
+
+const profileRefs = (home) => Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
 
 export function validatePack(pack) {
   const errs = [];
@@ -142,9 +204,8 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
       });
     } else {
       await api("POST", `/agents/${agent.id}/skills/sync`, { mode: "add", desiredSkills: skillsFor(isLead) }).catch((e) => log(`skills sync skipped: ${String(e).slice(0, 120)}`));
-      // Re-apply the lead's tool restriction in case it was created before plan B or edited by hand.
-      if (isLead) await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...(agent.adapterConfig ?? {}), ...adapterConfig } }).catch((e) => log(`lead config update skipped: ${String(e).slice(0, 120)}`));
     }
+    if (isLead) await syncLeadRuntime({ ...agent, adapterConfig: { ...(agent.adapterConfig ?? {}), cwd } }, { api, workspacesDir, log }).catch((e) => log(`lead runtime sync skipped: ${String(e).slice(0, 160)}`));
     log(`${isLead ? "lead" : "agent"} ${member.name} (${member.adapterType}) ${agent.id}`);
     return agent;
   }

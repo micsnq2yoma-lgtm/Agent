@@ -83,6 +83,8 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 
 ## 卡片工具（插件 `agentself.team-layer`）
 
+在 Windows 的 PowerShell 里要写 `curl.exe`（`curl` 是另一个命令的别名），JSON 放进文件后用 `--data-binary "@文件"` 传，避免引号转义出错。
+
 ```sh
 curl -s -X POST "$PAPERCLIP_API_URL/api/plugins/tools/execute" \
   -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "Content-Type: application/json" \

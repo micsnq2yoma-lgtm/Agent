@@ -509,47 +509,73 @@ const plugin = definePlugin({
       },
     );
 
+    // Paperclip calls plugin tools with a 30 s RPC timeout; a verifier run takes 30 s to a few minutes.
+    // So verify starts the check in the background and returns at once; when the verdicts are in, it
+    // writes the "verification" document and comments on the lead's task, which wakes the lead.
+    // Calling verify again returns the stored verdicts while the evidence is unchanged.
     ctx.tools.register(
       "verify",
       { displayName: "team.verify", description: "Lead: independent per-criterion check of a child task", parametersSchema: { type: "object" } },
       async (params, run) => {
         const p = params as { issueId?: string };
         if (!p.issueId) return { content: "缺少 issueId（填员工交付的子任务）" };
-        const cfg = await config(ctx, run.companyId);
-        const found = await criteriaFor(ctx, p.issueId, run.companyId);
+        const childId = p.issueId;
+        const companyId = run.companyId;
+        const cfg = await config(ctx, companyId);
+        const found = await criteriaFor(ctx, childId, companyId);
         if (!found) return { content: "没有找到结构化的验收标准，请自己对照任务书判定。" };
-        const ev = ((await ctx.state.get(issueKey(p.issueId, "evidence"))) ?? { items: [], disputes: [] }) as { items: EvidenceItem[]; disputes: Dispute[]; at?: string };
-        // Re-use the last verdicts when nothing changed since (re-asking costs a model call).
-        const cached = (await ctx.state.get(issueKey(p.issueId, "verification"))) as { evidenceAt?: string; verdicts: CriterionVerdict[] } | null;
-        let verdicts = cached && cached.evidenceAt === (ev.at ?? null) ? cached.verdicts : null;
-        if (!verdicts) {
-          const prompt = verifierPrompt({
-            goal: (await docBody(ctx, found.ownerId, "brief", run.companyId)) || ((await ctx.issues.get(found.ownerId, run.companyId))?.title ?? ""),
-            criteria: found.criteria,
-            items: ev.items,
-            disputes: ev.disputes,
-            report: await docBody(ctx, p.issueId, "report", run.companyId),
-          });
-          let raw = "";
-          try {
-            // No tools: the verifier judges only the material it is given.
-            raw = await runClaudeJson(prompt, cfg.verifierModel, 240_000, undefined, ["--disallowedTools", "Bash,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit"]);
-          } catch (e) {
-            return { content: `核查员没跑成（${errText(e)}）。请自己逐条判定。` };
-          }
-          verdicts = parseVerdicts(raw, found.criteria);
-          if (!verdicts) return { content: "核查员的输出无法解析，请自己逐条判定。" };
-          await ctx.state.set(issueKey(p.issueId, "verification"), { evidenceAt: ev.at ?? null, verdicts, model: cfg.verifierModel });
-          await ctx.issues.documents.upsert({ issueId: p.issueId, key: "verification", title: "独立核查", body: verificationMarkdown(found.criteria, verdicts, cfg.verifierModel), companyId: run.companyId, changeSummary: "独立核查" });
-        }
-        const sum = verdictSummary(verdicts);
+        const ev = ((await ctx.state.get(issueKey(childId, "evidence"))) ?? { items: [], disputes: [] }) as { items: EvidenceItem[]; disputes: Dispute[]; at?: string };
+        const evidenceAt = ev.at ?? null;
+        const vKey = issueKey(childId, "verification");
+        const cur = (await ctx.state.get(vKey)) as
+          | { status?: "running" | "done" | "failed"; evidenceAt?: string | null; startedAt?: number; verdicts?: CriterionVerdict[]; model?: string; error?: string }
+          | null;
         const text = { passed: "通过", failed: "未通过", uncertain: "无法判断" } as const;
-        return {
-          content: `独立核查（${cfg.verifierModel}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。\n${verdicts
-            .map((v) => `${v.criterionId} ${text[v.verdict]}：${v.reason}${v.suggestion ? `（建议：${v.suggestion}）` : ""}`)
-            .join("\n")}\n这是参考意见，最终由你判定；推翻某条时在汇报里写明理由。`,
-          data: { verdicts, ...sum },
-        };
+
+        if (cur?.status === "done" && cur.evidenceAt === evidenceAt && cur.verdicts) {
+          const sum = verdictSummary(cur.verdicts);
+          return {
+            content: `独立核查（${cur.model ?? cfg.verifierModel}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。\n${cur.verdicts
+              .map((v) => `${v.criterionId} ${text[v.verdict]}：${v.reason}${v.suggestion ? `（建议：${v.suggestion}）` : ""}`)
+              .join("\n")}\n这是参考意见，最终由你判定；推翻某条时在汇报里写明理由。`,
+            data: { status: "done", verdicts: cur.verdicts, ...sum },
+          };
+        }
+        if (cur?.status === "running" && cur.evidenceAt === evidenceAt && Date.now() - (cur.startedAt ?? 0) < 10 * 60_000) {
+          return { content: "核查还在进行中。结束本轮；完成后会在你的任务上留言叫醒你。", data: { status: "running" } };
+        }
+
+        await ctx.state.set(vKey, { status: "running", evidenceAt, startedAt: Date.now(), model: cfg.verifierModel });
+        const ownerId = found.ownerId;
+        void (async () => {
+          try {
+            const prompt = verifierPrompt({
+              goal: (await docBody(ctx, ownerId, "brief", companyId)) || ((await ctx.issues.get(ownerId, companyId))?.title ?? ""),
+              criteria: found.criteria,
+              items: ev.items,
+              disputes: ev.disputes,
+              report: await docBody(ctx, childId, "report", companyId),
+            });
+            // No tools: the verifier judges only the material it is given.
+            const raw = await runClaudeJson(prompt, cfg.verifierModel, 300_000, undefined, [
+              "--disallowedTools",
+              "Bash,PowerShell,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit",
+            ]);
+            const verdicts = parseVerdicts(raw, found.criteria);
+            if (!verdicts) throw new Error("核查员的输出无法解析");
+            await ctx.state.set(vKey, { status: "done", evidenceAt, verdicts, model: cfg.verifierModel });
+            await ctx.issues.documents.upsert({ issueId: childId, key: "verification", title: "独立核查", body: verificationMarkdown(found.criteria, verdicts, cfg.verifierModel), companyId, changeSummary: "独立核查" });
+            const sum = verdictSummary(verdicts);
+            await ctx.issues.createComment(ownerId, `🔎 独立核查完成（子任务 ${childId}）：通过 ${sum.passed}，未通过 ${sum.failed}，无法判断 ${sum.uncertain}。再调用一次 verify 查看逐条结果。`, companyId);
+          } catch (e) {
+            await ctx.state.set(vKey, { status: "failed", evidenceAt, error: errText(e) });
+            await ctx.issues
+              .createComment(ownerId, `🔎 独立核查没跑成（子任务 ${childId}）：${errText(e).slice(0, 300)}。请自己逐条判定。`, companyId)
+              .catch(() => {});
+            ctx.logger.error("verify failed", { childId, err: errText(e) });
+          }
+        })();
+        return { content: `已开始独立核查（${cfg.verifierModel}，一般 1–3 分钟）。结束本轮；完成后会在你的任务上留言叫醒你，那时再调用一次 verify 拿逐条结果。`, data: { status: "running" } };
       },
     );
 
