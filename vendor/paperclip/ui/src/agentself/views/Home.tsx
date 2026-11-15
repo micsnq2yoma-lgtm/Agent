@@ -174,6 +174,7 @@ export function whoLabel(who: string, t: (k: "frontdesk" | "lead") => string) {
 function kindLabel(card: Card, t: ReturnType<typeof useSkin>["t"]) {
   if (card.type === "failed") return "运行失败";
   if (card.type === "hire") return "新建员工";
+  if (card.type === "notice") return "通知";
   return t(card.type === "decide" ? "decide" : card.type === "deliver" ? "deliverable" : "instantAnswer");
 }
 
@@ -295,7 +296,7 @@ function CardDetail(props: {
             </button>
           )}
           <span className="grow" />
-          {card.type !== "hire" && (
+          {card.type !== "hire" && card.type !== "notice" && (
             <button className="btn ghost sm" onClick={props.onLater}>
               <Clock aria-hidden="true" />
               稍后提醒

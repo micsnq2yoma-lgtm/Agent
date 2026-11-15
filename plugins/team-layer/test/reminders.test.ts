@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dropRemindersFor, dueReminders, SETTLED_STATUSES } from "../src/store.js";
+import { dismissNotice, dropRemindersFor, dueReminders, SETTLED_STATUSES } from "../src/store.js";
 
 const r = (issueId: string, dueAt = "2026-11-15T12:00:00Z") => ({ issueId, agentId: "a", dueAt, note: "" });
 
@@ -17,5 +17,17 @@ describe("reminders on settled tasks (P1 run 5)", () => {
     const { due, rest } = dueReminders([r("a", "2026-11-15T11:00:00Z"), r("b", "2026-11-15T13:00:00Z")], Date.parse("2026-11-15T12:00:00Z"));
     expect(due.map((x) => x.issueId)).toEqual(["a"]);
     expect(rest.map((x) => x.issueId)).toEqual(["b"]);
+  });
+});
+
+describe("dismissing a notice from the workbench", () => {
+  const n = (id: string) => ({ id, kind: "task_progress", tier: "low", companyId: "c", title: id, createdAt: "2026-11-15T10:00:00Z", status: "open" }) as never;
+  it("marks only that notice handled", () => {
+    const r = dismissNotice([n("a"), n("b")], "b");
+    expect(r.found).toBe(true);
+    expect(r.list.map((m: { status: string }) => m.status)).toEqual(["open", "handled"]);
+  });
+  it("reports an unknown id", () => {
+    expect(dismissNotice([n("a")], "zzz")).toMatchObject({ found: false });
   });
 });

@@ -1,6 +1,6 @@
 // Loads everything the workbench needs and turns it into cards.
 import { as, list, pc, type Context, type Issue } from "./api";
-import { buildCards, hireCards, sortCards, type Answer, type AttentionItem, type Card, type HireRequest, type Interaction } from "./cards";
+import { buildCards, hireCards, noticeCards, sortCards, type Answer, type AttentionItem, type Card, type HireRequest, type Interaction, type Notice } from "./cards";
 
 export interface Feed {
   cards: Card[];
@@ -10,14 +10,30 @@ export interface Feed {
 
 const interactionCache = new Map<string, Interaction>();
 
+/** The team-layer plugin's id (its data and actions are addressed by id). */
+let teamLayerId: string | null = null;
+async function teamLayer(): Promise<string | null> {
+  if (teamLayerId) return teamLayerId;
+  const plugins = list<{ id: string; pluginKey: string }>(await pc.get("/plugins").catch(() => []));
+  teamLayerId = plugins.find((p) => p.pluginKey === "agentself.team-layer")?.id ?? null;
+  return teamLayerId;
+}
+async function loadNotices(companyId: string): Promise<Notice[]> {
+  const id = await teamLayer();
+  if (!id) return [];
+  const r = await pc.post<{ data?: Notice[] }>(`/plugins/${id}/data/notices`, { companyId, params: { companyId } }).catch(() => null);
+  return Array.isArray(r?.data) ? r.data : [];
+}
+
 export async function loadFeed(ctx: Context): Promise<Feed> {
   if (!ctx.company) return { cards: [], issues: [], handled: [] };
   const cid = ctx.company.id;
-  const [attention, issues, answers, hires] = await Promise.all([
+  const [attention, issues, answers, hires, notices] = await Promise.all([
     pc.get<{ items: AttentionItem[] }>(`/companies/${cid}/attention`),
     pc.get<Issue[]>(`/companies/${cid}/issues`),
     as.get<Answer[]>(`/answers?companyId=${cid}`),
     as.get<HireRequest[]>(`/hire-requests?status=pending`).catch(() => [] as HireRequest[]),
+    loadNotices(cid),
   ]);
   const items = list<AttentionItem>(attention);
 
@@ -50,7 +66,7 @@ export async function loadFeed(ctx: Context): Promise<Feed> {
     answers: list<Answer>(answers),
     departmentOfProject: deptOfProject,
   });
-  const cards = sortCards([...hireCards(list<HireRequest>(hires)), ...built]);
+  const cards = sortCards([...hireCards(list<HireRequest>(hires)), ...noticeCards(notices, ctx.agents, issueList), ...built]);
   const handled = buildCards({
     attention: [],
     interactions: {},
@@ -91,6 +107,11 @@ export async function act(card: Card, optionId: string, extra?: { comment?: stri
       return as.post(`/answers/${s.answerId}/dismiss`);
     case "run":
       return dismiss(card);
+    case "notice": {
+      const id = await teamLayer();
+      if (!id) throw new Error("没有找到 team-layer 插件");
+      return pc.post(`/plugins/${id}/actions/notice-dismiss`, { companyId: s.companyId, params: { companyId: s.companyId, id: s.noticeId } });
+    }
   }
 }
 
