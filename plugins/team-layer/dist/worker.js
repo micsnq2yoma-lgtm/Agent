@@ -55,6 +55,23 @@ var TIER_TABLE = {
 function tierOf(kind) {
   return TIER_TABLE[kind];
 }
+var recentTransitions = /* @__PURE__ */ new Map();
+var seenEventIds = /* @__PURE__ */ new Set();
+function isDuplicateTransition(eventId, issueId, payload, now = Date.now()) {
+  if (eventId) {
+    if (seenEventIds.has(eventId)) return true;
+    seenEventIds.add(eventId);
+    if (seenEventIds.size > 2e3) seenEventIds.clear();
+  }
+  const prev = payload._previous?.status;
+  const next = payload.status;
+  if (!prev || !next || prev === next) return false;
+  const k = `${issueId}:${prev}>${next}`;
+  const last = recentTransitions.get(k);
+  recentTransitions.set(k, now);
+  if (recentTransitions.size > 2e3) recentTransitions.clear();
+  return last !== void 0 && now - last < 1e3;
+}
 
 // src/store.ts
 function dueReminders(list, now) {
@@ -411,6 +428,13 @@ async function onIssueCreated(ctx, companyId, issueId, actor) {
     options: ["\u653E\u884C\u8FD9\u4E2A\u4EFB\u52A1", "\u53D6\u6D88\u8FD9\u4E2A\u4EFB\u52A1", "\u505C\u6B62\u7EE7\u7EED\u62C6\u5206\uFF0C\u5148\u6C47\u603B"]
   });
 }
+var issueQueues = /* @__PURE__ */ new Map();
+function serialize(key, fn) {
+  const run = (issueQueues.get(key) ?? Promise.resolve()).then(fn, fn);
+  issueQueues.set(key, run.catch(() => {
+  }));
+  return run;
+}
 async function onIssueUpdated(ctx, companyId, issueId, payload, actor) {
   const prev = payload._previous?.status;
   const next = payload.status;
@@ -459,8 +483,11 @@ var plugin = definePlugin({
     });
     ctx.events.on("issue.updated", async (e) => {
       if (!e.entityId) return;
+      const payload = e.payload ?? {};
+      if (isDuplicateTransition(e.eventId, e.entityId, payload)) return;
       try {
-        await onIssueUpdated(ctx, e.companyId, e.entityId, e.payload ?? {}, { id: e.actorId, type: e.actorType });
+        const id = e.entityId;
+        await serialize(id, () => onIssueUpdated(ctx, e.companyId, id, payload, { id: e.actorId, type: e.actorType }));
       } catch (err) {
         ctx.logger.error("issue.updated handler failed", { err: String(err) });
       }

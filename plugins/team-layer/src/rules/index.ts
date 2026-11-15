@@ -149,3 +149,22 @@ const TIER_ORDER: Record<Tier, number> = { high: 0, medium: 1, low: 2 };
 export function sortFeed<T extends { tier: Tier; createdAt: string }>(items: T[]): T[] {
   return [...items].sort((a, b) => TIER_ORDER[a.tier] - TIER_ORDER[b.tier] || Date.parse(b.createdAt) - Date.parse(a.createdAt));
 }
+
+/* Duplicate event delivery                                            */
+const recentTransitions = new Map<string, number>();
+const seenEventIds = new Set<string>();
+export function isDuplicateTransition(eventId: string | undefined, issueId: string, payload: Record<string, unknown>, now = Date.now()): boolean {
+  if (eventId) {
+    if (seenEventIds.has(eventId)) return true;
+    seenEventIds.add(eventId);
+    if (seenEventIds.size > 2000) seenEventIds.clear();
+  }
+  const prev = (payload._previous as { status?: string } | undefined)?.status;
+  const next = payload.status as string | undefined;
+  if (!prev || !next || prev === next) return false;
+  const k = `${issueId}:${prev}>${next}`;
+  const last = recentTransitions.get(k);
+  recentTransitions.set(k, now);
+  if (recentTransitions.size > 2000) recentTransitions.clear();
+  return last !== undefined && now - last < 1000;
+}

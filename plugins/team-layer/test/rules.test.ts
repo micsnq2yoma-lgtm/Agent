@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
+import { isDuplicateTransition,
   applyRework,
   checkHop,
   gateOpen,
@@ -144,5 +144,21 @@ describe("three-tier classification (PLAN 4.3)", () => {
       { id: "d", tier: "medium" as const, createdAt: "2026-11-14T11:00:00Z" },
     ]);
     expect(sorted.map((x) => x.id)).toEqual(["c", "b", "d", "a"]);
+  });
+});
+
+describe("duplicate issue.updated delivery", () => {
+  const p = { status: "todo", _previous: { status: "in_review" } };
+  it("drops a repeated event id", () => {
+    expect(isDuplicateTransition("ev-a", "i-1", p, 0)).toBe(false);
+    expect(isDuplicateTransition("ev-a", "i-1", p, 5000)).toBe(true);
+  });
+  it("drops the same transition within 1s even with a new id", () => {
+    expect(isDuplicateTransition("ev-b", "i-2", p, 10_000)).toBe(false);
+    expect(isDuplicateTransition("ev-c", "i-2", p, 10_200)).toBe(true);
+  });
+  it("keeps a genuine repeat after 1s", () => {
+    expect(isDuplicateTransition("ev-d", "i-3", p, 20_000)).toBe(false);
+    expect(isDuplicateTransition("ev-e", "i-3", p, 22_500)).toBe(false);
   });
 });

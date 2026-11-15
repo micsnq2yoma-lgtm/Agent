@@ -1,7 +1,7 @@
 // team-layer worker: wires the pure rules (./rules) to Paperclip events, state and tools.
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
 import type { FeedMessage } from "@agentself/shared";
-import { applyRework, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
+import { applyRework, isDuplicateTransition, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
 import { addNotice, dueReminders, type Reminder } from "./store.js";
 import path from "node:path";
 import { appendRunLog, consolidate, logLine, runClaudeJson, shouldConsolidate, weeklyArchive } from "./memory-jobs.js";
@@ -203,6 +203,16 @@ async function onIssueCreated(ctx: Ctx, companyId: string, issueId: string, acto
   });
 }
 
+// Paperclip can deliver the same issue.updated twice (seen in p1-rules: two handlers
+// ran concurrently and counted one rework as two). Dedupe by event id and by an
+// identical transition on the same issue within 1s, and serialize per issue.
+const issueQueues = new Map<string, Promise<unknown>>();
+function serialize<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const run = (issueQueues.get(key) ?? Promise.resolve()).then(fn, fn);
+  issueQueues.set(key, run.catch(() => {}));
+  return run;
+}
+
 async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payload: Record<string, unknown>, actor: { id?: string; type?: string }) {
   const prev = (payload._previous as { status?: IssueStatus } | undefined)?.status;
   const next = payload.status as IssueStatus | undefined;
@@ -260,8 +270,11 @@ const plugin = definePlugin({
 
     ctx.events.on("issue.updated", async (e) => {
       if (!e.entityId) return;
+      const payload = (e.payload ?? {}) as Record<string, unknown>;
+      if (isDuplicateTransition(e.eventId, e.entityId, payload)) return;
       try {
-        await onIssueUpdated(ctx, e.companyId, e.entityId, (e.payload ?? {}) as Record<string, unknown>, { id: e.actorId, type: e.actorType });
+        const id = e.entityId;
+        await serialize(id, () => onIssueUpdated(ctx, e.companyId, id, payload, { id: e.actorId, type: e.actorType }));
       } catch (err) {
         ctx.logger.error("issue.updated handler failed", { err: String(err) });
       }

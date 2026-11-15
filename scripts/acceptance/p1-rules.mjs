@@ -24,10 +24,10 @@ async function waitFor(fn, ms = 20_000) {
   return null;
 }
 
-// (a) rework x3
+// (a) rework x2 (plan B: 2nd send-back asks the user)
 const parent = await api("POST", `/companies/${companyId}/issues`, { title: "[验收] 返工计数-父", projectId, status: "backlog" });
 const child = await api("POST", `/companies/${companyId}/issues`, { title: "[验收] 返工计数-子", projectId, parentId: parent.id, status: "backlog" });
-for (let i = 1; i <= 3; i++) {
+for (let i = 1; i <= 2; i++) {
   await api("PATCH", `/issues/${child.id}`, { status: "in_review" });
   await sleep(800);
   await api("PATCH", `/issues/${child.id}`, { status: "todo" });
@@ -64,7 +64,7 @@ results.hop = { card: !!hopCard, title: hopCard?.title, l9Status: l9After.status
 console.log("hop card:", JSON.stringify(results.hop));
 
 const pass =
-  results.rework1Cards === 0 && results.rework2Cards === 0 && results.rework.card && results.rework.childStatus === "blocked" &&
+  results.rework1Cards === 0 && results.rework.card && results.rework.childStatus === "blocked" &&
   results.hop.card && results.hop.l9Status === "blocked" && results.hop.l8Status !== "blocked";
 console.log("RESULT", pass ? "PASS" : "FAIL", JSON.stringify(results));
 
