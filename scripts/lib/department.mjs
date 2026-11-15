@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { api as defaultApi, ensureCompany as defaultEnsureCompany, list } from "./paperclip.mjs";
-import { ensureMemoryEntry, initMemory } from "./memory.mjs";
+import { initMemory, memoryGuide, removeMemoryEntry } from "./memory.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -16,92 +16,130 @@ export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.ho
 export const DEFAULT_LEAD_MODEL = "claude-opus-5-5";
 
 const SKILL_DIRS = { "agentself-lead": "lead", "agentself-employee": "employee", "agentself-memory": "memory" };
-// Leads get their skill through CLAUDE.md (@.agentself/lead-skill.md): Paperclip-mounted skills did not
-// load for CLI-engine runs ("Unknown skill"), and the lead must not depend on that.
+// Skills reach agents through their instructions file (see writeAgentRuntime): Paperclip-mounted
+// skills did not load on the CLI engine ("Unknown skill"), so nothing depends on them any more.
 const LEAD_SKILLS = [];
-const EMPLOYEE_SKILLS = ["agentself-employee", "agentself-memory"];
+const EMPLOYEE_SKILLS = [];
 
 /**
  * Super-Agent's lesson: "the lead does not do the work" must be enforced by the architecture, not by a
  * prompt. A lead's Claude Code gets only what managing needs: the Agentself team MCP server (every
- * Paperclip action a lead takes: read tasks, write briefs and reports, delegate, comment, ask the user,
- * criteria, verification, hiring proposals, decisions), reading files and the web, and editing its own
- * memory/. No shell of any kind (Bash or Windows PowerShell), no general file writes, no subagents.
- * Without --dangerously-skip-permissions, anything outside the allow list is denied in non-interactive
- * runs, and the deny list wins over any allow rule from other settings files. Only the CLI engine
- * honours these flags.
+ * Paperclip action a lead takes), reading files and the web, and editing its own memory. No shell of any
+ * kind (Bash or Windows PowerShell), no general file writes, no subagents. Without
+ * --dangerously-skip-permissions, anything outside the allow list is denied in non-interactive runs,
+ * and the deny list wins over any allow rule from settings files.
+ *
+ * P1 on Windows taught the second rule: Paperclip runs a child task in its parent's execution
+ * workspace, so an employee can run in its lead's directory. Everything that belongs to an agent rides
+ * on the agent's own config, never on a working directory: identity, skill and memory location go in
+ * `instructionsFilePath` (injected into every run), permissions and the MCP server in CLI args. Both
+ * only work on the CLI engine (the ACP engine ignores them), so every Claude agent runs on CLI.
  */
 export const LEAD_TOOLS = {
-  allowed: ["mcp__agentself", "Read", "Grep", "Glob", "WebSearch", "WebFetch", "Edit(memory/**)", "Write(memory/**)"],
+  allowed: ["mcp__agentself", "Read", "Grep", "Glob", "WebSearch", "WebFetch"],
   disallowed: ["Bash", "PowerShell", "Task", "Agent", "NotebookEdit"],
 };
 
 export const TEAM_MCP_SERVER = path.join(repoRoot, "apps", "console", "server", "mcp-team.mjs");
 
-export function leadAdapterConfig({ cwd, model, workspacesDir }) {
-  return {
-    cwd,
-    model: model || DEFAULT_LEAD_MODEL,
-    engine: "cli",
-    dangerouslySkipPermissions: false,
-    extraArgs: [
-      "--allowedTools",
-      LEAD_TOOLS.allowed.join(","),
-      "--disallowedTools",
-      LEAD_TOOLS.disallowed.join(","),
-      "--mcp-config",
-      path.join(cwd, ".agentself", "mcp.json"),
-      "--add-dir",
-      workspacesDir,
-    ],
-  };
+/** Claude Code permission rule for an absolute path: "//abs/path", Windows drives as "//c/Users/…". */
+export function absPathRule(tool, dir) {
+  const posix = dir.split(path.sep).join("/").replace(/\\/g, "/");
+  const win = posix.match(/^([A-Za-z]):\/(.*)$/);
+  const p = win ? `/${win[1].toLowerCase()}/${win[2]}` : posix;
+  return `${tool}(/${p.replace(/\/+$/, "")}/**)`;
+}
+
+const runtimeDir = (cwd) => path.join(cwd, ".agentself");
+export const instructionsPath = (cwd) => path.join(runtimeDir(cwd), "instructions.md");
+const mcpConfigPath = (cwd) => path.join(runtimeDir(cwd), "mcp.json");
+
+/** Adapter config for one agent. `cwd` is the agent's own home directory (its memory lives there). */
+export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, model, workspacesDir }) {
+  const base = { cwd, instructionsFilePath: instructionsPath(cwd), ...(model ? { model } : {}) };
+  if (role === "lead") {
+    const mem = path.join(cwd, "memory");
+    return {
+      ...base,
+      model: model || DEFAULT_LEAD_MODEL,
+      engine: "cli",
+      dangerouslySkipPermissions: false,
+      extraArgs: [
+        "--allowedTools",
+        [...LEAD_TOOLS.allowed, absPathRule("Edit", mem), absPathRule("Write", mem)].join(","),
+        "--disallowedTools",
+        LEAD_TOOLS.disallowed.join(","),
+        "--mcp-config",
+        mcpConfigPath(cwd),
+        "--add-dir",
+        workspacesDir,
+      ],
+    };
+  }
+  // Employees keep every tool. Claude employees also get the team MCP server (employee role), so they
+  // need no curl on Windows; Codex employees only get the instructions file (no MCP flag in Paperclip).
+  if (adapterType === "claude_local") return { ...base, engine: "cli", extraArgs: ["--mcp-config", mcpConfigPath(cwd), "--add-dir", cwd] };
+  return base;
 }
 
 const stripFrontmatter = (md) => md.replace(/^---\n[\s\S]*?\n---\n+/, "");
+const skillText = (dir) => stripFrontmatter(fs.readFileSync(path.join(repoRoot, "skills", dir, "SKILL.md"), "utf8"));
+const profilePaths = (home) => Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, profilePath(home, k).split(path.sep).join("/")]));
 
 /**
- * Files a lead's Claude Code reads from its workspace. Rewritten on every sync so skill and tool updates
- * reach existing leads:
- *  - .agentself/mcp.json: the team MCP server (absolute node + script paths)
- *  - .agentself/lead-skill.md: the lead skill, imported by CLAUDE.md
- *  - .claude/settings.local.json: owned by Agentself; a stale one once widened the allow list
- *    (Claude Code merges it with --allowedTools). The previous file is kept as .bak.
+ * Write the agent's runtime files into its own home directory (rewritten on every sync, so skill and
+ * tool updates reach existing agents):
+ *  - .agentself/instructions.md: skill + memory guide with absolute paths (adapter instructionsFilePath)
+ *  - .agentself/mcp.json: the team MCP server for Claude agents
+ * and clean up what older versions left in the directory: the identity block in CLAUDE.md / AGENTS.md,
+ * and for leads a .claude/settings.local.json that widened or (later) narrowed permissions for whoever
+ * runs there. The replaced settings file is kept as .bak.
  */
-export function writeLeadRuntimeFiles(cwd, { nodePath = process.execPath } = {}) {
-  const dir = path.join(cwd, ".agentself");
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, "mcp.json"), JSON.stringify({ mcpServers: { agentself: { command: nodePath, args: [TEAM_MCP_SERVER, "--role=lead"] } } }, null, 2));
-  fs.writeFileSync(path.join(dir, "lead-skill.md"), stripFrontmatter(fs.readFileSync(path.join(repoRoot, "skills", "lead", "SKILL.md"), "utf8")));
-  const claudeDir = path.join(cwd, ".claude");
-  fs.mkdirSync(claudeDir, { recursive: true });
-  const local = path.join(claudeDir, "settings.local.json");
-  const ours = JSON.stringify({ _agentself: "managed by Agentself; edits are overwritten", permissions: { allow: ["mcp__agentself"], deny: LEAD_TOOLS.disallowed } }, null, 2);
-  if (fs.existsSync(local)) {
-    const old = fs.readFileSync(local, "utf8");
-    if (old !== ours && !old.includes('"_agentself"')) fs.writeFileSync(`${local}.bak`, old);
+export function writeAgentRuntime(cwd, { role, adapterType = "claude_local", home = agentselfHome(), nodePath = process.execPath }) {
+  fs.mkdirSync(runtimeDir(cwd), { recursive: true });
+  const memDir = path.join(cwd, "memory");
+  const skills = role === "lead" ? [skillText("lead")] : [skillText("employee")];
+  const head =
+    role === "lead"
+      ? "以下是你作为主管的全部工作说明。它随你的身份配置注入，不依赖你在哪个目录里运行。"
+      : "以下是你作为员工的全部工作说明。它随你的身份配置注入，不依赖你在哪个目录里运行。";
+  fs.writeFileSync(instructionsPath(cwd), `<!-- generated by Agentself; edits are overwritten -->\n${head}\n\n${memoryGuide({ role, memDir, profile: profilePaths(home) })}\n${skills.join("\n\n")}`);
+  if (adapterType === "claude_local") {
+    fs.writeFileSync(mcpConfigPath(cwd), JSON.stringify({ mcpServers: { agentself: { command: nodePath, args: [TEAM_MCP_SERVER, `--role=${role === "lead" ? "lead" : "employee"}`] } } }, null, 2));
   }
-  fs.writeFileSync(local, ours);
+  removeMemoryEntry(cwd);
+  for (const stale of ["lead-skill.md"]) fs.rmSync(path.join(runtimeDir(cwd), stale), { force: true });
+  if (role === "lead") {
+    const local = path.join(cwd, ".claude", "settings.local.json");
+    const neutral = JSON.stringify({ _agentself: "managed by Agentself: permissions live in the agent's own config, not in this directory" }, null, 2);
+    if (fs.existsSync(local)) {
+      const old = fs.readFileSync(local, "utf8");
+      if (!old.includes('"_agentself"')) fs.writeFileSync(`${local}.bak`, old);
+      fs.writeFileSync(local, neutral);
+    }
+  }
 }
 
-/** Bring an existing lead up to date: runtime files, CLAUDE.md block and adapter config. */
-export async function syncLeadRuntime(agent, { api = defaultApi, workspacesDir = path.join(agentselfHome(), "workspaces"), log = console.log } = {}) {
+/** Bring an existing Agentself agent (lead or employee) up to date: runtime files and adapter config. */
+export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir = path.join(agentselfHome(), "workspaces"), log = console.log } = {}) {
+  const meta = agent.metadata?.agentself;
   const cwd = agent.adapterConfig?.cwd;
-  if (!cwd || !agent.metadata?.agentself?.isLead) return false;
+  if (!meta || !cwd) return false;
+  const role = meta.isLead ? "lead" : "employee";
   fs.mkdirSync(cwd, { recursive: true });
   const home = agentselfHome();
   ensureProfile(home);
-  writeLeadRuntimeFiles(cwd);
-  ensureMemoryEntry(cwd, { role: "lead", profile: profileRefs(home) });
-  const want = leadAdapterConfig({ cwd, model: agent.adapterConfig?.model, workspacesDir });
+  writeAgentRuntime(cwd, { role, adapterType: agent.adapterType, home });
+  const want = agentAdapterConfig({ role, adapterType: agent.adapterType, cwd, model: agent.adapterConfig?.model, workspacesDir });
   const cur = agent.adapterConfig ?? {};
   if (JSON.stringify({ ...cur, ...want }) !== JSON.stringify(cur)) {
     await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...cur, ...want } });
-    log(`lead ${agent.name}: runtime updated`);
+    log(`${role} ${agent.name}: runtime updated`);
   }
   return true;
 }
-
-const profileRefs = (home) => Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
+/** @deprecated kept for callers of the previous release */
+export const syncLeadRuntime = syncAgentRuntime;
 
 export function validatePack(pack) {
   const errs = [];
@@ -138,7 +176,6 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
   const home = agentselfHome();
   const workspacesDir = path.join(home, "workspaces");
   ensureProfile(home);
-  const profile = Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
   const company = await ensureCompany(companyName);
   log(`company ${company.name} ${company.id}`);
 
@@ -174,7 +211,6 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     fs.mkdirSync(cwd, { recursive: true });
     initMemory(cwd, {
       role: isLead ? "lead" : "employee",
-      profile,
       name: member.name,
       title: member.title ?? (isLead ? "主管" : ""),
       department: pack.name,
@@ -182,9 +218,9 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
       capabilities: member.capabilities ?? "",
       identity: member.identity ?? "",
     });
-    const adapterConfig = isLead
-      ? leadAdapterConfig({ cwd, model: member.model, workspacesDir })
-      : { cwd, ...(member.model ? { model: member.model } : {}) };
+    const role = isLead ? "lead" : "employee";
+    writeAgentRuntime(cwd, { role, adapterType: member.adapterType, home });
+    const adapterConfig = agentAdapterConfig({ role, adapterType: member.adapterType, cwd, model: member.model, workspacesDir });
     const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id } };
     let agent = agents.find((a) => a.metadata?.agentself?.department === deptKey && a.metadata?.agentself?.memberKey === member.key);
     if (!agent) {
@@ -205,7 +241,10 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     } else {
       await api("POST", `/agents/${agent.id}/skills/sync`, { mode: "add", desiredSkills: skillsFor(isLead) }).catch((e) => log(`skills sync skipped: ${String(e).slice(0, 120)}`));
     }
-    if (isLead) await syncLeadRuntime({ ...agent, adapterConfig: { ...(agent.adapterConfig ?? {}), cwd } }, { api, workspacesDir, log }).catch((e) => log(`lead runtime sync skipped: ${String(e).slice(0, 160)}`));
+    // Existing agents (re-running setup) get the current runtime config too.
+    await syncAgentRuntime({ ...agent, adapterType: agent.adapterType ?? member.adapterType, metadata: agent.metadata ?? metadata, adapterConfig: { ...(agent.adapterConfig ?? {}), cwd } }, { api, workspacesDir, log }).catch((e) =>
+      log(`runtime sync skipped for ${member.name}: ${String(e).slice(0, 160)}`),
+    );
     log(`${isLead ? "lead" : "agent"} ${member.name} (${member.adapterType}) ${agent.id}`);
     return agent;
   }
@@ -287,15 +326,12 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
   const companyId = lead.companyId;
   const home = agentselfHome();
   ensureProfile(home);
-  const profile = Object.fromEntries(["user", "decisions", "declined", "askfirst"].map((k) => [k, importRef(profilePath(home, k))]));
-  const skills = list(await api("GET", `/companies/${companyId}/skills`));
-  const desiredSkills = EMPLOYEE_SKILLS.map((n) => skills.find((s) => s.slug === n || s.name === n)).filter(Boolean).map((s) => s.key ?? s.slug);
+  const desiredSkills = [];
   const memberKey = `${slugKey(name).replace(/^team-/, "m-")}-${Date.now().toString(36)}`;
   const cwd = path.join(home, "workspaces", m.department, memberKey);
   fs.mkdirSync(cwd, { recursive: true });
   initMemory(cwd, {
     role: "employee",
-    profile,
     name,
     title: member.title ?? "",
     department: m.departmentName ?? m.department,
@@ -311,7 +347,7 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
     reportsTo: lead.id,
     capabilities: member.capabilities ?? null,
     adapterType,
-    adapterConfig: { cwd, ...(member.model ? { model: member.model } : {}) },
+    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), agentAdapterConfig({ role: "employee", adapterType, cwd, model: member.model, workspacesDir: path.join(home, "workspaces") })),
     budgetMonthlyCents: member.budgetMonthlyCents ?? 0,
     permissions: { canCreateAgents: false },
     desiredSkills,

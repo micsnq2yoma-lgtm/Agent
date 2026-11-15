@@ -38,99 +38,77 @@ export function commitMemory(cwd, message) {
 
 const ENTRY_MARK = "<!-- agentself:memory -->";
 
-const WRITE_BACK = `## 收工前写回记忆
-- 用户明确表达的偏好 → 追加到 memory/user.md
-- 以后还用得上的经验 → 追加到 memory/notes.md（一条一行，"- " 开头）
-- 某个主题的详细资料 → memory/topics/<主题>.md
-- 不要写密钥、令牌、密码；不要改 identity.md 和 style.md（有建议写在交付评论里）`;
+/**
+ * Plan B fix (P1 on Windows): Paperclip runs a child task in its parent's execution workspace, so an
+ * employee can run in its lead's directory. Nothing that belongs to an agent may live in a working
+ * directory: identity, skill, memory location and permissions all ride on the agent's own config
+ * (instructionsFilePath + CLI args, see scripts/lib/department.mjs). This builds the memory part of
+ * that instructions file, with absolute paths so it works from any working directory.
+ *
+ * `profile` = absolute paths of the user's global profile files (see profile.mjs).
+ */
+export function memoryGuide({ role = "employee", memDir, profile = null }) {
+  const p = (f) => path.join(memDir, f).split(path.sep).join("/");
+  const isLead = role === "lead";
+  const prof = profile
+    ? `## 用户的全局档案（所有主管和员工共用，开工先读）
 
-const LEAD_WRITE_BACK = `## 收工前写回记忆
-- 这个领域里关于用户的了解、派活和验收的经验 → 追加到 memory/notes.md（一条一行，"- " 开头）
-- 某个主题的长期背景 → memory/topics/<主题>.md
-- 用户在卡片里说"以后都这样"的决定、明确拒绝的做法 → 不要写进自己的记忆，按主管技能里的方法记进全局决定记录
-- 不要写密钥、令牌、密码；不要改 identity.md 和 style.md`;
+- 关于用户：\`${profile.user}\`
+- 用户定过的事（必须照做，不要再问）：\`${profile.decisions}\`
+- 用户拒绝过的事（不要再提）：\`${profile.declined}\`
+- 先问清单（这些情况必须先停下来问）：\`${profile.askfirst}\`
+
+`
+    : "";
+  const writeBack = isLead
+    ? `- 这个领域里关于用户的了解、派活和验收的经验 → 追加到 \`${p("notes.md")}\`（一条一行，"- " 开头）
+- 某个主题的长期背景 → \`${p("topics")}/<主题>.md\`
+- 用户说"以后都这样"的决定、明确拒绝的做法 → 不要写进自己的记忆，用 record_decision 记进全局档案`
+    : `- 用户明确表达的偏好 → 追加到 \`${p("user.md")}\`
+- 以后还用得上的经验 → 追加到 \`${p("notes.md")}\`（一条一行，"- " 开头）
+- 某个主题的详细资料 → \`${p("topics")}/<主题>.md\``;
+  return `${prof}## 你自己的记忆（开工先读，收工写回）
+
+你的记忆目录是 \`${memDir.split(path.sep).join("/")}\`。它**不一定是你现在的工作目录**：任务可能在别的目录里运行，记忆一律用下面的绝对路径读写。
+
+每次开工先读：
+
+1. \`${p("identity.md")}\`：你是谁、负责什么、向谁汇报
+2. \`${p("style.md")}\`：用户要求的工作方式（必须遵守）
+3. \`${p("user.md")}\`：你了解到的用户偏好
+4. \`${p("notes.md")}\`：以往经验
+
+和任务相关的详细资料在 \`${p("topics")}/\` 下，按需读取。交付时一句话说明用到了哪条记忆。
+
+收工前写回：
+
+${writeBack}
+- 不要写密钥、令牌、密码；不要改 identity.md 和 style.md（有建议写在评论里）
+`;
+}
+
+const ENTRY_RE = new RegExp(`${ENTRY_MARK}[\\s\\S]*?${ENTRY_MARK}\\n?`);
 
 /**
- * Workspace entry files that make memory load automatically:
- *  - CLAUDE.md (Claude Code reads it from the cwd and resolves @imports)
- *  - AGENTS.md (Codex reads it from the cwd; no imports, so it tells the agent what to read)
- * Existing user content is kept; our block is replaced between markers.
- *
- * `profile` (optional) = { user, decisions, declined } import refs of the user's global profile
- * (see profile.mjs). Leads must follow all three; employees get them as background.
+ * Remove the identity / memory block that older versions wrote into a workspace's CLAUDE.md and
+ * AGENTS.md. Whoever runs in that directory (an employee in its lead's workspace) would otherwise
+ * read another agent's identity. The user's own content in those files is kept.
  */
-export function ensureMemoryEntry(cwd, { role = "employee", profile = null } = {}) {
-  const isLead = role === "lead";
-  const profileClaude = profile
-    ? `## 关于用户（全局，所有主管和员工共用）
-
-@${profile.user}
-@${profile.decisions}
-@${profile.declined}
-${profile.askfirst ? `@${profile.askfirst}\n` : ""}
-"我定过的事"必须照做，不要再问；"我拒绝过的事"不要再提；"先问清单"里的情况必须先停下来问。
-
-`
-    : "";
-  const profileCodex = profile
-    ? `先读用户的全局档案（所有人共用）："${profile.user}"（关于用户）、"${profile.decisions}"（用户定过的事，必须照做，不要再问）、"${profile.declined}"（用户拒绝过的事，不要再提）${profile.askfirst ? `、"${profile.askfirst}"（先问清单：这些情况必须先停下来问）` : ""}。
-
-`
-    : "";
-  const leadSkill = isLead
-    ? `## 你的工作方式（主管技能，必须遵守）
-
-@.agentself/lead-skill.md
-
-`
-    : "";
-  const claude = `${ENTRY_MARK}
-# 你的长期记忆（自动加载，必须遵守）
-
-${leadSkill}${profileClaude}## 你自己的记忆
-
-以下是你的身份、用户要求的工作方式、用户偏好和以往经验。**每次任务都要照做**；交付时一句话说明用到了哪条。
-
-@memory/identity.md
-@memory/style.md
-@memory/user.md
-@memory/notes.md
-
-和任务相关的详细资料在 memory/topics/ 下，按需读取。
-
-${isLead ? LEAD_WRITE_BACK : WRITE_BACK}
-${ENTRY_MARK}
-`;
-  const codex = `${ENTRY_MARK}
-# 你的长期记忆（必须先读，必须遵守）
-
-${profileCodex}开始任何任务前，先完整读取下面四个文件，并在本次任务里遵守其中的偏好和经验；交付时一句话说明用到了哪条：
-
-1. memory/identity.md — 你是谁、负责哪个领域
-2. memory/style.md — 用户要求的工作方式
-3. memory/user.md — 用户偏好（例如交付格式）
-4. memory/notes.md — 以往经验
-
-和任务相关的详细资料在 memory/topics/ 下，按需读取。
-
-${isLead ? LEAD_WRITE_BACK : WRITE_BACK}
-${ENTRY_MARK}
-`;
-  for (const [file, block] of [
-    ["CLAUDE.md", claude],
-    ["AGENTS.md", codex],
-  ]) {
-    const p = path.join(cwd, file);
-    const old = fs.existsSync(p) ? fs.readFileSync(p, "utf8") : "";
-    const re = new RegExp(`${ENTRY_MARK}[\\s\\S]*?${ENTRY_MARK}\\n?`);
-    const next = re.test(old) ? old.replace(re, block) : (old ? `${old.trimEnd()}\n\n` : "") + block;
-    if (next !== old) fs.writeFileSync(p, next);
+export function removeMemoryEntry(cwd) {
+  for (const file of ["CLAUDE.md", "AGENTS.md"]) {
+    const f = path.join(cwd, file);
+    if (!fs.existsSync(f)) continue;
+    const old = fs.readFileSync(f, "utf8");
+    if (!ENTRY_RE.test(old)) continue;
+    const next = old.replace(ENTRY_RE, "").trim();
+    if (next) fs.writeFileSync(f, `${next}\n`);
+    else fs.rmSync(f);
   }
 }
 
-/** info.role: "lead" | "employee"; info.profile: import refs of the global profile (optional). */
+/** Create the memory files (never overwrites) and drop any identity block an older version left in the cwd. */
 export function initMemory(cwd, info) {
-  ensureMemoryEntry(cwd, { role: info.role, profile: info.profile ?? null });
+  removeMemoryEntry(cwd);
   const dir = memoryDir(cwd);
   for (const sub of ["topics", "log", "archive"]) fs.mkdirSync(path.join(dir, sub), { recursive: true });
   const write = (f, text) => {

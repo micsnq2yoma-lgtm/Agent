@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
-import { addEmployee, createDepartment, listTemplates, readTemplate, syncLeadRuntime } from "../../../scripts/lib/department.mjs";
+import { addEmployee, createDepartment, listTemplates, readTemplate, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
@@ -179,16 +179,16 @@ async function frontdesk(body) {
   };
 }
 
-/* ---------------- lead runtime sync ---------------- */
-/** Rewrite every lead's MCP config, skill file, settings and adapter config (picks up skill / tool updates). */
-export async function syncAllLeads(log = console.log) {
+/* ---------------- agent runtime sync ---------------- */
+/** Rewrite every Agentself agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
+export async function syncAllAgents(log = console.log) {
   const ctx = await loadContext();
   let n = 0;
-  for (const a of ctx.agents.filter((x) => x.metadata?.agentself?.isLead)) {
+  for (const a of ctx.agents.filter((x) => x.metadata?.agentself && x.status !== "terminated")) {
     try {
-      if (await syncLeadRuntime(a, { api: pc, log })) n++;
+      if (await syncAgentRuntime(a, { api: pc, log })) n++;
     } catch (e) {
-      log(`lead ${a.name} sync failed: ${e instanceof Error ? e.message : e}`);
+      log(`agent ${a.name} sync failed: ${e instanceof Error ? e.message : e}`);
     }
   }
   return n;
@@ -297,7 +297,7 @@ async function handleAgentself(req, res, url) {
     return send(res, 200, appendDecision(HOME, { kind: body.kind, text: body.text, scope: body.scope, source: body.source }));
   }
   if (req.method === "GET" && p === "/profile") return send(res, 200, { files: PROFILE_FILES });
-  if (req.method === "POST" && p === "/leads/sync") return send(res, 200, { synced: await syncAllLeads(() => {}) });
+  if (req.method === "POST" && (p === "/agents/sync" || p === "/leads/sync")) return send(res, 200, { synced: await syncAllAgents(() => {}) });
   if (req.method === "GET" && p === "/profile/proposals") {
     const status = url.searchParams.get("status");
     return send(res, 200, listProposals(HOME).filter((x) => !status || x.status === status));
@@ -439,10 +439,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   createServer().listen(PORT, HOST, () => {
     console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
-    // Paperclip may still be starting; retry the lead sync a few times.
+    // Paperclip may still be starting; retry the sync a few times.
     const trySync = (left) =>
-      syncAllLeads()
-        .then((n) => console.log(`synced ${n} lead runtime(s)`))
+      syncAllAgents()
+        .then((n) => console.log(`synced ${n} agent runtime(s)`))
         .catch(() => left > 0 && setTimeout(() => trySync(left - 1), 15_000));
     trySync(8);
   });
