@@ -3,7 +3,7 @@
 // (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
 // Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
 // /agentself/api/* here, so it listens on loopback only and serves no UI.
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -12,7 +12,8 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
-import { addEmployee, createDepartment, listTemplates, readTemplate, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
+import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
+import { listProviders, removeProvider, saveProvider, sourceLabel, sourceOf } from "../../../scripts/lib/providers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
@@ -211,6 +212,72 @@ function logRoute(text, raw, r) {
   }
 }
 
+/* ---------------- models: subscriptions and API providers ---------------- */
+/** Which subscription CLIs this machine has (version only; login state is the CLI's business). */
+function subscriptionStatus() {
+  const v = (cmd) => {
+    const r = spawnSync(cmd, ["--version"], { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10_000 });
+    return r.status === 0 ? (r.stdout || r.stderr).trim().split(/\r?\n/)[0] : null;
+  };
+  return { claude: v(process.env.AGENTSELF_CLAUDE_BIN ?? "claude"), codex: v("codex") };
+}
+/** Save a provider; an API key goes into Paperclip's secret store (created once, rotated after). */
+async function putProvider(id, body) {
+  const ctx = await loadContext();
+  const cur = listProviders(HOME).find((x) => x.id === id);
+  let secretId = cur?.secretId ?? null;
+  const key = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+  if (key) {
+    if (!ctx.company) throw Object.assign(new Error("先新建一个团队，再填 API key"), { status: 409 });
+    if (secretId) await pc("POST", `/secrets/${secretId}/rotate`, { value: key });
+    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `Agentself：${body.name ?? cur?.name ?? id} 的 API key` })).id;
+  }
+  const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, ...(secretId ? { secretId } : {}) });
+  // agents on this provider pick up a new endpoint / model on their next sync
+  if (key || body.baseUrl || body.model || body.smallModel) void syncAllAgents(() => {}).catch(() => {});
+  return saved;
+}
+/** One tiny request to the provider's Anthropic-compatible endpoint with the key just typed (not stored). */
+async function testProvider(id, body) {
+  const p = listProviders(HOME).find((x) => x.id === id);
+  const baseUrl = String(body.baseUrl ?? p?.baseUrl ?? "").replace(/\/$/, "");
+  const model = body.model ?? p?.model;
+  const key = String(body.apiKey ?? "").trim();
+  if (!baseUrl || !model) throw Object.assign(new Error("缺少接口地址或模型名"), { status: 400 });
+  if (!key) throw Object.assign(new Error("测试要在这里填一次 API key（已保存的 key 在 Paperclip 密钥库里，读不出来）"), { status: 400 });
+  const t0 = Date.now();
+  const r = await fetch(`${baseUrl}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, authorization: `Bearer ${key}`, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model, max_tokens: 16, messages: [{ role: "user", content: "回复 ok" }] }),
+    signal: AbortSignal.timeout(30_000),
+  }).catch((e) => ({ ok: false, status: 0, text: async () => e.message }));
+  const text = await r.text();
+  if (!r.ok) return { ok: false, status: r.status, error: text.slice(0, 300) };
+  let reply = "";
+  try {
+    reply = (JSON.parse(text).content ?? []).map((c) => c.text ?? "").join("").trim();
+  } catch {
+    /* not JSON */
+  }
+  return { ok: true, ms: Date.now() - t0, reply: reply.slice(0, 80) };
+}
+
+/** The team-layer plugin's verifierModel (per company plugin config): read, or set when `body` is given. */
+async function verifierSetting(body) {
+  const ctx = await loadContext();
+  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer");
+  if (!plugin || !ctx.company) return { verifierModel: "sonnet", available: false };
+  const cur = (await pc("GET", `/plugins/${plugin.id}/config?companyId=${ctx.company.id}`).catch(() => null))?.configJson ?? {};
+  if (body?.verifierModel) {
+    const v = String(body.verifierModel).trim();
+    if (!/^(codex(:[\w.-]+)?|[\w.-]+)$/.test(v)) throw Object.assign(new Error("核查员模型格式不对"), { status: 400 });
+    await pc("POST", `/plugins/${plugin.id}/config`, { companyId: ctx.company.id, configJson: { ...cur, verifierModel: v } });
+    return { verifierModel: v, available: true };
+  }
+  return { verifierModel: cur.verifierModel ?? "sonnet", available: true };
+}
+
 /* ---------------- self-update (release: one install per machine) ---------------- */
 const UPDATE_SCRIPT = path.join(REPO_ROOT, "scripts", "update.mjs");
 const updateStateFile = path.join(HOME, "run", "update.json");
@@ -332,13 +399,15 @@ async function resolveHire(id, action, body) {
         name: String(body.name ?? h.name).trim() || h.name,
         capabilities: String(body.capabilities ?? h.capabilities),
         adapterType: body.adapterType ?? h.adapterType,
+        // the user can pick the model source on the approval card (Claude / Codex / an API model)
+        source: body.source ?? h.source ?? undefined,
         model: body.model ?? h.model ?? undefined,
       },
       { api: pc, log: () => {} },
     );
     h.status = "approved";
     h.agentId = agent.id;
-    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户同意了新建员工：「${agent.name}」（${agent.id}，${agent.adapterType === "codex_local" ? "Codex" : "Claude"}），负责：${agent.capabilities ?? ""}。现在可以派活给他。` }).catch(() => {});
+    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户同意了新建员工：「${agent.name}」（${agent.id}，${sourceLabel(sourceOf(agent), HOME)}），负责：${agent.capabilities ?? ""}。现在可以派活给他。` }).catch(() => {});
   } else {
     h.status = "rejected";
     h.rejectReason = String(body.reason ?? "").slice(0, 300);
@@ -505,6 +574,23 @@ async function handleAgentself(req, res, url) {
 
   /* IM (PLAN 6) */
   if (req.method === "GET" && p === "/feishu/status") return send(res, 200, { status: imStatus() });
+  /* models: Claude / Codex subscriptions, everything else over an API (per machine) */
+  if (req.method === "GET" && p === "/providers") return send(res, 200, { providers: listProviders(HOME), subscriptions: subscriptionStatus() });
+  const pvm = p.match(/^\/providers\/([\w-]+)$/);
+  if (pvm && req.method === "PUT") return send(res, 200, await putProvider(pvm[1], await readJson(req)));
+  if (pvm && req.method === "DELETE") {
+    removeProvider(HOME, pvm[1]);
+    return send(res, 200, { ok: true });
+  }
+  const pvt = p.match(/^\/providers\/([\w-]+)\/test$/);
+  if (pvt && req.method === "POST") return send(res, 200, await testProvider(pvt[1], await readJson(req)));
+  const srcm = p.match(/^\/agents\/([\w-]+)\/source$/);
+  if (srcm && req.method === "POST") {
+    const body = await readJson(req);
+    const agent = await setAgentSource(srcm[1], String(body.source ?? ""), { api: pc, log: () => {} });
+    return send(res, 200, { id: agent.id, source: sourceOf(agent), label: sourceLabel(sourceOf(agent), HOME) });
+  }
+  if (p === "/verifier" && (req.method === "GET" || req.method === "PUT")) return send(res, 200, await verifierSetting(req.method === "PUT" ? await readJson(req) : null));
   if (req.method === "GET" && p === "/update/status") {
     const check = url.searchParams.get("check") === "1" ? await checkUpdate() : null;
     return send(res, 200, { ...readUpdateState(), ...(check ? { lastCheck: check } : {}) });

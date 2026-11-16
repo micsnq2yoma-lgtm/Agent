@@ -1,0 +1,128 @@
+// Where an agent's model comes from (per machine: each install has its own subscriptions and keys).
+//   "claude"        the Claude subscription this machine's Claude Code is logged into
+//   "codex"         the Codex subscription this machine's Codex CLI is logged into
+//   "api:<id>"      any other model over its API: Claude Code pointed at the provider's
+//                   Anthropic-compatible endpoint (ANTHROPIC_BASE_URL + key), so the agent keeps the
+//                   same tools, MCP servers and instructions as a Claude agent
+// Provider settings live in ~/.agentself/providers.json; API keys are Paperclip company secrets
+// (only their ids are stored here) and reach the run as a secret_ref env binding.
+import fs from "node:fs";
+import path from "node:path";
+
+/** Anthropic-compatible endpoints. Model names change often: they are defaults the user can edit. */
+export const PROVIDER_PRESETS = [
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-chat", smallModel: "deepseek-chat", keyUrl: "https://platform.deepseek.com/api_keys" },
+  { id: "kimi", name: "Kimi（月之暗面）", baseUrl: "https://api.moonshot.cn/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", keyUrl: "https://platform.moonshot.cn/console/api-keys" },
+  { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyUrl: "https://open.bigmodel.cn/usercenter/apikeys" },
+  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/apps/anthropic", model: "qwen3-coder-plus", smallModel: "qwen3-coder-plus", keyUrl: "https://bailian.console.aliyun.com/?apiKey=1" },
+  { id: "minimax", name: "MiniMax", baseUrl: "https://api.minimaxi.com/anthropic", model: "MiniMax-M2", smallModel: "MiniMax-M2", keyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" },
+];
+
+/** Env keys this module manages on an agent; switching source removes the ones no longer wanted. */
+export const MANAGED_ENV = [
+  "ANTHROPIC_BASE_URL",
+  "ANTHROPIC_AUTH_TOKEN",
+  "ANTHROPIC_API_KEY",
+  "ANTHROPIC_MODEL",
+  "ANTHROPIC_DEFAULT_OPUS_MODEL",
+  "ANTHROPIC_DEFAULT_SONNET_MODEL",
+  "ANTHROPIC_DEFAULT_HAIKU_MODEL",
+  "ANTHROPIC_SMALL_FAST_MODEL",
+  "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC",
+];
+
+const file = (home) => path.join(home, "providers.json");
+export function readProviders(home) {
+  try {
+    const v = JSON.parse(fs.readFileSync(file(home), "utf8"));
+    return v && typeof v === "object" ? v : {};
+  } catch {
+    return {};
+  }
+}
+function writeProviders(home, all) {
+  fs.mkdirSync(home, { recursive: true });
+  fs.writeFileSync(file(home), JSON.stringify(all, null, 2));
+}
+
+const slug = (s) => String(s ?? "").trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 32);
+
+/** Presets merged with what the user saved, plus custom providers. Never includes key values. */
+export function listProviders(home) {
+  const saved = readProviders(home);
+  const out = PROVIDER_PRESETS.map((p) => ({ ...p, ...(saved[p.id] ?? {}), preset: true }));
+  for (const [id, v] of Object.entries(saved)) if (!PROVIDER_PRESETS.some((p) => p.id === id)) out.push({ id, name: v.name ?? id, ...v, preset: false });
+  return out.map(({ secretId, ...p }) => ({ ...p, hasKey: !!secretId, secretId: secretId ?? null }));
+}
+
+/** Save a provider's settings (not the key: the caller stores it as a secret and passes `secretId`). */
+export function saveProvider(home, id, patch) {
+  const key = slug(id);
+  if (!key) throw Object.assign(new Error("服务商要有一个英文 id"), { status: 400 });
+  const all = readProviders(home);
+  const preset = PROVIDER_PRESETS.find((p) => p.id === key);
+  const cur = all[key] ?? {};
+  const next = { ...cur };
+  for (const k of ["name", "baseUrl", "model", "smallModel", "secretId"]) if (patch[k] !== undefined) next[k] = typeof patch[k] === "string" ? patch[k].trim() : patch[k];
+  if (!preset && !next.baseUrl) throw Object.assign(new Error("自定义服务商要填 Anthropic 兼容接口地址"), { status: 400 });
+  if (next.baseUrl && !/^https?:\/\//.test(next.baseUrl)) throw Object.assign(new Error("接口地址要以 http(s):// 开头"), { status: 400 });
+  next.updatedAt = new Date().toISOString();
+  all[key] = next;
+  writeProviders(home, all);
+  return listProviders(home).find((p) => p.id === key);
+}
+export function removeProvider(home, id) {
+  const all = readProviders(home);
+  delete all[id];
+  writeProviders(home, all);
+}
+
+/** The agent's source as stored in its metadata; older agents follow their adapter. */
+export function sourceOf(agent) {
+  const s = agent?.metadata?.agentself?.source;
+  if (typeof s === "string" && s) return s;
+  return agent?.adapterType === "codex_local" ? "codex" : "claude";
+}
+
+/** Human label: "Claude 订阅" / "Codex 订阅" / "DeepSeek API". */
+export function sourceLabel(source, home) {
+  if (source === "codex") return "Codex 订阅";
+  if (source?.startsWith("api:")) return `${listProviders(home).find((p) => p.id === source.slice(4))?.name ?? source.slice(4)} API`;
+  return "Claude 订阅";
+}
+
+/**
+ * What an agent runs with for a source: adapter type, model and env bindings.
+ * `role` matters only for defaults (leads default to Opus on the Claude subscription).
+ */
+export function resolveSource(source, home) {
+  if (!source || source === "claude") return { adapterType: "claude_local", env: {} };
+  if (source === "codex") return { adapterType: "codex_local", env: {} };
+  if (!source.startsWith("api:")) throw Object.assign(new Error(`未知的模型来源：${source}`), { status: 400 });
+  const p = listProviders(home).find((x) => x.id === source.slice(4));
+  if (!p) throw Object.assign(new Error(`没有这个服务商：${source.slice(4)}`), { status: 400 });
+  if (!p.secretId) throw Object.assign(new Error(`${p.name} 还没有填 API key（设置 → 模型与订阅）`), { status: 400 });
+  const model = p.model || p.smallModel;
+  const small = p.smallModel || p.model;
+  return {
+    adapterType: "claude_local",
+    model,
+    env: {
+      ANTHROPIC_BASE_URL: p.baseUrl,
+      ANTHROPIC_AUTH_TOKEN: { type: "secret_ref", secretId: p.secretId, version: "latest" },
+      ANTHROPIC_MODEL: model,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: small,
+      ANTHROPIC_SMALL_FAST_MODEL: small,
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+    },
+  };
+}
+
+/** Replace the managed env keys of an existing env with the new source's (other keys are kept). */
+export function mergeEnv(cur, next) {
+  const out = {};
+  for (const [k, v] of Object.entries(cur ?? {})) if (!MANAGED_ENV.includes(k)) out[k] = v;
+  return { ...out, ...next };
+}

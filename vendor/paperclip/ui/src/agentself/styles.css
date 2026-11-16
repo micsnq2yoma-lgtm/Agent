@@ -411,3 +411,9 @@ html[data-layout-sidebar="right"] [data-agentself-row] [data-agentself-sidebar] 
 /* ---------- Paperclip pages under the skin (§3.3) ---------- */
 html[data-skin] h1:where(:not(.agentself *)) { font-family: var(--font-heading, inherit); font-weight: 500; }
 html[data-skin] :where(button, [role="tab"], input:not([type="checkbox"]):not([type="radio"]), .badge):where(:not(.agentself *)) { border-radius: var(--as-x-r-control); }
+
+/* settings · 模型与订阅 */
+.agentself .provider { border-top: 1px solid var(--as-x-border-soft); }
+.agentself .provider:first-of-type { border-top: 0; }
+.agentself .provider-form { padding: 4px 0 14px; display: flex; flex-direction: column; gap: 8px; }
+.agentself .provider-form .input { width: 100%; box-sizing: border-box; }

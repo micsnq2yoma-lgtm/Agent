@@ -4,6 +4,8 @@ import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins"
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
+import { adapterOfSource, reloadModels, useModels, type Provider } from "../lib/models";
+import { SourceSelect } from "../components/SourceSelect";
 import { Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 
@@ -428,6 +430,7 @@ function ProfileEditor() {
 export const SETTINGS_TABS = [
   ["general", "通用"],
   ["router", "路由"],
+  ["models", "模型与订阅"],
   ["feishu", "飞书"],
   ["budget", "预算"],
   ["external", "对外动作"],
@@ -738,7 +741,200 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
         </>
       )}
       {tab === "profile" && <ProfileEditor />}
+      {tab === "models" && <ModelsSettings />}
     </div>
+  );
+}
+
+/* ---------- 模型与订阅 (scripts/lib/providers.mjs) ---------- */
+function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
+  const [form, setForm] = useState({ baseUrl: p.baseUrl, model: p.model, smallModel: p.smallModel, apiKey: "" });
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [open, setOpen] = useState(!p.preset && !p.hasKey);
+  const set = (k: keyof typeof form, v: string) => setForm({ ...form, [k]: v });
+  async function save() {
+    setBusy("save");
+    setMsg(null);
+    try {
+      await as.put(`/providers/${p.id}`, { name: p.name, ...form, apiKey: form.apiKey || undefined });
+      setForm({ ...form, apiKey: "" });
+      setMsg("已保存。用这个服务商的主管和员工会自动换成新的设置。");
+      onSaved();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function test() {
+    setBusy("test");
+    setMsg(null);
+    try {
+      const r = await as.post<{ ok: boolean; ms?: number; reply?: string; status?: number; error?: string }>(`/providers/${p.id}/test`, form);
+      setMsg(r.ok ? `连通：${r.ms} ms，模型回复"${r.reply}"` : `失败（${r.status}）：${r.error}`);
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="provider">
+      <div className="row" style={{ cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
+        <div>
+          <div className="label">{p.name}</div>
+          <div className="sub mono">{p.model}</div>
+        </div>
+        <span className={`status-tag ${p.hasKey ? "good" : ""}`}>{p.hasKey ? "已填 key" : "未配置"}</span>
+      </div>
+      {open && (
+        <div className="provider-form">
+          <label className="field">
+            接口地址（Anthropic 兼容）
+            <input className="input mono" value={form.baseUrl} onChange={(e) => set("baseUrl", e.target.value)} />
+          </label>
+          <div className="grid2">
+            <label className="field">
+              主模型
+              <input className="input mono" value={form.model} onChange={(e) => set("model", e.target.value)} />
+            </label>
+            <label className="field">
+              轻量模型（后台小任务）
+              <input className="input mono" value={form.smallModel} onChange={(e) => set("smallModel", e.target.value)} />
+            </label>
+          </div>
+          <label className="field">
+            API key{p.hasKey ? "（已保存在 Paperclip 密钥库；填新的会替换）" : ""}
+            <input className="input mono" type="password" autoComplete="off" value={form.apiKey} placeholder={p.hasKey ? "••••••••" : "sk-…"} onChange={(e) => set("apiKey", e.target.value)} />
+          </label>
+          <div className="opts" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            <button className="btn primary" disabled={busy !== null} onClick={() => void save()}>
+              {busy === "save" ? "保存中…" : "保存"}
+            </button>
+            <button className="btn" disabled={busy !== null || !form.apiKey} title="用上面填的 key 发一条很短的请求" onClick={() => void test()}>
+              {busy === "test" ? "测试中…" : "测试"}
+            </button>
+            {p.keyUrl && (
+              <a className="sub" href={p.keyUrl} target="_blank" rel="noreferrer">
+                去申请 key
+              </a>
+            )}
+          </div>
+          {msg && <div className="sub" style={{ marginTop: 6 }}>{msg}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** 独立核查员：和主管不同的模型，没有任何工具，只看标准、证据和报告。 */
+function VerifierSetting({ codex }: { codex: boolean }) {
+  const [v, setV] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  useEffect(() => {
+    as.get<{ verifierModel: string }>("/verifier").then((r) => setV(r.verifierModel)).catch(() => setV("sonnet"));
+  }, []);
+  async function save(next: string) {
+    setV(next);
+    try {
+      await as.put("/verifier", { verifierModel: next });
+      setMsg("已保存，下一次核查起生效");
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return (
+    <div className="section">
+      <h2>独立核查员</h2>
+      <div className="row">
+        <div>
+          <div className="label">用哪个模型核查员工的交付</div>
+          <div className="sub">最好和主管不是同一个模型。核查员没有任何工具，只看验收标准、证据和报告。</div>
+        </div>
+        <select className="input" style={{ width: 200 }} value={v ?? ""} disabled={v === null} onChange={(e) => void save(e.target.value)} aria-label="独立核查员">
+          <option value="sonnet">Claude Sonnet（订阅）</option>
+          <option value="opus">Claude Opus（订阅）</option>
+          <option value="codex" disabled={!codex}>
+            Codex（订阅）{codex ? "" : "：本机没装"}
+          </option>
+          {v && !["sonnet", "opus", "codex"].includes(v) && <option value={v}>{v}</option>}
+        </select>
+      </div>
+      {msg && <div className="sub">{msg}</div>}
+    </div>
+  );
+}
+
+function ModelsSettings() {
+  const m = useModels();
+  const [custom, setCustom] = useState({ id: "", name: "", baseUrl: "", model: "" });
+  const [err, setErr] = useState<string | null>(null);
+  const reload = () => void reloadModels().catch(() => {});
+  async function addCustom() {
+    setErr(null);
+    try {
+      await as.put(`/providers/${custom.id}`, { ...custom, smallModel: custom.model });
+      setCustom({ id: "", name: "", baseUrl: "", model: "" });
+      reload();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+  }
+  return (
+    <>
+      <div className="section">
+        <h2>订阅</h2>
+        <p className="hint">订阅只用 Claude 和 Codex：这台电脑上登录的账号就是员工用的账号。三台电脑各自登录各自的订阅。</p>
+        <div className="row">
+          <div>
+            <div className="label">Claude Code</div>
+            <div className="sub">{m?.subscriptions.claude ?? "没有安装：npm i -g @anthropic-ai/claude-code，再运行 claude 登录"}</div>
+          </div>
+          <span className={`status-tag ${m?.subscriptions.claude ? "good" : "hot"}`}>{m?.subscriptions.claude ? "可用" : "未安装"}</span>
+        </div>
+        <div className="row">
+          <div>
+            <div className="label">Codex</div>
+            <div className="sub">{m?.subscriptions.codex ?? "没有安装：npm i -g @openai/codex，再运行 codex login"}</div>
+          </div>
+          <span className={`status-tag ${m?.subscriptions.codex ? "good" : ""}`}>{m?.subscriptions.codex ? "可用" : "未安装"}</span>
+        </div>
+      </div>
+      <VerifierSetting codex={!!m?.subscriptions.codex} />
+      <div className="section">
+        <h2>API 模型</h2>
+        <p className="hint">其余模型走 API：员工仍然跑在 Claude Code 上（工具、记忆、团队工具都一样），只是把模型换成服务商的 Anthropic 兼容接口。key 存进 Paperclip 密钥库，不写进任何文件。模型名会随服务商更新，以服务商文档为准。</p>
+        {(m?.providers ?? []).map((p) => (
+          <ProviderRow key={p.id} p={p} onSaved={reload} />
+        ))}
+      </div>
+      <div className="section">
+        <h2>添加其他服务商</h2>
+        <div className="grid2">
+          <label className="field">
+            英文 id
+            <input className="input mono" placeholder="openrouter" value={custom.id} onChange={(e) => setCustom({ ...custom, id: e.target.value })} />
+          </label>
+          <label className="field">
+            名称
+            <input className="input" placeholder="OpenRouter" value={custom.name} onChange={(e) => setCustom({ ...custom, name: e.target.value })} />
+          </label>
+        </div>
+        <label className="field">
+          接口地址（Anthropic 兼容）
+          <input className="input mono" placeholder="https://…/anthropic" value={custom.baseUrl} onChange={(e) => setCustom({ ...custom, baseUrl: e.target.value })} />
+        </label>
+        <label className="field">
+          模型
+          <input className="input mono" value={custom.model} onChange={(e) => setCustom({ ...custom, model: e.target.value })} />
+        </label>
+        <button className="btn" style={{ marginTop: 8 }} disabled={!custom.id || !custom.baseUrl || !custom.model} onClick={() => void addCustom()}>
+          添加，然后在上面填 key
+        </button>
+        {err && <div className="sub" style={{ color: "var(--as-high)", marginTop: 6 }}>{err}</div>}
+      </div>
+    </>
   );
 }
 
@@ -901,6 +1097,8 @@ interface PackMember {
   title: string;
   role: string;
   adapterType: "claude_local" | "codex_local";
+  /** claude | codex | api:<provider> (scripts/lib/providers.mjs); adapterType follows it */
+  source?: string;
   capabilities: string;
   budgetMonthlyCents: number;
   identity: string;
@@ -919,10 +1117,7 @@ export const WATCH_TEMPLATES = [
 ];
 
 // Plan B: nothing is preset. These only differ by the agent they run on; the user names everyone.
-const ROLE_TEMPLATES: Array<Omit<PackMember, "key">> = [
-  { name: "新员工", title: "", role: "general", adapterType: "claude_local", capabilities: "", budgetMonthlyCents: 1500, identity: "" },
-  { name: "新员工", title: "", role: "general", adapterType: "codex_local", capabilities: "", budgetMonthlyCents: 1500, identity: "" },
-];
+const NEW_MEMBER: Omit<PackMember, "key"> = { name: "新员工", title: "", role: "general", adapterType: "claude_local", source: "claude", capabilities: "", budgetMonthlyCents: 1500, identity: "" };
 
 export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (key: string) => void }) {
   const { t } = useSkin();
@@ -935,6 +1130,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
   const [leadName, setLeadName] = useState("");
   const [leadFocus, setLeadFocus] = useState("");
   const [leadModel, setLeadModel] = useState("claude-opus-5-5");
+  const [leadSource, setLeadSource] = useState("claude");
   const [members, setMembers] = useState<PackMember[]>([]);
   const [routineCron, setRoutineCron] = useState("");
   const [routinePrompt, setRoutinePrompt] = useState("");
@@ -961,7 +1157,8 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setTemplateKey(ctx.departments.some((d) => d.key === key) ? null : key);
   }
   const addMember = (tpl: Omit<PackMember, "key">) => setMembers([...members, { ...tpl, key: `m${Date.now().toString(36)}` }]);
-  const allSame = (adapterType: PackMember["adapterType"]) => setMembers(members.map((m) => ({ ...m, adapterType })));
+  const setSource = (i: number, source: string) => setMembers(members.map((x, j) => (j === i ? { ...x, source, adapterType: adapterOfSource(source) } : x)));
+  const allSame = (source: string) => setMembers(members.map((m) => ({ ...m, source, adapterType: adapterOfSource(source) })));
 
   async function create() {
     setBusy(true);
@@ -980,7 +1177,8 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
           title: t("lead"),
           role: "pm",
           adapterType: "claude_local",
-          model: leadModel,
+          source: leadSource,
+          ...(leadSource === "claude" ? { model: leadModel } : {}),
           capabilities: leadFocus || description,
           budgetMonthlyCents: Math.round(budget * 25),
           identity: `你是用户的${t("lead")}，负责「${name}」。${description}`,
@@ -1051,12 +1249,15 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
                 <div style={{ display: "flex", gap: 6 }}>
                   <input className="input" style={{ width: 140 }} placeholder={`${t("lead")}的名字`} value={leadName} onChange={(e) => setLeadName(e.target.value)} />
                   <input className="input" style={{ flex: 1 }} placeholder={`负责什么（路由靠它把事交给这位${t("lead")}）`} value={leadFocus} onChange={(e) => setLeadFocus(e.target.value)} />
-                  <select className="input" value={leadModel} onChange={(e) => setLeadModel(e.target.value)}>
-                    <option value="claude-opus-5-5">Opus 5.5</option>
-                    <option value="sonnet">Sonnet</option>
-                  </select>
+                  <SourceSelect lead value={leadSource} onChange={setLeadSource} label={`${t("lead")}的模型来源`} style={{ width: 170 }} />
+                  {leadSource === "claude" && (
+                    <select className="input" value={leadModel} onChange={(e) => setLeadModel(e.target.value)} aria-label={`${t("lead")}的模型`}>
+                      <option value="claude-opus-5-5">Opus 5.5</option>
+                      <option value="sonnet">Sonnet</option>
+                    </select>
+                  )}
                 </div>
-                <span className="sub">{t("lead")}只管理不干活：理解你的意思、写验收标准、派{t("employee")}、验收、汇报。只能用 Claude。</span>
+                <span className="sub">{t("lead")}只管理不干活：理解你的意思、写验收标准、派{t("employee")}、验收、汇报。只能跑在 Claude Code 上（Claude 订阅或 API 模型），不能用 Codex。</span>
               </div>
             </div>
             {members.map((m, i) => (
@@ -1064,28 +1265,19 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
                 <Robot id={m.key} eye={eyeOf(m.adapterType)} size={22} />
                 <input className="input" style={{ width: 100 }} value={m.name} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
                 <input className="input" style={{ flex: 1 }} value={m.capabilities} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, capabilities: e.target.value } : x)))} />
-                <select className="input" value={m.adapterType} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, adapterType: e.target.value as PackMember["adapterType"] } : x)))}>
-                  <option value="claude_local">Claude</option>
-                  <option value="codex_local">Codex</option>
-                </select>
+                <SourceSelect value={m.source ?? (m.adapterType === "codex_local" ? "codex" : "claude")} onChange={(v) => setSource(i, v)} label={`${m.name}的模型来源`} style={{ width: 170 }} />
                 <button className="btn ghost" onClick={() => setMembers(members.filter((_, j) => j !== i))}>
                   删除
                 </button>
               </div>
             ))}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 10 }}>
-              {ROLE_TEMPLATES.map((r) => (
-                <button key={r.adapterType} className="btn" onClick={() => addMember(r)}>
-                  <Plus aria-hidden="true" /> {t("employee")}（{r.adapterType === "codex_local" ? "Codex" : "Claude"}）
-                </button>
-              ))}
+              <button className="btn" onClick={() => addMember(NEW_MEMBER)}>
+                <Plus aria-hidden="true" /> {t("employee")}
+              </button>
               <span style={{ flex: 1 }} />
-              <button className="btn ghost" onClick={() => allSame("claude_local")}>
-                全部用 Claude
-              </button>
-              <button className="btn ghost" onClick={() => allSame("codex_local")}>
-                全部用 Codex
-              </button>
+              <span className="sub" style={{ alignSelf: "center" }}>全部改成</span>
+              <SourceSelect value="" onChange={(v) => v && allSame(v)} label="全部员工的模型来源" style={{ width: 170 }} />
             </div>
           </>
         )}

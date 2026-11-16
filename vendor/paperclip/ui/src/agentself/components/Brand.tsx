@@ -34,8 +34,11 @@ export function eyeOf(adapterType: string | undefined): keyof typeof EYE_COLORS 
   return adapterType === "claude_local" ? "claude" : adapterType === "codex_local" ? "codex" : "other";
 }
 
-export function modelName(a: { adapterType?: string; adapterConfig?: { model?: string } } | undefined): string {
+export function modelName(a: { adapterType?: string; adapterConfig?: { model?: string }; metadata?: { agentself?: { source?: string } } } | undefined): string {
   if (!a) return "";
+  const src = a.metadata?.agentself?.source;
+  // API models: "deepseek · deepseek-chat" (the provider matters more than the raw model id)
+  if (src?.startsWith("api:")) return [src.slice(4), a.adapterConfig?.model].filter(Boolean).join(" · ");
   if (a.adapterConfig?.model) return a.adapterConfig.model;
   return a.adapterType === "claude_local" ? "Claude" : a.adapterType === "codex_local" ? "Codex" : (a.adapterType ?? "");
 }

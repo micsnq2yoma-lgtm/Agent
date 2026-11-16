@@ -12,6 +12,7 @@ import { useSkin } from "../lib/skin";
 import { PackIcon } from "../lib/icons";
 import { Robot, Wordmark, eyeOf } from "../components/Brand";
 import { useDialogActions } from "@/context/DialogContext";
+import { SourceSelect } from "../components/SourceSelect";
 
 /** 高级 (P10): opens the full Paperclip new-task form, prefilled with the chosen lead. */
 function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
@@ -206,7 +207,7 @@ function CardDetail(props: {
   ctx: Context;
   issues: Issue[];
   busy: boolean;
-  onAct: (opt: string, extra?: { comment?: string; name?: string; remember?: string }) => void;
+  onAct: (opt: string, extra?: { comment?: string; name?: string; source?: string; remember?: string }) => void;
   onLater: () => void;
   onClose: () => void;
   onOpenProject: (issueId: string) => void;
@@ -220,6 +221,7 @@ function CardDetail(props: {
   const [showRework, setShowRework] = useState(false);
   const [remember, setRemember] = useState(false);
   const [hireName, setHireName] = useState(card.source.kind === "hire" ? card.source.name : "");
+  const [hireSource, setHireSource] = useState(card.source.kind === "hire" && card.source.adapterType === "codex_local" ? "codex" : "claude");
   useEffect(() => {
     setReport(null);
     setAcc(null);
@@ -237,7 +239,7 @@ function CardDetail(props: {
   const meta = [whoLabel(card.who, t), card.model ?? (agent ? (agent.adapterType === "codex_local" ? "Codex" : agent.adapterConfig?.model ?? "Claude") : null), card.ref, relTime(card.createdAt)].filter(Boolean).join(" · ");
   const dot = card.type === "decide" || card.type === "failed" || card.type === "hire";
   const act = (o: { id: string; label: string }) =>
-    props.onAct(o.id, { comment, name: hireName, remember: remember ? `「${card.title}」这类事：${o.label}` : undefined });
+    props.onAct(o.id, { comment, name: hireName, ...(card.type === "hire" ? { source: hireSource } : {}), remember: remember ? `「${card.title}」这类事：${o.label}` : undefined });
 
   return (
     <div className="detail">
@@ -281,6 +283,7 @@ function CardDetail(props: {
       {card.type === "hire" && (
         <div className="rework-row">
           <input className="input" style={{ flex: 1 }} aria-label="新员工的名字" value={hireName} onChange={(e) => setHireName(e.target.value)} />
+          <SourceSelect value={hireSource} onChange={setHireSource} label="新员工的模型来源" style={{ width: 190 }} />
         </div>
       )}
       {card.type !== "answer" && (
@@ -443,7 +446,7 @@ export function Home(props: {
   const cards = useMemo(() => filterCards(feed?.cards ?? [], props.filter, props.department), [feed, props.filter, props.department]);
   const counts = countByType(filterCards(feed?.cards ?? [], "all", props.department));
 
-  async function run(card: Card, opt: string, extra?: { comment?: string; name?: string; remember?: string }) {
+  async function run(card: Card, opt: string, extra?: { comment?: string; name?: string; source?: string; remember?: string }) {
     setBusy(true);
     try {
       await act(card, opt, extra);

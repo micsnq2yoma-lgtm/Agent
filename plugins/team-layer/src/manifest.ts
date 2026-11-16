@@ -44,7 +44,7 @@ export default {
       boardUserId: { type: "string", default: "local-board" },
       idleMinutes: { type: "integer", default: 30, minimum: 1 },
       consolidationModel: { type: "string", default: "haiku" },
-      verifierModel: { type: "string", default: "sonnet" },
+      verifierModel: { type: "string", default: "sonnet", description: "独立核查员：Claude 模型别名或 id（sonnet、opus…），或 codex / codex:<模型> 用本机的 Codex 订阅" },
     },
   },
   jobs: [

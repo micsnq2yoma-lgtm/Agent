@@ -10,6 +10,7 @@ import { api as defaultApi, ensureCompany as defaultEnsureCompany, list } from "
 import { initMemory, removeMemoryEntry } from "./memory.mjs";
 import { instructionsPath, writeInstructions } from "./instructions.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
+import { mergeEnv, resolveSource, sourceOf } from "./providers.mjs";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
@@ -57,8 +58,28 @@ const runtimeDir = (cwd) => path.join(cwd, ".agentself");
 export { instructionsPath };
 const mcpConfigPath = (cwd) => path.join(runtimeDir(cwd), "mcp.json");
 
+/** A TOML string for `codex -c key=value` (literal string unless the value has a single quote). */
+const tomlStr = (v) => (String(v).includes("'") ? JSON.stringify(String(v)) : `'${v}'`);
+/** What the team MCP server needs from the run (Codex forwards only listed variables to MCP servers). */
+export const TEAM_MCP_ENV = ["PAPERCLIP_API_URL", "PAPERCLIP_API_KEY", "PAPERCLIP_AGENT_ID", "PAPERCLIP_COMPANY_ID", "PAPERCLIP_RUN_ID", "PAPERCLIP_TASK_ID", "AGENTSELF_HOME"];
+
+/**
+ * Codex has no --mcp-config: MCP servers come from config.toml, which `-c` overrides per run. The
+ * team server is registered this way so Codex employees get the same tools as Claude employees
+ * (submit_evidence, watch_job, comments…) instead of hand-written curl.
+ */
+export function codexMcpArgs({ role = "employee", nodePath = process.execPath } = {}) {
+  const r = role === "lead" ? "lead" : "employee";
+  return [
+    "-c", `mcp_servers.agentself.command=${tomlStr(nodePath)}`,
+    "-c", `mcp_servers.agentself.args=[${[TEAM_MCP_SERVER, `--role=${r}`].map(tomlStr).join(", ")}]`,
+    "-c", `mcp_servers.agentself.env_vars=[${TEAM_MCP_ENV.map(tomlStr).join(", ")}]`,
+    "-c", "mcp_servers.agentself.startup_timeout_sec=20",
+  ];
+}
+
 /** Adapter config for one agent. `cwd` is the agent's own home directory (its memory lives there). */
-export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, model, workspacesDir }) {
+export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, model, workspacesDir, nodePath = process.execPath }) {
   const base = { cwd, instructionsFilePath: instructionsPath(cwd), ...(model ? { model } : {}) };
   if (role === "lead") {
     const mem = path.join(cwd, "memory");
@@ -79,12 +100,20 @@ export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, mo
       ],
     };
   }
-  // Employees keep every tool. Claude employees also get the team MCP server (employee role), so they
-  // need no curl on Windows; Codex employees only get the instructions file (no MCP flag in Paperclip).
+  // Employees keep every tool and get the team MCP server (employee role), so they need no curl.
   if (adapterType === "claude_local") return { ...base, engine: "cli", extraArgs: ["--mcp-config", mcpConfigPath(cwd), "--add-dir", cwd] };
+  if (adapterType === "codex_local")
+    // CLI engine (extraArgs and instructions apply only there); no Codex sandbox: on Windows it fails
+    // to start shells (error 1223, PR #4 p13), and employees already work in their own directory.
+    return { ...base, engine: "cli", dangerouslyBypassApprovalsAndSandbox: true, extraArgs: codexMcpArgs({ role: "employee", nodePath }) };
   return base;
 }
 
+
+/** Add a source's env bindings (API models) to an adapter config; nothing for subscriptions. */
+function withEnv(config, env) {
+  return env && Object.keys(env).length ? { ...config, env } : config;
+}
 
 /**
  * Write the agent's runtime files into its own home directory (rewritten on every sync, so skill and
@@ -126,8 +155,17 @@ export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir 
   const home = agentselfHome();
   ensureProfile(home);
   writeAgentRuntime(cwd, { role, adapterType: agent.adapterType, home });
-  const want = agentAdapterConfig({ role, adapterType: agent.adapterType, cwd, model: agent.adapterConfig?.model, workspacesDir });
+  // API models: provider settings (endpoint, model, key) may have changed since the agent was made
+  let run = null;
+  try {
+    run = resolveSource(sourceOf(agent), home);
+  } catch (e) {
+    log(`${role} ${agent.name}: ${e.message}`);
+  }
+  const apiModel = run && Object.keys(run.env).length ? run.model : undefined;
+  const want = agentAdapterConfig({ role, adapterType: agent.adapterType, cwd, model: apiModel ?? agent.adapterConfig?.model, workspacesDir });
   const cur = agent.adapterConfig ?? {};
+  if (run && (Object.keys(run.env).length || Object.keys(cur.env ?? {}).length)) want.env = mergeEnv(cur.env, run.env);
   if (JSON.stringify({ ...cur, ...want }) !== JSON.stringify(cur)) {
     await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...cur, ...want } });
     log(`${role} ${agent.name}: runtime updated`);
@@ -144,13 +182,14 @@ export function validatePack(pack) {
   if (!pack?.lead) errs.push("每个团队要有一名主管");
   else {
     if (!pack.lead.name) errs.push("主管缺少名字");
-    // Tool restriction relies on Claude Code CLI flags; Codex has no equivalent yet.
-    if ((pack.lead.adapterType ?? "claude_local") !== "claude_local") errs.push("主管目前只能用 Claude（工具限制依赖 Claude Code）");
+    // Tool restriction relies on Claude Code CLI flags: a lead runs on Claude Code (subscription or an API).
+    if ((pack.lead.adapterType ?? "claude_local") !== "claude_local" || pack.lead.source === "codex") errs.push("主管只能用 Claude Code（Claude 订阅或 API 模型）：工具限制依赖它");
   }
   if (!Array.isArray(pack?.members) || pack.members.length === 0) errs.push("至少要有一名员工");
   for (const m of pack?.members ?? []) {
     if (!m.key || !m.name) errs.push("员工缺少 key 或 name");
-    if (!["claude_local", "codex_local"].includes(m.adapterType)) errs.push(`员工 ${m.name} 的 adapterType 不支持`);
+    if (!m.source && !["claude_local", "codex_local"].includes(m.adapterType)) errs.push(`员工 ${m.name} 的 adapterType 不支持`);
+    if (m.source && !/^(claude|codex|api:[a-z0-9-]+)$/.test(m.source)) errs.push(`员工 ${m.name} 的模型来源不支持：${m.source}`);
     if (m.key === (pack.lead?.key ?? "lead")) errs.push(`员工 ${m.name} 的 key 和主管重复`);
   }
   return errs;
@@ -215,9 +254,11 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
       identity: member.identity ?? "",
     });
     const role = isLead ? "lead" : "employee";
-    writeAgentRuntime(cwd, { role, adapterType: member.adapterType, home });
-    const adapterConfig = agentAdapterConfig({ role, adapterType: member.adapterType, cwd, model: member.model, workspacesDir });
-    const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id } };
+    const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
+    const run = resolveSource(source, home);
+    writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
+    const adapterConfig = withEnv(agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model: run.model ?? member.model, workspacesDir }), run.env);
+    const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id, source } };
     let agent = agents.find((a) => a.metadata?.agentself?.department === deptKey && a.metadata?.agentself?.memberKey === member.key);
     if (!agent) {
       agent = await api("POST", `/companies/${company.id}/agents`, {
@@ -227,7 +268,7 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
         icon: isLead ? "crown" : (pack.icon ?? "bot"),
         reportsTo: reportsTo ?? null,
         capabilities: member.capabilities ?? null,
-        adapterType: member.adapterType,
+        adapterType: run.adapterType,
         adapterConfig,
         budgetMonthlyCents: member.budgetMonthlyCents ?? perHead,
         permissions: { canCreateAgents: false },
@@ -318,9 +359,11 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
   if (!m?.isLead) throw Object.assign(new Error("只能加到主管的团队里"), { status: 400 });
   const name = String(member.name ?? "").trim();
   if (!name) throw Object.assign(new Error("新员工要有名字"), { status: 400 });
-  const adapterType = member.adapterType === "codex_local" ? "codex_local" : "claude_local";
-  const companyId = lead.companyId;
   const home = agentselfHome();
+  const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
+  const run = resolveSource(source, home);
+  const adapterType = run.adapterType;
+  const companyId = lead.companyId;
   ensureProfile(home);
   const desiredSkills = [];
   const memberKey = `${slugKey(name).replace(/^team-/, "m-")}-${Date.now().toString(36)}`;
@@ -343,12 +386,41 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
     reportsTo: lead.id,
     capabilities: member.capabilities ?? null,
     adapterType,
-    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), agentAdapterConfig({ role: "employee", adapterType, cwd, model: member.model, workspacesDir: path.join(home, "workspaces") })),
+    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), withEnv(agentAdapterConfig({ role: "employee", adapterType, cwd, model: run.model ?? member.model, workspacesDir: path.join(home, "workspaces") }), run.env)),
     budgetMonthlyCents: member.budgetMonthlyCents ?? 0,
     permissions: { canCreateAgents: false },
     desiredSkills,
-    metadata: { agentself: { department: m.department, departmentName: m.departmentName, isLead: false, memberKey, projectId: m.projectId } },
+    metadata: { agentself: { department: m.department, departmentName: m.departmentName, isLead: false, memberKey, projectId: m.projectId, source } },
   });
-  log(`agent ${name} (${adapterType}) ${agent.id} under ${lead.name}`);
+  log(`agent ${name} (${source}) ${agent.id} under ${lead.name}`);
   return agent;
+}
+
+/**
+ * Move an existing agent to another model source (Claude / Codex subscription, or an API model).
+ * Rewrites its runtime files and adapter config from scratch for the new adapter; keeps unrelated
+ * adapter settings (timeouts…) and env keys this module does not manage.
+ */
+export async function setAgentSource(agentId, source, { api = defaultApi, log = console.log } = {}) {
+  const agent = await api("GET", `/agents/${agentId}`);
+  const meta = agent?.metadata?.agentself;
+  const cwd = agent?.adapterConfig?.cwd;
+  if (!meta || !cwd) throw Object.assign(new Error("只能改 Agentself 建的主管和员工"), { status: 400 });
+  const role = meta.isLead ? "lead" : "employee";
+  const home = agentselfHome();
+  const run = resolveSource(source, home);
+  if (role === "lead" && run.adapterType !== "claude_local") throw Object.assign(new Error("主管只能用 Claude Code（Claude 订阅或 API 模型）"), { status: 400 });
+  writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
+  const cur = agent.adapterConfig ?? {};
+  const keep = Object.fromEntries(Object.entries(cur).filter(([k]) => !["model", "engine", "extraArgs", "env", "dangerouslyBypassApprovalsAndSandbox", "dangerouslySkipPermissions", "instructionsFilePath"].includes(k)));
+  // a subscription after an API model starts from the CLI's default model (leads: Opus)
+  const model = run.model ?? (sourceOf(agent) === source ? cur.model : undefined);
+  const adapterConfig = { ...keep, ...agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model, workspacesDir: path.join(home, "workspaces") }) };
+  const env = mergeEnv(cur.env, run.env);
+  if (Object.keys(env).length) adapterConfig.env = env;
+  // replaceAdapterConfig: Paperclip merges adapter configs by default, which would keep the old
+  // adapter's flags (e.g. Claude --mcp-config on a Codex agent)
+  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterType: run.adapterType, adapterConfig, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, source } } });
+  log(`${role} ${agent.name}: source ${sourceOf(agent)} → ${source}`);
+  return updated;
 }

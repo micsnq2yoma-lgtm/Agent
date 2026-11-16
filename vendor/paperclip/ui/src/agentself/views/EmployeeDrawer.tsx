@@ -5,6 +5,8 @@ import { as, list, pc, type Agent, type Context } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
+import { SourceSelect } from "../components/SourceSelect";
+import { sourceLabel, sourceOfAgent, useModels } from "../lib/models";
 
 interface MemoryFile {
   path: string;
@@ -31,6 +33,21 @@ export function EmployeeProfile({ ctx, agentId, toast }: { ctx: Context; agentId
   const { t } = useSkin();
   const { agent, skills, reload } = useEmployee(agentId);
   const [busy, setBusy] = useState(false);
+  const models = useModels();
+  async function changeSource(source: string) {
+    if (!agent || source === sourceOfAgent(agent)) return;
+    if (!confirm(`把「${agent.name}」换成 ${sourceLabel(source, models)}？`)) return;
+    setBusy(true);
+    try {
+      await as.post(`/agents/${agent.id}/source`, { source });
+      toast(`已换成 ${sourceLabel(source, models)}`);
+      await reload();
+    } catch (e) {
+      toast(`没换成：${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function togglePause() {
     if (!agent) return;
     setBusy(true);
@@ -80,11 +97,24 @@ export function EmployeeProfile({ ctx, agentId, toast }: { ctx: Context; agentId
       <section>
         <h3>模型</h3>
         <div className="row">
-          <span>{agent?.adapterType}</span>
-          <span>
-            {modelName(agent ?? undefined)}（一个{t("employee")}始终用同一个模型；要换在"运行时"里改）
+          <span className="label">模型来源</span>
+          <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+            {agent && (
+              <SourceSelect
+                lead={!!m?.isLead}
+                value={sourceOfAgent(agent)}
+                label="模型来源"
+                style={{ width: 190 }}
+                onChange={(v) => void changeSource(v)}
+              />
+            )}
           </span>
         </div>
+        <div className="row">
+          <span className="label">模型</span>
+          <span className="mono">{modelName(agent ?? undefined)}</span>
+        </div>
+        <div className="sub">换来源后，下一次运行起生效：记忆、技能和团队工具都保留。正在进行的任务会在下一轮用新模型。</div>
       </section>
       <section>
         <h3>技能</h3>

@@ -34,14 +34,14 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
    `ssh gpu1 'test -f ~/exp/v2/DONE && exit 0; pgrep -f train.py >/dev/null && exit 1; exit 2'`
    先手动跑一次，确认它在"还在跑"时确实返回 1。
 3. 在任务评论里记下：在哪台机器、怎么查进度、日志和结果在哪、预计何时结束。
-4. 用 `watch_job`（Codex 员工用插件工具 `watch`）登记探测命令（间隔、最长等待时间），然后结束本轮。系统定时运行探测命令，不调用模型；结束、出错或超时才叫醒你，评论里附上最后的输出。
+4. 用 `watch_job` 登记探测命令（间隔、最长等待时间），然后结束本轮。系统定时运行探测命令，不调用模型；结束、出错或超时才叫醒你，评论里附上最后的输出。
 5. 被叫醒后：结束了就接着分析；出错了能修就修好重跑（重跑也算一次失败）；超时了就查明原因，决定继续等（再登记一次）还是停下来问主管。
 
 等后台程序（实验、下载、编译、训练）**一律用 `watch_job`**，哪怕只要几分钟：探测命令很好写（看结果文件在不在、进程还在不在）。员工没有"稍后提醒"工具；等主管或用户回答时，对方回复会自动叫醒你，不需要定时回来看。
 
 ## 交付：只交证据，不判定通过
 
-做完后，先用 `submit_evidence`（Codex 员工用插件工具 `evidence`）按任务书里验收标准的编号（c1、c2……）逐条提交证据：没有证据的标 `missing`，认为某条标准不合理的写进 `disputes`。工具会告诉你还缺哪几条。
+做完后，先用 `submit_evidence` 按任务书里验收标准的编号（c1、c2……）逐条提交证据：没有证据的标 `missing`，认为某条标准不合理的写进 `disputes`。工具会告诉你还缺哪几条。
 
 然后在**你的任务**上写 `report` 文档（`PUT /api/issues/{id}/documents/report`，Markdown），一页以内：
 
@@ -83,7 +83,7 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 
 ## 工具
 
-**Claude 员工**有一组 `agentself` 工具，直接用，不需要 curl：
+每名员工都有一组 `agentself` 工具，直接用，不需要 curl：
 
 | 工具 | 用来做什么 | 谁能用 |
 | --- | --- | --- |
@@ -96,24 +96,7 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 | `notify_user` / `ask_user` | 通知用户 / 让用户拍板 | 只在没有父任务时 |
 | `close_card` | 关掉之前发的卡片 | 所有任务 |
 
-**Codex 员工**没有这组工具，用命令行调接口（环境变量里有 `$PAPERCLIP_API_URL`、`$PAPERCLIP_API_KEY`、`$PAPERCLIP_AGENT_ID`、`$PAPERCLIP_COMPANY_ID`、`$PAPERCLIP_RUN_ID`）。插件工具（`evidence`、`watch`、`notice`、`ask`、`resolve`，参数同上表）这样调用：
-
-```sh
-curl -s -X POST "$PAPERCLIP_API_URL/api/plugins/tools/execute" \
-  -H "Authorization: Bearer $PAPERCLIP_API_KEY" -H "Content-Type: application/json" \
-  -d '{
-    "tool": "agentself.team-layer:watch",
-    "parameters": { "issueId": "<当前任务 id>", "command": "<探测命令>", "everyMinutes": 10, "note": "训练是否结束" },
-    "runContext": {
-      "agentId": "'"$PAPERCLIP_AGENT_ID"'",
-      "runId": "'"$PAPERCLIP_RUN_ID"'",
-      "companyId": "'"$PAPERCLIP_COMPANY_ID"'",
-      "projectId": "<当前任务的 projectId>"
-    }
-  }'
-```
-
-评论用 `POST /api/issues/{id}/comments`（`{"body": "…"}`），文档用 `PUT /api/issues/{id}/documents/report`（`{"format": "markdown", "body": "…"}`），改状态用 `PATCH /api/issues/{id}`。在 Windows 的 PowerShell 里要写 `curl.exe`（`curl` 是另一个命令的别名），JSON 放进文件后用 `--data-binary "@文件"` 传，避免引号转义出错。
+Claude 员工、Codex 员工和 API 模型的员工都有上面这组工具（团队 MCP 服务 `agentself`）。万一工具列表里没有它们（还没同步），在任务上评论说明，然后结束本轮，不要自己拼接口请求。
 
 发出提问或定时提醒后**结束本轮**，不要空等。
 

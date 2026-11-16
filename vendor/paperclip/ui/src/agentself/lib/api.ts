@@ -98,7 +98,7 @@ export interface Agent {
   capabilities?: string | null;
   budgetMonthlyCents?: number;
   spentMonthlyCents?: number;
-  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string } };
+  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string; source?: string } };
 }
 export interface Department {
   key: string;

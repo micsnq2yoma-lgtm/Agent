@@ -104,11 +104,14 @@ export async function settleReport(issueId, doc) {
 const me = () => env("PAPERCLIP_AGENT_ID");
 /* ---------- delegation guards (PR #4 p13: rules enforced in code, not only in the skill) ---------- */
 
-/** Codex employees have no team MCP tools (no submit_evidence / comments), so work given to them
- * cannot come back. Until that exists, delegation to them is refused unless explicitly allowed. */
+/** Codex employees get the team MCP tools through `-c mcp_servers.agentself.*` in their adapter
+ * config (scripts/lib/department.mjs codexMcpArgs). One that has not been synced since cannot report
+ * back, so delegation to it is refused until the next sync (restart the local service). */
 export function codexBlock(employee, allow = process.env.AGENTSELF_ALLOW_CODEX === "1") {
   if (allow || employee?.adapterType !== "codex_local") return null;
-  return `「${employee.name}」是 Codex 员工：目前没有团队工具，交不了证据、也回不了话。请派给 Claude 员工；没有合适的就用 propose_hire 提议一名 Claude 员工。`;
+  const args = employee.adapterConfig?.extraArgs ?? [];
+  if (args.some((a) => String(a).includes("mcp_servers.agentself"))) return null;
+  return `「${employee.name}」是 Codex 员工，但还没装上团队工具（交不了证据、也回不了话）。重启 Agentself 本地服务会自动补上；在那之前请派给 Claude 员工。`;
 }
 
 /** Words that usually mean an ask-first action (profile/askfirst.md): destroying data or results,

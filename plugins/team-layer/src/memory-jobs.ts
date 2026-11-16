@@ -2,6 +2,7 @@
 // Pure helpers are exported for unit tests; I/O lives in the functions that take `deps`.
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { spawn, spawnSync } from "node:child_process";
 
 /* ------------------------------------------------------------------ */
@@ -203,4 +204,48 @@ export function runClaudeJson(
     });
     child.stdin.end(prompt);
   });
+}
+
+/**
+ * One prompt through the Codex CLI (`codex exec`, this machine's Codex subscription); resolves with
+ * the final message. Read-only sandbox in an empty scratch directory: the verifier needs no tools.
+ * `model` empty = Codex's default model.
+ */
+export function runCodexText(
+  prompt: string,
+  { model = "", timeoutMs = 300_000, bin = process.env.AGENTSELF_CODEX_BIN ?? "codex" }: { model?: string; timeoutMs?: number; bin?: string } = {},
+): Promise<string> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-codex-"));
+  const outFile = path.join(dir, "last-message.txt");
+  const args = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "--output-last-message", outFile, ...(model ? ["--model", model] : []), "-"];
+  return new Promise<string>((resolve, reject) => {
+    const child = spawn(bin, args, { cwd: dir, shell: process.platform === "win32", windowsHide: true });
+    let err = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error("codex timeout"));
+    }, timeoutMs);
+    child.stdout.on("data", () => {});
+    child.stderr.on("data", (d) => (err += d));
+    child.on("error", (e) => (clearTimeout(timer), reject(e)));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      let text = "";
+      try {
+        text = fs.readFileSync(outFile, "utf8");
+      } catch {
+        /* no message written */
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+      if (code !== 0 && !text) return reject(new Error(`codex exited ${code}: ${err.slice(-300)}`));
+      resolve(text.trim());
+    });
+    child.stdin.end(prompt);
+  });
+}
+
+/** "codex" or "codex:<model>" selects the Codex CLI; anything else is a Claude model alias / id. */
+export function verifierEngine(model: string): { engine: "codex" | "claude"; model: string } {
+  const m = /^codex(?::(.*))?$/.exec(model.trim());
+  return m ? { engine: "codex", model: (m[1] ?? "").trim() } : { engine: "claude", model };
 }
