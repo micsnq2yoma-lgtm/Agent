@@ -44,6 +44,7 @@ await waitFor(
 const after = await as("GET", `/library/papers/${paper.id}`);
 results.employeeNote = after.notes.includes(mark);
 results.status = (await api("GET", `/issues/${issue.id}`)).status;
-if (results.status !== "done") await cancelTree(companyId, issue.id);
+// always: a finished task left behind piles up in Paperclip
+await cancelTree(companyId, issue.id).catch(() => {});
 if (!added.existed) await as("DELETE", `/library/papers/${paper.id}`).catch(() => {});
 verdict("p20-library", results.intakeOk && results.searchFindsBody && results.employeeNote && results.status === "done", results);

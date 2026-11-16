@@ -61,7 +61,8 @@ const results = {
   status: (await api("GET", `/issues/${issue.id}`)).status,
 };
 if (draft) results.draftCheck = `请在 ${acc.address} 的草稿箱里找主题 "${mark} 草稿测试" 的草稿，确认后删除`;
-if (results.status !== "done") await cancelTree(companyId, issue.id);
+// always: a finished task left behind piles up in Paperclip
+await cancelTree(companyId, issue.id).catch(() => {});
 // without the password: the employee reading anything (not an error) proves the secret binding works
 const read = results.sameSubject ?? (!!reported && !/失败|错误|error|授权码/i.test(reported));
 verdict("p19-mail", read && results.status === "done", results);

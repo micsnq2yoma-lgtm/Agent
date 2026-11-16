@@ -43,7 +43,8 @@ await waitFor(
 );
 results.codeCommented = (await comments(issue.id)).some((c) => (c.body ?? "").includes(code) && c.authorAgentId === employee.id);
 results.status = (await api("GET", `/issues/${issue.id}`)).status;
-if (results.status !== "done") await cancelTree(companyId, issue.id);
+// always: a finished task left behind would be handed back to the next run (Paperclip's 48 h same-title rule)
+results.taskCleanup = await cancelTree(companyId, issue.id).catch((e) => ({ error: e.message }));
 await as("DELETE", "/mcp/servers/p21-echo").catch(() => {});
 await as("POST", "/agents/sync").catch(() => {});
-verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false, results);
+verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false && results.taskCleanup?.deleted > 0, results);
