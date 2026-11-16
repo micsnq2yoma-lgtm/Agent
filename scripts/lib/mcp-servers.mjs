@@ -213,7 +213,20 @@ export function claudeMcpEntries(agent) {
   }
   return out;
 }
-const tomlStr = (v) => (String(v).includes("'") ? JSON.stringify(String(v)) : `'${v}'`);
+/**
+ * A TOML string for a Codex `-c` override that contains no whitespace at all: on Windows the
+ * probe and runs go through cmd.exe and the npm .cmd shim, and an argument with spaces gets split
+ * there (Codex: "unexpected argument"). Plain values become literal strings ('C:\x'); values with
+ * whitespace or quotes become basic strings with whitespace escaped as \uXXXX.
+ */
+export function tomlStr(v) {
+  const s = String(v);
+  if (!/[\s'"]/.test(s)) return `'${s}'`;
+  return `"${s.replace(/[\\"]/g, (c) => `\\${c}`).replace(/\s/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`)}"`;
+}
+/** A TOML array with no whitespace in it (see tomlStr). */
+export const tomlArr = (xs) => `[${xs.map(tomlStr).join(",")}]`;
+const tomlTable = (entries) => `{${entries.map(([n, v]) => `${n}=${tomlStr(v)}`).join(",")}}`;
 /** Codex `-c` overrides for an agent's servers. */
 export function codexMcpEntries(agent) {
   const args = [];
@@ -223,11 +236,11 @@ export function codexMcpEntries(agent) {
       args.push("-c", `${k}.url=${tomlStr(s.url)}`);
       if (s.tokenSecretId) args.push("-c", `${k}.bearer_token_env_var=${tomlStr(tokenEnv(s.id))}`);
     } else {
-      args.push("-c", `${k}.command=${tomlStr(s.command)}`, "-c", `${k}.args=[${(s.args ?? []).map(tomlStr).join(", ")}]`);
+      args.push("-c", `${k}.command=${tomlStr(s.command)}`, "-c", `${k}.args=${tomlArr(s.args ?? [])}`);
       const env = Object.entries(s.env ?? {});
-      if (env.length) args.push("-c", `${k}.env={ ${env.map(([n, v]) => `${n} = ${tomlStr(v)}`).join(", ")} }`);
+      if (env.length) args.push("-c", `${k}.env=${tomlTable(env)}`);
       const fwd = Object.keys(s.secretEnv ?? {});
-      if (fwd.length) args.push("-c", `${k}.env_vars=[${fwd.map(tomlStr).join(", ")}]`);
+      if (fwd.length) args.push("-c", `${k}.env_vars=${tomlArr(fwd)}`);
     }
     args.push("-c", `${k}.startup_timeout_sec=60`);
   }

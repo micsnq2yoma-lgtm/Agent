@@ -38,5 +38,5 @@
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。
 
 ## 运行方式
-- 构建：`cd vendor/paperclip && pnpm install && pnpm build`（pnpm 9.15+）；只改界面时 `cd vendor/paperclip/ui && pnpm exec vite build`（构建失败时上游 sw 插件会掩盖真实错误，先删 `ui/dist` 再看）
+- 构建：`node scripts/build.mjs --install`（pnpm 9.15+；Windows 上它负责把 Git Bash 交给 pnpm，直接 `pnpm build` 会报"命令语法不正确"）；只改界面时 `node scripts/build.mjs --ui`（构建失败时上游 sw 插件会掩盖真实错误，先删 `ui/dist` 再看）
 - 启动：`cd vendor/paperclip && pnpm paperclipai run`（数据目录 `~/.paperclip/instances/default`，与之前 npx 版相同）

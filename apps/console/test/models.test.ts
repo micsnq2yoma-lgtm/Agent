@@ -7,6 +7,8 @@ import { describe, expect, it } from "vitest";
 import { listProviders, mergeEnv, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
 // @ts-expect-error plain JS module
 import { agentAdapterConfig, codexMcpArgs, validatePack } from "../../../scripts/lib/department.mjs";
+// @ts-expect-error plain JS module
+import { tomlStr } from "../../../scripts/lib/mcp-servers.mjs";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-models-"));
 
@@ -49,10 +51,20 @@ describe("API providers", () => {
 
 describe("Codex employees get the team tools", () => {
   it("the team MCP server is registered through -c overrides, with the run's variables forwarded", () => {
+    const args = codexMcpArgs({ nodePath: "D:\\Apps\\node\\node.exe" });
+    expect(args).toContain("mcp_servers.agentself.command='D:\\Apps\\node\\node.exe'");
+    expect(args.find((a: string) => a.startsWith("mcp_servers.agentself.args="))).toMatch(/mcp-team\.mjs','--role=employee'\]$/);
+    expect(args).toContain("mcp_servers.agentself.env_vars=['PAPERCLIP_API_URL','PAPERCLIP_API_KEY','PAPERCLIP_AGENT_ID','PAPERCLIP_COMPANY_ID','PAPERCLIP_RUN_ID','PAPERCLIP_TASK_ID','AGENTSELF_HOME']");
+  });
+  it("no argument has whitespace in it: Windows splits those on the way to Codex (codex-cli 0.128)", () => {
     const args = codexMcpArgs({ nodePath: "C:\\Program Files\\nodejs\\node.exe" });
-    expect(args).toContain("mcp_servers.agentself.command='C:\\Program Files\\nodejs\\node.exe'");
-    expect(args.find((a: string) => a.startsWith("mcp_servers.agentself.args="))).toMatch(/mcp-team\.mjs', '--role=employee'\]$/);
-    expect(args.find((a: string) => a.startsWith("mcp_servers.agentself.env_vars="))).toMatch(/PAPERCLIP_API_KEY/);
+    for (const a of args) expect(a).not.toMatch(/\s/);
+    expect(args).toContain("mcp_servers.agentself.command='node'");
+  });
+  it("values with spaces or quotes become escaped basic strings", () => {
+    expect(tomlStr("D:\\My Docs\\x.mjs")).toBe('"D:\\\\My\\u0020Docs\\\\x.mjs"');
+    expect(tomlStr("it's")).toBe('"it\'s"');
+    expect(tomlStr("plain")).toBe("'plain'");
   });
   it("Codex employees use the CLI engine without the Codex sandbox", () => {
     const c = agentAdapterConfig({ role: "employee", adapterType: "codex_local", cwd: "/w/e", nodePath: "node" });

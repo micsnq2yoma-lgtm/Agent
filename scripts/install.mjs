@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
+import { codexConfigProblems } from "./lib/codex-check.mjs";
 import { stopAgentself } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -62,6 +63,7 @@ const claudeV = version("claude");
 claudeV ? ok(`Claude Code ${claudeV}`) : warn("没有 Claude Code：npm i -g @anthropic-ai/claude-code，再运行 claude 登录这台电脑的订阅（主管、路由、核查员都要用）");
 const codexV = version("codex");
 codexV ? ok(`Codex ${codexV}`) : warn("没有 Codex CLI（可选）：npm i -g @openai/codex，再运行 codex login 登录这台电脑的订阅");
+if (codexV) for (const p of codexConfigProblems()) warn(`${p.file}：${p.message}。${p.fix}。不改的话 Codex 员工都起不来（Agentself 不会动这个文件）`);
 
 // 2. dependencies and build
 step("安装依赖并构建（第一次要十几分钟）");

@@ -1049,8 +1049,13 @@ function ModelsSettings() {
           <div>
             <div className="label">Codex</div>
             <div className="sub">{m?.subscriptions.codex ?? "没有安装：npm i -g @openai/codex，再运行 codex login"}</div>
+            {(m?.subscriptions.codexProblems ?? []).map((p) => (
+              <div key={p.code} className="sub" data-testid="codex-problem" style={{ color: "var(--as-high)" }}>
+                {p.file}：{p.message}。{p.fix}。不改的话 Codex 员工都起不来（这是本机 Codex 的设置，Agentself 不会改它）。
+              </div>
+            ))}
           </div>
-          <span className={`status-tag ${m?.subscriptions.codex ? "good" : ""}`}>{m?.subscriptions.codex ? "可用" : "未安装"}</span>
+          <span className={`status-tag ${m?.subscriptions.codex ? ((m.subscriptions.codexProblems ?? []).length ? "hot" : "good") : ""}`}>{m?.subscriptions.codex ? ((m.subscriptions.codexProblems ?? []).length ? "配置有问题" : "可用") : "未安装"}</span>
         </div>
       </div>
       <VerifierSetting codex={!!m?.subscriptions.codex} />

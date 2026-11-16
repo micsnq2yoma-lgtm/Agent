@@ -16,6 +16,7 @@ import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, test
 import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentModel, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { fetchModels, listProviders, removeProvider, saveProvider, sourceLabel, sourceOf, SUBSCRIPTION_MODELS } from "../../../scripts/lib/providers.mjs";
+import { codexConfigProblems } from "../../../scripts/lib/codex-check.mjs";
 import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testServer } from "../../../scripts/lib/mcp-servers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
@@ -222,7 +223,9 @@ function subscriptionStatus() {
     const r = spawnSync(cmd, ["--version"], { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10_000 });
     return r.status === 0 ? (r.stdout || r.stderr).trim().split(/\r?\n/)[0] : null;
   };
-  return { claude: v(process.env.AGENTSELF_CLAUDE_BIN ?? "claude"), codex: v("codex") };
+  const codex = v("codex");
+  // a broken ~/.codex/config.toml stops every Codex run; say so where Codex is chosen
+  return { claude: v(process.env.AGENTSELF_CLAUDE_BIN ?? "claude"), codex, codexProblems: codex ? codexConfigProblems() : [] };
 }
 /** Save a provider; an API key goes into Paperclip's secret store (created once, rotated after). */
 async function putProvider(id, body) {

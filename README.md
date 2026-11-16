@@ -56,8 +56,11 @@ node scripts\update.mjs           # 备份数据库和 ~/.agentself → 停止 �
 ```powershell
 node scripts\start.mjs   # 对外只有 :3100；Agentself 本地服务只听本机 :3200，由 Paperclip 经 /agentself/api 反向代理。崩溃自动重启，日志在 ~/.agentself/logs
 node scripts\stop.mjs    # 停止
+node scripts\build.mjs   # 手动重新构建（--install 先装依赖，--ui 只构建界面）
 node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 验收用的示例团队；日常在应用里用向导新建
 ```
+
+Windows 上不要直接在 `vendor\paperclip` 里跑 `pnpm build`：Paperclip 的构建脚本要用 Git Bash，`build.mjs` / `install.mjs` / `update.mjs` 会自动找到并交给 pnpm。一定要手动跑时，先在 PowerShell 里设 `$env:npm_config_script_shell = "C:\Program Files\Git\bin\bash.exe"`（换成本机 Git 的位置）。
 
 开机自启：`powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`（`-Remove` 卸载）。
 

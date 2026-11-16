@@ -11,7 +11,7 @@ import { initMemory, removeMemoryEntry } from "./memory.mjs";
 import { instructionsPath, writeInstructions } from "./instructions.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 import { mergeEnv, resolveSource, sourceOf } from "./providers.mjs";
-import { allMcpEnvKeys, claudeMcpEntries, codexMcpEntries, mcpEnvFor } from "./mcp-servers.mjs";
+import { allMcpEnvKeys, claudeMcpEntries, codexMcpEntries, mcpEnvFor, tomlArr, tomlStr } from "./mcp-servers.mjs";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
@@ -59,8 +59,6 @@ const runtimeDir = (cwd) => path.join(cwd, ".agentself");
 export { instructionsPath };
 const mcpConfigPath = (cwd) => path.join(runtimeDir(cwd), "mcp.json");
 
-/** A TOML string for `codex -c key=value` (literal string unless the value has a single quote). */
-const tomlStr = (v) => (String(v).includes("'") ? JSON.stringify(String(v)) : `'${v}'`);
 /** What the team MCP server needs from the run (Codex forwards only listed variables to MCP servers). */
 export const TEAM_MCP_ENV = ["PAPERCLIP_API_URL", "PAPERCLIP_API_KEY", "PAPERCLIP_AGENT_ID", "PAPERCLIP_COMPANY_ID", "PAPERCLIP_RUN_ID", "PAPERCLIP_TASK_ID", "AGENTSELF_HOME"];
 
@@ -68,13 +66,18 @@ export const TEAM_MCP_ENV = ["PAPERCLIP_API_URL", "PAPERCLIP_API_KEY", "PAPERCLI
  * Codex has no --mcp-config: MCP servers come from config.toml, which `-c` overrides per run. The
  * team server is registered this way so Codex employees get the same tools as Claude employees
  * (submit_evidence, watch_job, comments…) instead of hand-written curl.
+ *
+ * No argument may contain whitespace (see tomlStr): Windows splits it on the way to Codex. Node's
+ * default Windows location ("C:\Program Files\nodejs") has a space, so there the server is started
+ * as plain `node` from PATH, which is where that install puts it.
  */
 export function codexMcpArgs({ role = "employee", nodePath = process.execPath } = {}) {
   const r = role === "lead" ? "lead" : "employee";
+  const node = /\s/.test(nodePath) ? "node" : nodePath;
   return [
-    "-c", `mcp_servers.agentself.command=${tomlStr(nodePath)}`,
-    "-c", `mcp_servers.agentself.args=[${[TEAM_MCP_SERVER, `--role=${r}`].map(tomlStr).join(", ")}]`,
-    "-c", `mcp_servers.agentself.env_vars=[${TEAM_MCP_ENV.map(tomlStr).join(", ")}]`,
+    "-c", `mcp_servers.agentself.command=${tomlStr(node)}`,
+    "-c", `mcp_servers.agentself.args=${tomlArr([TEAM_MCP_SERVER, `--role=${r}`])}`,
+    "-c", `mcp_servers.agentself.env_vars=${tomlArr(TEAM_MCP_ENV)}`,
     "-c", "mcp_servers.agentself.startup_timeout_sec=20",
   ];
 }

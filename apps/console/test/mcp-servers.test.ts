@@ -53,7 +53,7 @@ describe("what each agent gets", () => {
     const a = m.codexMcpEntries(emp("E2")).join(" ");
     expect(a).toMatch(/mcp_servers\.notion\.command='npx'/);
     expect(a).toMatch(/mcp_servers\.notion\.env_vars=\['NOTION_TOKEN'\]/);
-    expect(a).toMatch(/mcp_servers\.files\.env=\{ LOG = 'info' \}/);
+    expect(a).toMatch(/mcp_servers\.files\.env=\{LOG='info'\}/);
     expect(a).toMatch(/mcp_servers\.github\.bearer_token_env_var='AGENTSELF_MCP_GITHUB_TOKEN'/);
     const cfg = dept.agentAdapterConfig({ role: "employee", adapterType: "codex_local", cwd: "/w", nodePath: "node", agent: emp("E2") });
     expect(cfg.extraArgs.join(" ")).toMatch(/mcp_servers\.agentself\..*mcp_servers\.notion\./);

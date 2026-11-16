@@ -129,10 +129,11 @@ function readObjects(buf) {
       stream = buf.subarray(start, end);
       re.lastIndex = end;
     }
-    objs[num] = { value, stream };
+    // later in the file wins: incremental updates (arXiv's stamp) redefine objects at the end
+    objs[num] = { value, stream, at: m.index };
   }
-  // object streams
-  for (const o of Object.values(objs)) {
+  // object streams, in file order, so an object redefined by a later update stays the newest
+  for (const o of Object.values(objs).sort((a, b) => a.at - b.at)) {
     if (o.value?.Type?.name !== "ObjStm" || !o.stream) continue;
     const data = decodeStream(o, objs).toString("latin1");
     const n = Number(o.value.N) || 0;
@@ -141,9 +142,9 @@ function readObjects(buf) {
     for (let k = 0; k < n; k++) {
       const num = head[2 * k];
       const off = head[2 * k + 1];
-      if (objs[num]) continue;
+      if (objs[num] && objs[num].at > o.at) continue;
       const [value] = parseValue(data, first + off);
-      objs[num] = { value, stream: null };
+      objs[num] = { value, stream: null, at: o.at };
     }
   }
   return objs;
@@ -259,6 +260,26 @@ function parseCMap(text) {
   return { map, width };
 }
 
+/**
+ * The built-in encoding of an embedded Type1 font (`dup 12 /fi put` in the font program's clear-text
+ * part). pdfTeX embeds Computer Modern / Times subsets this way with no /Encoding and no ToUnicode:
+ * without it ligatures, quotes and dashes in LaTeX papers come out as control bytes.
+ */
+function builtinEncoding(f, objs) {
+  const desc = deref(f.FontDescriptor, objs);
+  const ff = desc?.FontFile && objs[desc.FontFile.ref];
+  if (!ff?.stream) return {};
+  const data = decodeStream(ff, objs);
+  const len1 = Number(deref(ff.value?.Length1, objs)) || data.length;
+  const clear = data.subarray(0, Math.min(len1, data.length)).toString("latin1");
+  const out = {};
+  for (const m of clear.matchAll(/dup\s+(\d+)\s*\/([^\s/]+)\s+put/g)) {
+    const ch = glyphToChar(m[2]);
+    if (ch) out[Number(m[1])] = ch;
+  }
+  return out;
+}
+
 function makeFont(fontDict, objs) {
   const f = deref(fontDict, objs) ?? {};
   const sub = f.Subtype?.name;
@@ -267,7 +288,8 @@ function makeFont(fontDict, objs) {
   const tu = f.ToUnicode && objs[f.ToUnicode.ref];
   if (tu) cmap = parseCMap(decodeStream(tu, objs).toString("latin1"));
   const twoByte = sub === "Type0" || (enc?.name && /Identity|UCS2|UTF16/.test(enc.name));
-  const diff = {};
+  // the font's own encoding first; /Differences of the PDF's encoding override it
+  const diff = !cmap && !twoByte && sub === "Type1" && !enc?.name ? builtinEncoding(f, objs) : {};
   const encDict = enc && typeof enc === "object" && !("name" in enc) ? enc : null;
   if (Array.isArray(encDict?.Differences)) {
     let code = 0;
@@ -290,7 +312,13 @@ function makeFont(fontDict, objs) {
 }
 
 /* ---------------- content streams ---------------- */
-function textOfContent(content, fonts) {
+/**
+ * Text of a content stream. `res` are its resources; Form XObjects it draws (`Do`) are read with
+ * their own resources: arXiv's stamp wraps every original page into one, and figures made in LaTeX
+ * carry their labels in them.
+ */
+function textOfContent(content, res, ctx, depth = 0) {
+  const fonts = ctx.fontsOf(res);
   const s = content.toString("latin1");
   let out = "";
   let font = (b) => Buffer.from(b).toString("latin1");
@@ -343,6 +371,19 @@ function textOfContent(content, fonts) {
       else if (Math.abs(Number(stack[stack.length - 2])) > size * 0.15 && !out.endsWith(" ")) out += " ";
     } else if (op === "ET") {
       if (!out.endsWith(" ") && !out.endsWith("\n")) out += " ";
+    } else if (op === "Do") {
+      const name = stack[stack.length - 1]?.name;
+      const ref = name && deref(res?.XObject, ctx.objs)?.[name];
+      const xo = ref?.ref !== undefined ? ctx.objs[ref.ref] : null;
+      if (xo?.value?.Subtype?.name === "Form" && depth < 6 && !ctx.drawing.has(ref.ref)) {
+        ctx.drawing.add(ref.ref);
+        const inner = textOfContent(decodeStream(xo, ctx.objs), deref(xo.value.Resources, ctx.objs) ?? res, ctx, depth + 1);
+        ctx.drawing.delete(ref.ref);
+        if (inner.trim()) {
+          newline();
+          out += `${inner}\n`;
+        }
+      }
     }
     stack.length = 0;
   }
@@ -373,16 +414,23 @@ export function pdfText(buf, { maxPages = 400 } = {}) {
   if (!pages.length) pages = Object.values(objs).filter((o) => o.value?.Type?.name === "Page").map((o) => o.value);
   const texts = [];
   const fontCache = new Map();
+  const ctx = {
+    objs,
+    drawing: new Set(),
+    fontsOf(res) {
+      const fonts = {};
+      for (const [name, ref] of Object.entries(deref(res?.Font, objs) ?? {})) {
+        // fonts without an object number are inline dicts: cache them per dict, not per name
+        const key = ref?.ref ?? ref;
+        if (!fontCache.has(key)) fontCache.set(key, makeFont(ref, objs));
+        fonts[name] = fontCache.get(key);
+      }
+      return fonts;
+    },
+  };
   for (const page of pages.slice(0, maxPages)) {
     const res = deref(page.Resources, objs) ?? {};
-    const fontRes = deref(res.Font, objs) ?? {};
-    const fonts = {};
-    for (const [name, ref] of Object.entries(fontRes)) {
-      const key = ref?.ref ?? name;
-      if (!fontCache.has(key)) fontCache.set(key, makeFont(ref, objs));
-      fonts[name] = fontCache.get(key);
-    }
-    const t = textOfContent(pageContents(page, objs), fonts)
+    const t = textOfContent(pageContents(page, objs), res, ctx)
       // compatibility forms (Kangxi radicals ⽂ → 文, ligatures ﬁ → fi, full-width digits)
       .normalize("NFKC")
       .replace(/[ \t]+/g, " ")

@@ -18,7 +18,7 @@ export interface Provider {
 }
 export interface ModelsInfo {
   providers: Provider[];
-  subscriptions: { claude: string | null; codex: string | null };
+  subscriptions: { claude: string | null; codex: string | null; codexProblems?: { code: string; message: string; fix: string; file: string }[] };
   subscriptionModels?: { claude: string[]; codex: string[] };
 }
 
