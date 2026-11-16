@@ -14,8 +14,8 @@ import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
 import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, testAccount } from "./mail.mjs";
 import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
-import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
-import { listProviders, removeProvider, saveProvider, sourceLabel, sourceOf } from "../../../scripts/lib/providers.mjs";
+import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentModel, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
+import { fetchModels, listProviders, removeProvider, saveProvider, sourceLabel, sourceOf, SUBSCRIPTION_MODELS } from "../../../scripts/lib/providers.mjs";
 import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testServer } from "../../../scripts/lib/mcp-servers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
@@ -629,7 +629,18 @@ async function handleAgentself(req, res, url) {
   /* IM (PLAN 6) */
   if (req.method === "GET" && p === "/feishu/status") return send(res, 200, { status: imStatus() });
   /* models: Claude / Codex subscriptions, everything else over an API (per machine) */
-  if (req.method === "GET" && p === "/providers") return send(res, 200, { providers: listProviders(HOME), subscriptions: subscriptionStatus() });
+  if (req.method === "GET" && p === "/providers") return send(res, 200, { providers: listProviders(HOME), subscriptions: subscriptionStatus(), subscriptionModels: SUBSCRIPTION_MODELS });
+  const pmm = p.match(/^\/providers\/([\w-]+)\/models$/);
+  if (pmm && req.method === "POST") {
+    const body = await readJson(req);
+    return send(res, 200, await fetchModels(HOME, pmm[1], { apiKey: body.apiKey, baseUrl: body.baseUrl }));
+  }
+  const amm = p.match(/^\/agents\/([\w-]+)\/model$/);
+  if (amm && req.method === "POST") {
+    const body = await readJson(req);
+    const agent = await setAgentModel(amm[1], body.model, { api: pc, log: () => {} });
+    return send(res, 200, { id: agent.id, model: agent.adapterConfig?.model ?? null });
+  }
   const pvm = p.match(/^\/providers\/([\w-]+)$/);
   if (pvm && req.method === "PUT") return send(res, 200, await putProvider(pvm[1], await readJson(req)));
   if (pvm && req.method === "DELETE") {

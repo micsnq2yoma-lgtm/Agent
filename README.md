@@ -65,6 +65,10 @@ node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 
 
 邮箱：设置 → 邮箱，填地址和授权码（IMAP）。员工只读邮件、存回复草稿，不会替你发送。
 
+论文库：侧栏"论文库"，存放位置在 设置 → 论文库 里指定（任意文件夹）。员工和主管都能检索。
+
+工具服务（MCP）：能力与工具 → 工具服务，从精选里装或自定义，选给哪些员工用。
+
 模型：设置 → 模型与订阅。订阅用本机登录的 Claude Code 和 Codex；其余模型填 API key（存进 Paperclip 密钥库）。
 
 ## 测试

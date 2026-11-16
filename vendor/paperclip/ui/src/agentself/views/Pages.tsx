@@ -887,6 +887,19 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
       setBusy(null);
     }
   }
+  async function fetchList() {
+    setBusy("models");
+    setMsg(null);
+    try {
+      const r = await as.post<{ models: string[]; from: string }>(`/providers/${p.id}/models`, { apiKey: form.apiKey, baseUrl: form.baseUrl });
+      setMsg(`拿到 ${r.models.length} 个模型，填模型名时可以直接选。`);
+      onSaved();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
   async function test() {
     setBusy("test");
     setMsg(null);
@@ -899,15 +912,28 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
       setBusy(null);
     }
   }
+  const listId = `models-${p.id}`;
   return (
-    <div className="provider">
-      <div className="row" style={{ cursor: "pointer" }} onClick={() => setOpen((v) => !v)}>
-        <div>
-          <div className="label">{p.name}</div>
-          <div className="sub mono">{p.model}</div>
-        </div>
-        <span className={`status-tag ${p.hasKey ? "good" : ""}`}>{p.hasKey ? "已填 key" : "未配置"}</span>
-      </div>
+    <div className={`provider ${open ? "open" : ""}`}>
+      <button type="button" className="provider-head" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+        <span className="provider-mark" aria-hidden="true">
+          {p.name.slice(0, 1)}
+        </span>
+        <span style={{ minWidth: 0, flex: 1 }}>
+          <span className="label" style={{ display: "block" }}>{p.name}</span>
+          <span className="sub" style={{ display: "block" }}>{p.blurb ?? (p.preset ? "" : "自定义")}</span>
+          <span className="sub mono" style={{ display: "block" }}>
+            {p.model}
+            {p.models?.length ? ` · 共 ${p.models.length} 个模型` : ""}
+          </span>
+        </span>
+        <span className={`status-tag ${p.hasKey ? "good" : ""}`}>{p.hasKey ? "可用" : "未配置"}</span>
+      </button>
+      <datalist id={listId}>
+        {(p.models ?? []).map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
       {open && (
         <div className="provider-form">
           <label className="field">
@@ -917,11 +943,11 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
           <div className="grid2">
             <label className="field">
               主模型
-              <input className="input mono" value={form.model} onChange={(e) => set("model", e.target.value)} />
+              <input className="input mono" list={listId} value={form.model} onChange={(e) => set("model", e.target.value)} />
             </label>
             <label className="field">
               轻量模型（后台小任务）
-              <input className="input mono" value={form.smallModel} onChange={(e) => set("smallModel", e.target.value)} />
+              <input className="input mono" list={listId} value={form.smallModel} onChange={(e) => set("smallModel", e.target.value)} />
             </label>
           </div>
           <label className="field">
@@ -934,6 +960,9 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
             </button>
             <button className="btn" disabled={busy !== null || !form.apiKey} title="用上面填的 key 发一条很短的请求" onClick={() => void test()}>
               {busy === "test" ? "测试中…" : "测试"}
+            </button>
+            <button className="btn" disabled={busy !== null || !form.apiKey} title="用上面填的 key 问服务商有哪些模型" onClick={() => void fetchList()}>
+              {busy === "models" ? "获取中…" : "获取模型列表"}
             </button>
             {p.keyUrl && (
               <a className="sub" href={p.keyUrl} target="_blank" rel="noreferrer">
@@ -1023,11 +1052,13 @@ function ModelsSettings() {
       </div>
       <VerifierSetting codex={!!m?.subscriptions.codex} />
       <div className="section">
-        <h2>API 模型</h2>
+        <h2>模型市场</h2>
         <p className="hint">其余模型走 API：员工仍然跑在 Claude Code 上（工具、记忆、团队工具都一样），只是把模型换成服务商的 Anthropic 兼容接口。key 存进 Paperclip 密钥库，不写进任何文件。模型名会随服务商更新，以服务商文档为准。</p>
-        {(m?.providers ?? []).map((p) => (
-          <ProviderRow key={p.id} p={p} onSaved={reload} />
-        ))}
+        <div className="provider-grid">
+          {(m?.providers ?? []).map((p) => (
+            <ProviderRow key={p.id} p={p} onSaved={reload} />
+          ))}
+        </div>
       </div>
       <div className="section">
         <h2>添加其他服务商</h2>

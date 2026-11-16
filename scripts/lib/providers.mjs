@@ -11,11 +11,11 @@ import path from "node:path";
 
 /** Anthropic-compatible endpoints. Model names change often: they are defaults the user can edit. */
 export const PROVIDER_PRESETS = [
-  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-chat", smallModel: "deepseek-chat", keyUrl: "https://platform.deepseek.com/api_keys" },
-  { id: "kimi", name: "Kimi（月之暗面）", baseUrl: "https://api.moonshot.cn/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", keyUrl: "https://platform.moonshot.cn/console/api-keys" },
-  { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", keyUrl: "https://open.bigmodel.cn/usercenter/apikeys" },
-  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/apps/anthropic", model: "qwen3-coder-plus", smallModel: "qwen3-coder-plus", keyUrl: "https://bailian.console.aliyun.com/?apiKey=1" },
-  { id: "minimax", name: "MiniMax", baseUrl: "https://api.minimaxi.com/anthropic", model: "MiniMax-M2", smallModel: "MiniMax-M2", keyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key" },
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-chat", smallModel: "deepseek-chat", modelsUrl: "https://api.deepseek.com/models", keyUrl: "https://platform.deepseek.com/api_keys", blurb: "推理和代码能力强，价格低" },
+  { id: "kimi", name: "Kimi（月之暗面）", baseUrl: "https://api.moonshot.cn/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", modelsUrl: "https://api.moonshot.cn/v1/models", keyUrl: "https://platform.moonshot.cn/console/api-keys", blurb: "长上下文，擅长读长文档和工具调用" },
+  { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", modelsUrl: "https://open.bigmodel.cn/api/paas/v4/models", keyUrl: "https://open.bigmodel.cn/usercenter/apikeys", blurb: "代码和智能体任务，有包月套餐" },
+  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/apps/anthropic", model: "qwen3-coder-plus", smallModel: "qwen3-coder-plus", modelsUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1/models", keyUrl: "https://bailian.console.aliyun.com/?apiKey=1", blurb: "阿里云百炼，模型种类多" },
+  { id: "minimax", name: "MiniMax", baseUrl: "https://api.minimaxi.com/anthropic", model: "MiniMax-M2", smallModel: "MiniMax-M2", modelsUrl: "https://api.minimaxi.com/v1/models", keyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key", blurb: "智能体和代码任务" },
 ];
 
 /** Env keys this module manages on an agent; switching source removes the ones no longer wanted. */
@@ -63,7 +63,7 @@ export function saveProvider(home, id, patch) {
   const preset = PROVIDER_PRESETS.find((p) => p.id === key);
   const cur = all[key] ?? {};
   const next = { ...cur };
-  for (const k of ["name", "baseUrl", "model", "smallModel", "secretId"]) if (patch[k] !== undefined) next[k] = typeof patch[k] === "string" ? patch[k].trim() : patch[k];
+  for (const k of ["name", "baseUrl", "model", "smallModel", "secretId", "modelsUrl", "models", "modelsFetchedAt"]) if (patch[k] !== undefined) next[k] = typeof patch[k] === "string" ? patch[k].trim() : patch[k];
   if (!preset && !next.baseUrl) throw Object.assign(new Error("自定义服务商要填 Anthropic 兼容接口地址"), { status: 400 });
   if (next.baseUrl && !/^https?:\/\//.test(next.baseUrl)) throw Object.assign(new Error("接口地址要以 http(s):// 开头"), { status: 400 });
   next.updatedAt = new Date().toISOString();
@@ -95,14 +95,15 @@ export function sourceLabel(source, home) {
  * What an agent runs with for a source: adapter type, model and env bindings.
  * `role` matters only for defaults (leads default to Opus on the Claude subscription).
  */
-export function resolveSource(source, home) {
-  if (!source || source === "claude") return { adapterType: "claude_local", env: {} };
-  if (source === "codex") return { adapterType: "codex_local", env: {} };
+export function resolveSource(source, home, { model: override = null } = {}) {
+  if (!source || source === "claude") return { adapterType: "claude_local", env: {}, ...(override ? { model: override } : {}) };
+  if (source === "codex") return { adapterType: "codex_local", env: {}, ...(override ? { model: override } : {}) };
   if (!source.startsWith("api:")) throw Object.assign(new Error(`未知的模型来源：${source}`), { status: 400 });
   const p = listProviders(home).find((x) => x.id === source.slice(4));
   if (!p) throw Object.assign(new Error(`没有这个服务商：${source.slice(4)}`), { status: 400 });
   if (!p.secretId) throw Object.assign(new Error(`${p.name} 还没有填 API key（设置 → 模型与订阅）`), { status: 400 });
-  const model = p.model || p.smallModel;
+  // the agent's own choice of model on this provider wins over the provider default
+  const model = override || p.model || p.smallModel;
   const small = p.smallModel || p.model;
   return {
     adapterType: "claude_local",
@@ -126,3 +127,47 @@ export function mergeEnv(cur, next) {
   for (const [k, v] of Object.entries(cur ?? {})) if (!MANAGED_ENV.includes(k)) out[k] = v;
   return { ...out, ...next };
 }
+
+/** Model ids from an OpenAI-style `{ data: [{ id }] }` or Anthropic-style list. Pure. */
+export function parseModelList(json) {
+  const items = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
+  return [...new Set(items.map((m) => (typeof m === "string" ? m : (m?.id ?? m?.name ?? m?.model))).filter((x) => typeof x === "string" && x.trim()))].sort();
+}
+
+/**
+ * Ask a provider which models it has, with a key the user just typed (stored keys cannot be read
+ * back). Tries the provider's list endpoint, then `<baseUrl>/v1/models`. Saves the list.
+ */
+export async function fetchModels(home, id, { apiKey, baseUrl, fetchImpl = fetch } = {}) {
+  const p = listProviders(home).find((x) => x.id === id);
+  const key = String(apiKey ?? "").trim();
+  if (!key) throw Object.assign(new Error("获取模型列表要在这里填一次 API key"), { status: 400 });
+  const base = String(baseUrl ?? p?.baseUrl ?? "").replace(/\/$/, "");
+  const urls = [p?.modelsUrl, base && `${base}/v1/models`].filter(Boolean);
+  let lastErr = "没有可用的模型列表地址";
+  for (const url of urls) {
+    try {
+      const r = await fetchImpl(url, { headers: { authorization: `Bearer ${key}`, "x-api-key": key, "anthropic-version": "2023-06-01" }, signal: AbortSignal.timeout(20_000) });
+      if (!r.ok) {
+        lastErr = `${new URL(url).host} 返回 ${r.status}`;
+        continue;
+      }
+      const models = parseModelList(await r.json());
+      if (!models.length) {
+        lastErr = `${new URL(url).host} 没有返回模型`;
+        continue;
+      }
+      saveProvider(home, id, { models, modelsFetchedAt: new Date().toISOString() });
+      return { models, from: url };
+    } catch (e) {
+      lastErr = e instanceof Error ? e.message : String(e);
+    }
+  }
+  throw Object.assign(new Error(`没拿到模型列表：${lastErr}。可以直接手填模型名。`), { status: 502 });
+}
+
+/** Common model names for the subscriptions (aliases the CLIs accept); the CLI default is used when empty. */
+export const SUBSCRIPTION_MODELS = {
+  claude: ["claude-opus-5-5", "opus", "sonnet", "haiku"],
+  codex: [],
+};

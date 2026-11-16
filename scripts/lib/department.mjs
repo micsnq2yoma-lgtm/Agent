@@ -171,7 +171,7 @@ export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir 
   // API models: provider settings (endpoint, model, key) may have changed since the agent was made
   let run = null;
   try {
-    run = resolveSource(sourceOf(agent), home);
+    run = resolveSource(sourceOf(agent), home, { model: meta.model ?? null });
   } catch (e) {
     log(`${role} ${agent.name}: ${e.message}`);
   }
@@ -270,7 +270,7 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     });
     const role = isLead ? "lead" : "employee";
     const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
-    const run = resolveSource(source, home);
+    const run = resolveSource(source, home, { model: member.sourceModel ?? null });
     writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
     const fresh = { metadata: { agentself: { isLead } } }; // tool servers for "all" employees apply from the start
     const adapterConfig = withEnv(agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model: run.model ?? member.model, workspacesDir, agent: fresh }), { ...run.env, ...mcpEnvFor(fresh) });
@@ -377,7 +377,7 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
   if (!name) throw Object.assign(new Error("新员工要有名字"), { status: 400 });
   const home = agentselfHome();
   const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
-  const run = resolveSource(source, home);
+  const run = resolveSource(source, home, { model: member.sourceModel ?? null });
   const adapterType = run.adapterType;
   const companyId = lead.companyId;
   ensureProfile(home);
@@ -424,7 +424,9 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
   if (!meta || !cwd) throw Object.assign(new Error("只能改 Agentself 建的主管和员工"), { status: 400 });
   const role = meta.isLead ? "lead" : "employee";
   const home = agentselfHome();
-  const run = resolveSource(source, home);
+  // a model picked for the old source does not carry over to another provider
+  const keepModel = sourceOf(agent) === source ? (meta.model ?? null) : null;
+  const run = resolveSource(source, home, { model: keepModel });
   if (role === "lead" && run.adapterType !== "claude_local") throw Object.assign(new Error("主管只能用 Claude Code（Claude 订阅或 API 模型）"), { status: 400 });
   writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home, agent });
   const cur = agent.adapterConfig ?? {};
@@ -436,7 +438,33 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
   if (Object.keys(env).length) adapterConfig.env = env;
   // replaceAdapterConfig: Paperclip merges adapter configs by default, which would keep the old
   // adapter's flags (e.g. Claude --mcp-config on a Codex agent)
-  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterType: run.adapterType, adapterConfig, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, source } } });
+  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterType: run.adapterType, adapterConfig, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, source, model: keepModel } } });
   log(`${role} ${agent.name}: source ${sourceOf(agent)} → ${source}`);
+  return updated;
+}
+
+/**
+ * Pick the model an agent runs on within its source (empty = the source's default: the provider's
+ * main model, or the CLI's default for a subscription; leads default to Opus).
+ */
+export async function setAgentModel(agentId, model, { api = defaultApi, log = console.log } = {}) {
+  const agent = await api("GET", `/agents/${agentId}`);
+  const meta = agent?.metadata?.agentself;
+  if (!meta || !agent.adapterConfig?.cwd) throw Object.assign(new Error("只能改 Agentself 建的主管和员工"), { status: 400 });
+  const m = String(model ?? "").trim();
+  if (m && !/^[\w.:/@-]{1,120}$/.test(m)) throw Object.assign(new Error("模型名不对"), { status: 400 });
+  const source = sourceOf(agent);
+  const role = meta.isLead ? "lead" : "employee";
+  const home = agentselfHome();
+  const run = resolveSource(source, home, { model: m || null });
+  const cur = agent.adapterConfig ?? {};
+  const next = { ...cur };
+  if (run.model) next.model = run.model;
+  else if (role === "lead") next.model = DEFAULT_LEAD_MODEL;
+  else delete next.model;
+  const env = agentEnv(cur.env, run, agent);
+  if (Object.keys(env).length) next.env = env;
+  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterConfig: next, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, model: m || null } } });
+  log(`${role} ${agent.name}: model → ${next.model ?? "(默认)"}`);
   return updated;
 }

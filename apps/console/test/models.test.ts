@@ -66,3 +66,51 @@ describe("Codex employees get the team tools", () => {
     expect(validatePack({ ...base, members: [{ key: "a", name: "A", source: "gemini" }] }).join()).toMatch(/模型来源不支持/);
   });
 });
+
+// @ts-expect-error plain JS module
+import { fetchModels, parseModelList } from "../../../scripts/lib/providers.mjs";
+// @ts-expect-error plain JS module
+import { setAgentModel } from "../../../scripts/lib/department.mjs";
+
+describe("model market", () => {
+  it("reads OpenAI- and Anthropic-style model lists", () => {
+    expect(parseModelList({ object: "list", data: [{ id: "deepseek-reasoner" }, { id: "deepseek-chat" }] })).toEqual(["deepseek-chat", "deepseek-reasoner"]);
+    expect(parseModelList({ data: [{ id: "glm-4.6", type: "model" }], has_more: false })).toEqual(["glm-4.6"]);
+    expect(parseModelList({ models: ["a", "a", "b"] })).toEqual(["a", "b"]);
+  });
+  it("asks the provider's list endpoint, falls back to <baseUrl>/v1/models, and saves the list", async () => {
+    const asked: string[] = [];
+    const fake = async (url: string, o: { headers: Record<string, string> }) => {
+      asked.push(`${url} ${o.headers.authorization}`);
+      if (url.includes("api.deepseek.com/models")) return { ok: false, status: 404, json: async () => ({}) };
+      return { ok: true, status: 200, json: async () => ({ data: [{ id: "deepseek-chat" }, { id: "deepseek-reasoner" }] }) };
+    };
+    const r = await fetchModels(home, "deepseek", { apiKey: "sk-x", fetchImpl: fake });
+    expect(r.models).toEqual(["deepseek-chat", "deepseek-reasoner"]);
+    expect(asked).toEqual(["https://api.deepseek.com/models Bearer sk-x", "https://api.deepseek.com/anthropic/v1/models Bearer sk-x"]);
+    expect(listProviders(home).find((p: { id: string }) => p.id === "deepseek").models).toEqual(["deepseek-chat", "deepseek-reasoner"]);
+    await expect(fetchModels(home, "deepseek", { apiKey: "" })).rejects.toThrow(/填一次 API key/);
+  });
+  it("an agent's own model wins over the provider default", () => {
+    expect(resolveSource("api:deepseek", home, { model: "deepseek-chat" }).env.ANTHROPIC_MODEL).toBe("deepseek-chat");
+    expect(resolveSource("api:deepseek", home).model).toBe("deepseek-reasoner");
+    expect(resolveSource("claude", home, { model: "sonnet" })).toEqual({ adapterType: "claude_local", env: {}, model: "sonnet" });
+  });
+  it("setAgentModel stores the choice and rewrites the env for API agents", async () => {
+    process.env.AGENTSELF_HOME = home;
+    const calls: Array<[string, string, Record<string, unknown>]> = [];
+    const agent = { id: "E", adapterType: "claude_local", adapterConfig: { cwd: "/w/e", model: "deepseek-reasoner", env: { HTTP_PROXY: "p" } }, metadata: { agentself: { isLead: false, source: "api:deepseek" } } };
+    const api = async (method: string, p: string, body: Record<string, unknown>) => {
+      calls.push([method, p, body]);
+      return method === "GET" ? agent : { ...agent, ...body };
+    };
+    await setAgentModel("E", "deepseek-chat", { api, log: () => {} });
+    const patch = calls.find((c) => c[0] === "PATCH")![2] as { adapterConfig: { model: string; env: Record<string, unknown> }; replaceAdapterConfig: boolean; metadata: { agentself: { model: string } } };
+    expect(patch.adapterConfig.model).toBe("deepseek-chat");
+    expect(patch.adapterConfig.env.ANTHROPIC_MODEL).toBe("deepseek-chat");
+    expect(patch.adapterConfig.env.HTTP_PROXY).toBe("p");
+    expect(patch.replaceAdapterConfig).toBe(true);
+    expect(patch.metadata.agentself.model).toBe("deepseek-chat");
+    await expect(setAgentModel("E", "bad model name!", { api, log: () => {} })).rejects.toThrow(/模型名不对/);
+  });
+});

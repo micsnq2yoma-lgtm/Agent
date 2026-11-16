@@ -10,12 +10,25 @@ export interface Provider {
   model: string;
   smallModel: string;
   keyUrl?: string;
+  blurb?: string;
   preset: boolean;
   hasKey: boolean;
+  models?: string[];
+  modelsFetchedAt?: string;
 }
 export interface ModelsInfo {
   providers: Provider[];
   subscriptions: { claude: string | null; codex: string | null };
+  subscriptionModels?: { claude: string[]; codex: string[] };
+}
+
+/** Model names to suggest for a source (provider's fetched list, or the subscription aliases). */
+export function modelChoices(source: string, m: ModelsInfo | null): string[] {
+  if (source.startsWith("api:")) {
+    const p = m?.providers.find((x) => x.id === source.slice(4));
+    return [...new Set([p?.model, p?.smallModel, ...(p?.models ?? [])].filter((x): x is string => !!x))];
+  }
+  return m?.subscriptionModels?.[source === "codex" ? "codex" : "claude"] ?? [];
 }
 
 let cache: ModelsInfo | null = null;
