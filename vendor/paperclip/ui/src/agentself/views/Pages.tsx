@@ -923,8 +923,11 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
           </div>
           <label className="field">
             API key{p.hasKey ? "（已保存在 Paperclip 密钥库；填新的会替换）" : ""}
-            <input className="input mono" type="password" autoComplete="off" value={form.apiKey} placeholder={p.hasKey ? "••••••••" : "sk-…"} onChange={(e) => set("apiKey", e.target.value)} />
+            <input className="input mono" type="password" autoComplete="off" value={form.apiKey} placeholder={p.hasKey ? "已保存（读不出来）；要测试就再粘贴一次" : "sk-…"} onChange={(e) => set("apiKey", e.target.value)} />
           </label>
+          {p.hasKey && !form.apiKey && (
+            <div className="sub">key 已存进 Paperclip 密钥库，员工直接能用。密钥库里的 key 读不出来，所以点"测试"前要在上面再粘贴一次（只用来测试，不会覆盖，除非你点保存）。</div>
+          )}
           <div className="opts" style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
             <button className="btn primary" disabled={busy !== null} onClick={() => void save()}>
               {busy === "save" ? "保存中…" : "保存"}
