@@ -14,7 +14,6 @@ import { z } from "zod";
 // Agentself: body of the run write-off escape hatch
 const writeOffRunSchema = z.object({ reason: z.string().trim().min(1).max(1000), costUsd: z.number().nonnegative().max(100000).optional().nullable() });
 import { Router } from "express";
-import { z } from "zod";
 import type { Db } from "@paperclipai/db";
 import {
   createCostEventSchema,
