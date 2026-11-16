@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { listProviders, mergeEnv, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
+import { estimateYuan, listProviders, mergeEnv, normalizePrices, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
 // @ts-expect-error plain JS module
 import { agentAdapterConfig, codexMcpArgs, validatePack } from "../../../scripts/lib/department.mjs";
 // @ts-expect-error plain JS module
@@ -126,5 +126,26 @@ describe("model market", () => {
     expect(patch.replaceAdapterConfig).toBe(true);
     expect(patch.metadata.agentself.model).toBe("deepseek-chat");
     await expect(setAgentModel("E", "bad model name!", { api, log: () => {} })).rejects.toThrow(/模型名不对/);
+  });
+});
+
+describe("model prices (yuan per million tokens)", () => {
+  it("bad values are dropped, a model needs an input or output price", () => {
+    expect(normalizePrices({ "deepseek-chat": { input: "2", output: 3, cached: "0.2" }, empty: { input: "", output: null }, bad: { input: -1, output: "x" }, " ": { input: 1 } })).toEqual({
+      "deepseek-chat": { input: 2, output: 3, cached: 0.2 },
+    });
+    expect(normalizePrices(null)).toEqual({});
+  });
+  it("estimate: cache hits at the cached price, else at the input price; no price → null", () => {
+    const t = { inputTokens: 1_000_000, cachedInputTokens: 2_000_000, outputTokens: 500_000 };
+    expect(estimateYuan(t, { input: 2, cached: 0.2, output: 8 })).toBeCloseTo(2 + 0.4 + 4);
+    expect(estimateYuan(t, { input: 2, output: 8 })).toBeCloseTo(2 + 4 + 4);
+    expect(estimateYuan(t, undefined)).toBeNull();
+  });
+  it("prices are saved with the provider, presets carry their pricing page", () => {
+    saveProvider(home, "deepseek", { prices: { "deepseek-chat": { input: 2, output: 3 } } });
+    const p = listProviders(home).find((x: { id: string }) => x.id === "deepseek");
+    expect(p.prices).toEqual({ "deepseek-chat": { input: 2, output: 3 } });
+    expect(p.pricingUrl).toMatch(/^https:\/\//);
   });
 });

@@ -4,8 +4,9 @@
    Optional tokens (surface-subtle, shadow-card, …) always carry a fallback so the court skin and
    third-party skins, which do not define them, still render (DESIGN §3.2). */
 /* Bundled fonts (DESIGN §9.11; files and licences in public/fonts). Inter is Paperclip's own
-   "InterVariable". Tiempos Headline is commercial and only used when installed locally; CJK text
-   falls back to the system's Source Han / Noto / PingFang. */
+   "InterVariable". Tiempos Headline is commercial and only used when installed locally. Chinese
+   headings use the bundled Noto Serif SC (fonts-cjk.css, loaded slice by slice); Chinese body text
+   uses the system sans (Microsoft YaHei on Windows, PingFang on macOS). */
 @font-face {
   font-family: "Cormorant Garamond";
   src: url("/fonts/CormorantGaramond-Variable-latin.woff2") format("woff2");
@@ -45,8 +46,8 @@
   --as-low: #6B6E71;
   --as-success: #3FA45B;
   --as-radius: 16px;
-  --as-font-body: "InterVariable", "Inter", "Source Han Sans SC", "Noto Sans SC", "PingFang SC", sans-serif;
-  --as-font-display: "Tiempos Headline", "Cormorant Garamond", "EB Garamond", "Source Han Serif SC", "Noto Serif SC", serif;
+  --as-font-body: "InterVariable", "Inter", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Source Han Sans SC", "Noto Sans SC", sans-serif;
+  --as-font-display: "Tiempos Headline", "Cormorant Garamond", "EB Garamond", "Noto Serif SC", "Source Han Serif SC", serif;
   color-scheme: light dark;
 
   /* resolved helpers: optional tokens with their fallbacks (DESIGN §3.2) */
@@ -450,3 +451,13 @@ html[data-skin] :where(button, [role="tab"], input:not([type="checkbox"]):not([t
 .agentself .provider-grid .provider.open { grid-column: 1 / -1; background: var(--as-surface); box-shadow: inset 0 0 0 1px var(--as-x-border-soft); }
 .agentself .provider-head { display: flex; gap: 12px; align-items: flex-start; width: 100%; border: 0; background: none; padding: 12px 0; text-align: left; cursor: pointer; color: inherit; font: inherit; }
 .agentself .provider-mark { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--as-surface); box-shadow: var(--as-x-shadow-nav); font-weight: 700; }
+
+/* project drawer: 盯守 (routine, experiment watches, reminders) */
+.agentself .watch-list { display: flex; flex-direction: column; gap: 10px; }
+.agentself .watch-row { display: flex; align-items: flex-start; gap: 10px; }
+.agentself .watch-row .grow { flex: 1; min-width: 0; }
+.agentself .watch-row .wkind { flex: none; font-size: 12px; line-height: 20px; padding: 0 8px; border-radius: 999px; background: var(--as-x-subtle); color: var(--as-x-tertiary); }
+.agentself .watch-cmd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agentself .price-table { margin-top: 6px; }
+.agentself .price-table td { padding: 4px 6px; }
+.agentself .price-table .input { width: 100%; min-width: 64px; }

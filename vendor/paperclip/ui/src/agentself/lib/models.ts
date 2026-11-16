@@ -15,12 +15,41 @@ export interface Provider {
   hasKey: boolean;
   models?: string[];
   modelsFetchedAt?: string;
+  /** yuan per million tokens, per model (filled in by the user from pricingUrl) */
+  prices?: Record<string, Price>;
+  pricingUrl?: string;
+}
+export interface Price {
+  input?: number;
+  output?: number;
+  /** cache-hit input price */
+  cached?: number;
 }
 export interface ModelsInfo {
   providers: Provider[];
   subscriptions: { claude: string | null; codex: string | null; codexProblems?: { code: string; message: string; fix: string; file: string }[] };
   subscriptionModels?: { claude: string[]; codex: string[] };
 }
+
+/** The price of a model on an API source, if the user has filled it in. */
+export function priceOf(m: ModelsInfo | null, source: string | undefined, model: string | undefined): Price | null {
+  if (!source?.startsWith("api:") || !model) return null;
+  return m?.providers.find((x) => x.id === source.slice(4))?.prices?.[model] ?? null;
+}
+const yuan = (n: number) => `¥${n >= 10 ? n.toFixed(0) : n >= 1 ? n.toFixed(1).replace(/\.0$/, "") : n.toFixed(2).replace(/0$/, "")}`;
+/** "输入 ¥2 · 输出 ¥3 / 百万 token（缓存命中 ¥0.2）" */
+export function priceText(p: Price | null | undefined): string {
+  if (!p || (p.input === undefined && p.output === undefined)) return "";
+  const parts = [p.input !== undefined ? `输入 ${yuan(p.input)}` : null, p.output !== undefined ? `输出 ${yuan(p.output)}` : null].filter(Boolean);
+  return `${parts.join(" · ")} / 百万 token${p.cached !== undefined ? `（缓存命中 ${yuan(p.cached)}）` : ""}`;
+}
+/** Estimated yuan for token counts at a price (same rule as scripts/lib/providers.mjs estimateYuan). */
+export function estimateYuan(t: { inputTokens?: number; cachedInputTokens?: number; outputTokens?: number }, p: Price | null | undefined): number | null {
+  if (!p || (p.input === undefined && p.output === undefined)) return null;
+  const input = p.input ?? 0;
+  return ((t.inputTokens ?? 0) * input + (t.cachedInputTokens ?? 0) * (p.cached ?? input) + (t.outputTokens ?? 0) * (p.output ?? 0)) / 1e6;
+}
+export const formatYuan = (n: number) => `¥${n < 0.01 && n > 0 ? "<0.01" : n.toFixed(2)}`;
 
 /** Model names to suggest for a source (provider's fetched list, or the subscription aliases). */
 export function modelChoices(source: string, m: ModelsInfo | null): string[] {

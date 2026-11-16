@@ -25,6 +25,32 @@ async function loadNotices(companyId: string): Promise<Notice[]> {
   return Array.isArray(r?.data) ? r.data : [];
 }
 
+export interface WatchView {
+  id: string;
+  issueId: string;
+  agentId: string;
+  command: string;
+  everyMinutes: number;
+  checks: number;
+  nextAt: string;
+  expiresAt: string;
+  note: string;
+}
+export interface ReminderView {
+  issueId: string;
+  agentId: string;
+  dueAt: string;
+  note: string;
+}
+/** Experiment watches and pending reminders on these tasks (team-layer plugin). */
+export async function loadWatches(companyId: string, issueIds: string[]): Promise<{ watches: WatchView[]; reminders: ReminderView[] }> {
+  const id = await teamLayer();
+  const empty = { watches: [], reminders: [] };
+  if (!id || !issueIds.length) return empty;
+  const r = await pc.post<{ data?: { watches?: WatchView[]; reminders?: ReminderView[] } }>(`/plugins/${id}/data/watches`, { companyId, params: { companyId, issueIds } }).catch(() => null);
+  return { watches: r?.data?.watches ?? [], reminders: r?.data?.reminders ?? [] };
+}
+
 export async function loadFeed(ctx: Context): Promise<Feed> {
   if (!ctx.company) return { cards: [], issues: [], handled: [] };
   const cid = ctx.company.id;
