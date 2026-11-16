@@ -1,12 +1,12 @@
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
-import { robotAvatarUrl } from "@/agentself/lib/avatar"; // Agentself (P9): pixel robot avatars
-import { useState } from "react";
+import { employeeRevision, robotAvatarUrl, subscribeEmployees, type EmployeeIdentity } from "@/agentself/lib/avatar";
+import { useState, useSyncExternalStore } from "react";
 import { resolveAgentAppearance, type AgentAppearance, type AgentAvatarSize, type CharacterState } from "@paperclipai/shared";
 import { cn } from "@/lib/utils";
 import { deriveInitials } from "./Identity";
 import { useAvatarInitials } from "./ui/avatar-initials";
 
-export type AvatarAgent = { id?: string; name?: string; appearance?: AgentAppearance | null; avatarUrl?: string | null };
+export type AvatarAgent = EmployeeIdentity & { name?: string; appearance?: AgentAppearance | null; avatarUrl?: string | null };
 export const avatarSizeClasses: Record<AgentAvatarSize, string> = {
   16: "size-4", 20: "size-5", 24: "size-6", 32: "size-8", 40: "size-10", 48: "size-12",
   64: "size-16", 96: "size-24", 128: "size-32", 256: "size-64", 512: "size-128",
@@ -19,11 +19,13 @@ export interface AgentAvatarProps {
   label?: string;
   pose?: CharacterState;
   muted?: boolean;
+  animated?: boolean;
   className?: string;
 }
-export function AgentAvatar({ agent, appearance, size = 24, name, label, pose = "rest", muted = false, className }: AgentAvatarProps) {
+export function AgentAvatar({ agent, appearance, size = 24, name, label, pose = "rest", muted = false, animated = false, className }: AgentAvatarProps) {
+  useSyncExternalStore(subscribeEmployees, employeeRevision, () => 0);
   const identity = resolveAgentAppearance(appearance ?? agent?.appearance, agent?.id);
-  const src = agent?.id ? robotAvatarUrl(agent.id, muted) : agentAvatarUrl(identity, size, 1, pose, muted);
+  const src = agent ? robotAvatarUrl(agent.id ?? "anonymous", muted, pose, animated, agent) : agentAvatarUrl(identity, size, 1, pose, muted, undefined, animated);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
   const initials = useAvatarInitials(deriveInitials(name ?? agent?.name ?? "Agent"));
   return (

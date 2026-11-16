@@ -176,7 +176,7 @@ export function EmployeeHeader({ ctx, agentId, size = 44 }: { ctx: Context; agen
   const m = agent?.metadata?.agentself;
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-      <Robot id={agentId} eye={eyeOf(agent?.adapterType)} size={size} grey={agent?.status === "paused"} />
+      <Robot id={agentId} eye={eyeOf(agent?.adapterType, agent?.adapterConfig?.model)} size={size} grey={agent?.status === "paused"} />
       <div>
         <h2 style={{ margin: "2px 0" }}>{agent?.name ?? "…"}</h2>
         <div style={{ fontSize: 13, color: "var(--as-muted)" }}>

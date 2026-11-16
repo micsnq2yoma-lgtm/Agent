@@ -1,20 +1,12 @@
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { OfficeSnapshot } from "@agentself/shared";
-import { DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, type Label } from "@agentself/pixel-office";
+import { ACTION_TEXT, DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, type Label } from "@agentself/pixel-office";
 import { as, type Context } from "../lib/api";
 import type { Card } from "../lib/cards";
 import { useSkin } from "../lib/skin";
 
-const ANIM_TEXT: Record<string, string> = {
-  failed: "出错了",
-  waiting: "等你拍板",
-  working: "工作中",
-  delivering: "交付待验收",
-  paused: "暂停",
-  idle: "空闲",
-  walk_to_lead: "去交付",
-};
+const ANIM_TEXT = ACTION_TEXT;
 const ANIM_DOT: Record<string, string> = {
   failed: "var(--as-high)",
   waiting: "#ffc56b",
@@ -46,11 +38,15 @@ export function Team(props: {
     if (!canvasRef.current) return;
     const r = new OfficeRenderer(canvasRef.current);
     rendererRef.current = r;
+    const media = matchMedia("(prefers-reduced-motion: reduce)");
+    const motionChanged = () => { r.reducedMotion = media.matches; };
+    media.addEventListener("change", motionChanged);
     r.start();
     const tick = setInterval(() => setLabels(r.labels()), 120);
     return () => {
       r.stop();
       clearInterval(tick);
+      media.removeEventListener("change", motionChanged);
     };
   }, []);
 
@@ -99,7 +95,8 @@ export function Team(props: {
   return (
     <div className="page" style={{ maxWidth: "none" }}>
       {snapshot && snapshot.people.length === 0 && <div className="empty"><b>还没有{t("employee")}</b><span>在侧栏「{t("lead")}」旁边点加号，新建一位{t("lead")}和他的{t("employee")}。</span></div>}
-      <div className="office-wrap" style={{ maxWidth: worldW * 4, margin: "0 auto" }}>
+      <div className="office-scroll">
+      <div className="office-wrap" style={{ maxWidth: worldW * 4, minWidth: worldW * 2, margin: "0 auto" }}>
         <canvas
           ref={canvasRef}
           width={300}
@@ -114,6 +111,12 @@ export function Team(props: {
         {zones.map((z) => (
           <div key={z.id} className="zone-label" style={{ left: `${z.left * 100}%` }}>
             {z.name}
+          </div>
+        ))}
+        {labels.map((l) => (
+          <div key={`speech-${l.agentId}`} className="employee-speech" style={{ left: `${l.left * 100}%`, top: `${l.bubbleTop * 100}%` }}>
+            <strong>{ANIM_TEXT[l.anim]}</strong>
+            {l.bubble && <span title={l.bubble}>{l.bubble}</span>}
           </div>
         ))}
         {labels.map((l) => (
@@ -160,8 +163,9 @@ export function Team(props: {
           </div>
         )}
       </div>
+      </div>
       <div className="hint" style={{ textAlign: "center" }}>
-        举牌 = 有{t("card")}等你；红色 ! = 出错；屏幕滚动 = 工作中。点人物看详情。
+        敲电脑 = 工作中；举牌 = 等待决策；拿报告 = 交付；暂停时静止。对话框显示当前任务。
       </div>
     </div>
   );

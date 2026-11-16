@@ -35,6 +35,8 @@
 | 2026-11-16 | `server/src/services/accounting-integrity.ts`、`server/src/routes/costs.ts`（PR #4 验收） | 新增 `POST /api/companies/:id/accounting/runs/:runId/write-off {reason, costUsd?}`：把一条一直"待记账"的已结束运行，按已采集的用量（或给定金额，默认 0）记为**估算**费用，原因写进运行的 `usageJson.accountingWriteOff` 和活动记录，再走正常记账 | 运行被中途取消后用量回执永远不到，Paperclip 不肯"凭空记 0"，于是这位智能体的预算一直硬暂停、提高预算也恢复不了。上游没有人工出口；这里只加一个需要写原因的人工入口，不改自动逻辑。配套脚本 `scripts/dev/budget-unstick.mjs` |
 
 ## 待做
+像素员工（2026-11-16）：`AgentAvatar` / `AgentCharacter` / Agentself `Robot` 共用外层 `@agentself/pixel-office` 的模型形象与状态动画；员工注册表支持模型更新和公司切换；Team 展示被动任务气泡。无新增宠物交互、状态采集或执行控制。实现及验证见 [pixel-employees.md](pixel-employees.md) 和 [pixel-employees-verification.md](pixel-employees-verification.md)。
+
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。
 
 ## 运行方式

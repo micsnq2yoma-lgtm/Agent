@@ -390,7 +390,7 @@ export function ProgressPanel({ ctx, feed, openProject, onAll }: { ctx: Context;
                   <span className="r3">
                     {emp ? (
                       <>
-                        <Robot id={emp.id} eye={eyeOf(emp.adapterType)} size={22} />
+                        <Robot id={emp.id} eye={eyeOf(emp.adapterType, emp.adapterConfig?.model)} size={22} />
                         <span>{emp.name}</span>
                       </>
                     ) : (

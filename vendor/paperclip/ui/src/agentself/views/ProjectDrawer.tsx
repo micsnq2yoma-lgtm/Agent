@@ -228,7 +228,7 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
             <section>
               <h3>{t("employee")}</h3>
               <div className="member-row">
-                <Robot id={emp.id} eye={eyeOf(emp.adapterType)} size={34} />
+                <Robot id={emp.id} eye={eyeOf(emp.adapterType, emp.adapterConfig?.model)} size={34} />
                 <div className="grow">
                   <div style={{ fontWeight: 600 }}>{emp.name}</div>
                   <div className="sub">

@@ -1,29 +1,53 @@
-// P9: every employee avatar in the app is the original pixel robot. Body colour comes from the
-// agent id; eye colour from the adapter (Claude amber / Codex cyan), known once the Agentself
-// context has loaded. Paperclip's AgentAvatar and agentAvatarUrl both route through here.
-import { robotDataUrl } from "@agentself/pixel-office";
+// Model identity and status are shared by all employee portrait consumers.
+import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agentself/shared";
+import { characterDataUrl, pixelActionFor } from "@agentself/pixel-office";
 
-const adapters = new Map<string, string>();
+export interface EmployeeIdentity {
+  id?: string;
+  adapterType?: string;
+  adapterConfig?: { model?: unknown } | null;
+  status?: string;
+}
+type Entry = { family: ModelFamily; status?: string; adapterType?: string; model?: string };
+let employees = new Map<string, Entry>();
+let revision = 0;
+const listeners = new Set<() => void>();
 const cache = new Map<string, string>();
+export const subscribeEmployees = (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
+export const employeeRevision = () => revision;
+export const registeredEmployee = (id: string) => employees.get(id);
 
-export function registerAgentAdapters(agents: Array<{ id: string; adapterType?: string }>) {
-  let changed = false;
-  for (const a of agents) {
-    if (a.adapterType && adapters.get(a.id) !== a.adapterType) {
-      adapters.set(a.id, a.adapterType);
-      changed = true;
-    }
-  }
-  if (changed) cache.clear();
+export function registerAgentAdapters(agents: EmployeeIdentity[]) {
+  const next = new Map<string, Entry>();
+  for (const a of agents) if (a.id) next.set(a.id, {
+    family: modelFamilyFor(a.adapterType, typeof a.adapterConfig?.model === "string" ? a.adapterConfig.model : undefined),
+    status: a.status,
+    adapterType: a.adapterType,
+    model: typeof a.adapterConfig?.model === "string" ? a.adapterConfig.model : undefined,
+  });
+  const changed = next.size !== employees.size || [...next].some(([id, item]) => {
+    const old = employees.get(id);
+    return old?.family !== item.family || old?.status !== item.status || old?.adapterType !== item.adapterType || old?.model !== item.model;
+  });
+  if (!changed) return;
+  employees = next;
+  cache.clear();
+  revision++;
+  listeners.forEach((listener) => listener());
 }
 
-export function robotAvatarUrl(seed: string, muted = false): string {
-  const key = `${seed}|${muted ? 1 : 0}`;
+export function robotAvatarUrl(seed: string, muted = false, pose?: string, animated = false, identity?: EmployeeIdentity): string {
+  const saved = employees.get(seed);
+  const model = typeof identity?.adapterConfig?.model === "string" ? identity.adapterConfig.model : undefined;
+  // Partial agent records (e.g. task assignees) must keep the registered model.
+  const effectiveModel = identity?.adapterConfig !== undefined ? model : saved?.model;
+  const family = modelFamilyFor(identity?.adapterType ?? saved?.adapterType, effectiveModel);
+  const status = officeAnimForStatus(identity?.status ?? saved?.status);
+  const action = muted || status === "paused" ? "paused" : pose && pose !== "rest" ? pixelActionFor(pose) : status;
+  const key = `${family}|${action}|${muted}|${animated}`;
   let url = cache.get(key);
   if (!url) {
-    const adapter = adapters.get(seed);
-    const eye = adapter === "codex_local" ? "codex" : adapter && adapter !== "claude_local" ? "other" : "claude";
-    url = robotDataUrl(seed, eye, muted);
+    url = characterDataUrl(family, action, { animated, muted });
     cache.set(key, url);
   }
   return url;

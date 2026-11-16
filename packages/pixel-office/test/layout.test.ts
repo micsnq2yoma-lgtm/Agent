@@ -39,17 +39,18 @@ describe("pixel office layout", () => {
   });
 });
 
-import { robotDataUrl, robotSvg, EYE_COLORS as EYES, hashColor as hc } from "../src/index.js";
+import { robotDataUrl, robotSvg } from "../src/index.js";
 describe("robot avatar (P9)", () => {
-  it("is a self-contained svg with body colour from the seed and eye colour from the adapter", () => {
+  it("keeps the legacy API while displaying the selected model character", () => {
     const svg = robotSvg("agent-1", "codex");
     expect(svg.startsWith("<svg")).toBe(true);
-    expect(svg).toContain(hc("agent-1"));
-    expect(svg).toContain(EYES.codex);
+    expect(svg).toContain('data-family="codex"');
+    expect(svg).toContain('viewBox="0 0 48 44"');
+    expect(svg).not.toBe(robotSvg("agent-1", "claude"));
     expect(robotSvg("agent-1", "codex")).toBe(svg);
   });
   it("greys out muted (paused) robots and encodes as a data url", () => {
-    expect(robotSvg("agent-1", "claude", true)).not.toContain(EYES.claude);
+    expect(robotSvg("agent-1", "claude", true)).toContain('data-action="paused"');
     expect(robotDataUrl("x").startsWith("data:image/svg+xml;utf8,")).toBe(true);
   });
 });

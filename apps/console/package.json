@@ -8,6 +8,7 @@
     "start": "node server/server.mjs"
   },
   "dependencies": {
+    "@agentself/shared": "workspace:*",
     "@agentself/skins": "workspace:*",
     "@agentself/im-feishu": "workspace:*"
   },

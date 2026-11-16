@@ -11,3 +11,7 @@ This project includes and modifies third-party software:
   design follow agent-autoloop (https://github.com/KKKKhazix/agent-autoloop, MIT).
 
 MyAgents (AGPL) was used only as a source of ideas; no code was opened or copied.
+
+- Pixel employee art references claude-code-pixel-pet (MIT) and the requester-supplied
+  sprite.ts whale (silhouette, belly palette, and spout patterns). Codex is redrawn
+  from the requester's visual reference. See packages/pixel-office/THIRD_PARTY_LICENSES.
