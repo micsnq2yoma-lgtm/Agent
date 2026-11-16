@@ -11,6 +11,8 @@ import { agentAdapterConfig, codexMcpArgs, validatePack } from "../../../scripts
 import { tomlStr } from "../../../scripts/lib/mcp-servers.mjs";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-models-"));
+// everything that reads ~/.agentself (mailboxes, tool servers) reads this empty home, not the machine's
+process.env.AGENTSELF_HOME = home;
 
 describe("API providers", () => {
   it("presets list without keys until one is saved; the key itself is never stored here", () => {
