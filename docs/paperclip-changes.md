@@ -33,6 +33,7 @@
 | 2026-11-15 | `ui/src/i18n/dom-translate.ts`、`ui/src/i18n/zh-CN-dom.json`（v0.6 界面） | 新增 "Enabled for N agents" 模式和 Assign Task、Search installed skills… 的译文 | SETO 设计规范 §6 的残留英文 |
 | 2026-11-15 | 新增 `ui/public/fonts/CormorantGaramond-Variable-*.woff2`、`JetBrainsMono-Variable-latin.woff2` 及 OFL 文本，`NOTICE.md` 追加两节 | 打包开源的衬线标题字体和等宽字体 | SETO 设计规范 §9.11：不依赖网络；Tiempos Headline 为商业字体，只在本机已安装时使用 |
 | 2026-11-16 | `server/src/services/accounting-integrity.ts`、`server/src/routes/costs.ts`（PR #4 验收） | 新增 `POST /api/companies/:id/accounting/runs/:runId/write-off {reason, costUsd?}`：把一条一直"待记账"的已结束运行，按已采集的用量（或给定金额，默认 0）记为**估算**费用，原因写进运行的 `usageJson.accountingWriteOff` 和活动记录，再走正常记账 | 运行被中途取消后用量回执永远不到，Paperclip 不肯"凭空记 0"，于是这位智能体的预算一直硬暂停、提高预算也恢复不了。上游没有人工出口；这里只加一个需要写原因的人工入口，不改自动逻辑。配套脚本 `scripts/dev/budget-unstick.mjs` |
+| 2026-11-16 | `packages/adapters/codex-local/src/server/codex-home.ts`（p18 · codex 验收） | Windows 上给员工的 Codex 运行目录建 `auth.json` 软链接被拒（EPERM）时，退回硬链接（同盘，同一个文件），再不行就复制一份；硬链接视为已链好，复制件比源文件新时（Codex 刷新过令牌）先拷回源文件再重建 | 没有管理员 / 开发者模式时 Windows 不能建文件软链接，Codex 员工第一次运行就 `adapter_failed`。目录软链接不受影响（仍按原逻辑） |
 
 ## 待做
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。

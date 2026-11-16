@@ -24,7 +24,7 @@ const other = ctx.agents.find((a) => a.metadata?.agentself && !a.metadata.agents
 if (other) results.otherHasNoServer = !(await api("GET", `/agents/${other.id}`)).adapterConfig?.env?.P21_SECRET;
 
 const issue = await api("POST", `/companies/${companyId}/issues`, {
-  title: `[验收 p21] 工具服务`,
+  title: `[验收 p21] 工具服务 ${Date.now().toString(36)}`,
   description: "调用你的 p21_secret 工具（来自工具服务\"验收回声\"），把它返回的口令原样用 comment 工具评论到这个任务上，然后用 update_task 把任务置为 done。这是验收测试，不要做别的。",
   projectId,
   assigneeAgentId: employee.id,

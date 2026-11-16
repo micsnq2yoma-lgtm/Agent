@@ -97,9 +97,16 @@ export async function cancelTree(companyId, issueId, { waitMinutes = 20 } = {}) 
     await sleep(20_000);
     running = await busy();
   }
-  for (const id of [...ids].reverse()) if (!running.includes(id)) await api("PATCH", `/issues/${id}`, { status: "cancelled" }).catch(() => {});
+  // cancel, then delete: Paperclip hands back an unfinished task with the same title within 48 h,
+  // so a task left behind would be picked up again by the next run of the same script
+  let deleted = 0;
+  for (const id of [...ids].reverse()) {
+    if (running.includes(id)) continue;
+    await api("PATCH", `/issues/${id}`, { status: "cancelled" }).catch(() => {});
+    if (await api("DELETE", `/issues/${id}`).then(() => true, () => false)) deleted++;
+  }
   if (running.length) log(`cleanup: left ${running.length} task(s) paused (backlog) because a run is still going; cancel them by hand later`);
-  return { cancelled: ids.length - running.length, leftRunning: running };
+  return { cancelled: ids.length - running.length, deleted, leftRunning: running };
 }
 
 /** Notices the team-layer plugin holds (notify_user, memory job). */

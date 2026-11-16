@@ -37,7 +37,7 @@ for (const source of sources) {
     r.codexMcpArgs = agent.adapterType === "codex_local" ? (agent.adapterConfig?.extraArgs ?? []).some((a) => String(a).includes("mcp_servers.agentself")) : undefined;
     r.apiEnv = source.startsWith("api:") ? !!agent.adapterConfig?.env?.ANTHROPIC_BASE_URL : undefined;
     const issue = await api("POST", `/companies/${companyId}/issues`, {
-      title: `[验收 p18] ${source} 团队工具`,
+      title: `[验收 p18] ${source} 团队工具 ${Date.now().toString(36)}`,
       description: `用你的 agentself 团队工具完成，不要用 curl 或命令行调接口：\n1. 用 comment 工具在这个任务上留言：${mark}\n2. 用 update_task 工具把这个任务置为 done。\n这是验收测试，不要做别的。`,
       projectId,
       assigneeAgentId: agentId,
