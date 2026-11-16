@@ -11,7 +11,11 @@ import { initMemory, removeMemoryEntry } from "./memory.mjs";
 import { instructionsPath, writeInstructions } from "./instructions.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 import { mergeEnv, resolveSource, sourceOf } from "./providers.mjs";
-import { allMcpEnvKeys, claudeMcpEntries, codexMcpEntries, mcpEnvFor, tomlArr, tomlStr } from "./mcp-servers.mjs";
+import { allMcpEnvKeys, claudeMcpEntries, codexMcpEntries, mcpEnvFor as serverEnvFor, tomlArr, tomlStr } from "./mcp-servers.mjs";
+import { MAIL_ENV_PREFIX, mailEnv } from "../../apps/console/server/mail.mjs";
+
+/** Secret env bindings an agent needs: its tool servers' secrets and the mailbox app passwords. */
+const mcpEnvFor = (agent) => ({ ...serverEnvFor(agent), ...mailEnv() });
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
@@ -77,7 +81,7 @@ export function codexMcpArgs({ role = "employee", nodePath = process.execPath } 
   return [
     "-c", `mcp_servers.agentself.command=${tomlStr(node)}`,
     "-c", `mcp_servers.agentself.args=${tomlArr([TEAM_MCP_SERVER, `--role=${r}`])}`,
-    "-c", `mcp_servers.agentself.env_vars=${tomlArr(TEAM_MCP_ENV)}`,
+    "-c", `mcp_servers.agentself.env_vars=${tomlArr([...TEAM_MCP_ENV, ...Object.keys(mailEnv())])}`,
     "-c", "mcp_servers.agentself.startup_timeout_sec=20",
   ];
 }
@@ -120,7 +124,8 @@ export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, mo
  */
 function agentEnv(cur, run, agent) {
   const mcpKeys = new Set(allMcpEnvKeys());
-  const own = Object.fromEntries(Object.entries(cur ?? {}).filter(([k]) => !mcpKeys.has(k)));
+  // mailbox bindings are all re-added below; any left from a removed account goes
+  const own = Object.fromEntries(Object.entries(cur ?? {}).filter(([k]) => !mcpKeys.has(k) && !k.startsWith(MAIL_ENV_PREFIX)));
   return { ...(run ? mergeEnv(own, run.env) : own), ...mcpEnvFor(agent) };
 }
 

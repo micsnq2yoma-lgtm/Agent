@@ -2,7 +2,10 @@
 // drafts. (The client itself was exercised against a fake IMAP-over-TLS server.)
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { buildDraft, decodeWords, parseMessage, presetFor, readResponse } from "../server/mail.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { buildDraft, decodeWords, listAccounts, mailEnv, mailEnvName, parseMessage, plainPasswordAccounts, presetFor, readResponse, saveAccount, testAccount } from "../server/mail.mjs";
 
 const gbk = (s: string) => Buffer.from(new Uint8Array([...s].flatMap((c) => ({ 你: [0xc4, 0xe3], 好: [0xba, 0xc3], 论: [0xc2, 0xdb], 文: [0xce, 0xc4] } as Record<string, number[]>)[c] ?? [c.charCodeAt(0)])));
 
@@ -52,5 +55,28 @@ describe("drafts and presets", () => {
     expect(presetFor("me@163.com").host).toBe("imap.163.com");
     expect(presetFor("me@gmail.com").host).toBe("imap.gmail.com");
     expect(presetFor("me@lab.edu.cn")).toBeNull();
+  });
+});
+
+describe("app passwords live in the secret store", () => {
+  it("with a secretId nothing secret is written to mail.json; agents get a secret_ref binding", async () => {
+    const prev = process.env.AGENTSELF_HOME;
+    process.env.AGENTSELF_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-mail-"));
+    try {
+      saveAccount({ address: "me@qq.com", password: "typed-code" });
+      expect(plainPasswordAccounts()).toHaveLength(1); // before any team: waits in the file
+      saveAccount({ address: "me@qq.com" }, { secretId: "sec-1" });
+      const file = fs.readFileSync(path.join(process.env.AGENTSELF_HOME, "mail.json"), "utf8");
+      expect(file).not.toMatch(/typed-code/);
+      expect(plainPasswordAccounts()).toHaveLength(0);
+      expect(listAccounts()[0]).toMatchObject({ hasPassword: true, inSecretStore: true, host: "imap.qq.com" });
+      const name = mailEnvName("me@qq.com");
+      expect(name).toMatch(/^AGENTSELF_MAIL_PW_[0-9A-F]{10}$/);
+      expect(mailEnv()).toEqual({ [name]: { type: "secret_ref", secretId: "sec-1", version: "latest" } });
+      // outside a run the stored password is not available: testing needs it typed again
+      await expect(testAccount({ id: "me@qq.com" })).rejects.toThrow(/再填一次授权码/);
+    } finally {
+      process.env.AGENTSELF_HOME = prev;
+    }
   });
 });

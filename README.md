@@ -66,7 +66,7 @@ Windows 上不要直接在 `vendor\paperclip` 里跑 `pnpm build`：Paperclip �
 
 飞书：在设置页填 App ID、白名单 open_id 并启用；App Secret 放在环境变量 `AGENTSELF_FEISHU_APP_SECRET`（不写进任何文件）。要你拍板的卡片、新建员工请求和通知都会推送，按钮直接生效。
 
-邮箱：设置 → 邮箱，填地址和授权码（IMAP）。员工只读邮件、存回复草稿，不会替你发送。
+邮箱：设置 → 邮箱，填地址和授权码（IMAP）。授权码存进 Paperclip 密钥库（和 API key 一样），员工运行时才拿到。员工只读邮件、存回复草稿，不会替你发送。
 
 论文库：侧栏"论文库"，存放位置在 设置 → 论文库 里指定（任意文件夹）。员工和主管都能检索。
 

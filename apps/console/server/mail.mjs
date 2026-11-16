@@ -2,13 +2,17 @@
 // Read-only towards the outside world: reading, searching and saving a draft into the mailbox's
 // Drafts folder. Nothing is ever sent: sending is an external action the user does themselves.
 //
-// Accounts: ~/.agentself/mail.json  { accounts: [{ id, address, host, port, user, password, drafts? }] }
-// (the password is the provider's app password / 授权码, kept on this machine only)
+// Accounts: ~/.agentself/mail.json  { accounts: [{ id, address, host, port, user, secretId, drafts? }] }
+// The app password (授权码) reads all of the person's mail, so it lives in Paperclip's secret store
+// like API keys: mail.json keeps only its secretId, and each agent run gets it as an env binding
+// (mailEnvName) that this module reads. A plain `password` is only accepted from the form (to test
+// or before the secret exists) and is moved into the store by the console server.
 // Cursor for "what is new": ~/.agentself/mail-state.json  { <id>: { uidValidity, lastUid } }
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
+import { createHash } from "node:crypto";
 
 const home = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
 const accountsFile = () => path.join(home(), "mail.json");
@@ -40,11 +44,29 @@ function writeAccounts(list) {
   fs.mkdirSync(home(), { recursive: true });
   fs.writeFileSync(accountsFile(), JSON.stringify({ accounts: list }, null, 2));
 }
+/** Env variable an agent run gets the account's app password in (secret_ref to Paperclip's store). */
+export const MAIL_ENV_PREFIX = "AGENTSELF_MAIL_PW_";
+export const mailEnvName = (id) => `${MAIL_ENV_PREFIX}${createHash("sha1").update(String(id)).digest("hex").slice(0, 10).toUpperCase()}`;
+/** Env bindings for every agent: { AGENTSELF_MAIL_PW_x: secret_ref }. */
+export function mailEnv() {
+  const env = {};
+  for (const a of readAccounts()) if (a.secretId) env[mailEnvName(a.id)] = { type: "secret_ref", secretId: a.secretId, version: "latest" };
+  return env;
+}
+/** Every env name this module may have bound (to drop ones of removed accounts). */
+export function allMailEnvKeys() {
+  return readAccounts().map((a) => mailEnvName(a.id));
+}
 /** Accounts without passwords (for the UI and for agents). */
 export function listAccounts() {
-  return readAccounts().map(({ password, ...a }) => ({ ...a, hasPassword: !!password }));
+  return readAccounts().map(({ password, secretId, ...a }) => ({ ...a, hasPassword: !!(password || secretId), inSecretStore: !!secretId }));
 }
-export function saveAccount(input) {
+/** Accounts whose password is still stored in plain text (moved into the secret store by the server). */
+export function plainPasswordAccounts() {
+  return readAccounts().filter((a) => a.password);
+}
+/** Save an account. With `secretId` the password is in the secret store and none is written here. */
+export function saveAccount(input, { secretId = null } = {}) {
   const address = String(input.address ?? "").trim();
   if (!/^[^@\s]+@[^@\s]+$/.test(address)) throw Object.assign(new Error("邮箱地址不对"), { status: 400 });
   const list = readAccounts();
@@ -59,10 +81,12 @@ export function saveAccount(input) {
     port: Number(input.port ?? cur.port ?? 993) || 993,
     user: String(input.user ?? "").trim() || cur.user || address,
     ...(input.password ? { password: String(input.password) } : {}),
+    ...(secretId ? { secretId } : {}),
     ...(input.drafts !== undefined ? { drafts: String(input.drafts).trim() || undefined } : {}),
   };
   if (!next.host) throw Object.assign(new Error("没认出这个邮箱的 IMAP 服务器，请填写"), { status: 400 });
-  if (!next.password) throw Object.assign(new Error("要填授权码或应用密码"), { status: 400 });
+  if (next.secretId) delete next.password;
+  if (!next.password && !next.secretId) throw Object.assign(new Error("要填授权码或应用密码"), { status: 400 });
   writeAccounts([...list.filter((a) => a.id !== id), next]);
   return listAccounts().find((a) => a.id === id);
 }
@@ -73,7 +97,14 @@ function account(id) {
   const list = readAccounts();
   const a = id ? list.find((x) => x.id === id || x.address === id) : list[0];
   if (!a) throw new Error(list.length ? `没有这个邮箱：${id}` : "还没有配置邮箱（设置 → 邮箱）");
-  return a;
+  return withPassword(a);
+}
+/** The account with its password: typed / legacy plain value, else the run's secret binding. */
+function withPassword(a) {
+  const password = a.password || process.env[mailEnvName(a.id)] || "";
+  if (!password)
+    throw new Error(a.secretId ? "授权码存在密钥库里，只有员工运行时拿得到；在这里测试请再填一次授权码" : "这个邮箱还没有授权码（设置 → 邮箱）");
+  return { ...a, password };
 }
 
 /* ---------------- MIME ---------------- */
@@ -356,7 +387,12 @@ const imapDate = (d) => `${d.getDate()}-${["Jan", "Feb", "Mar", "Apr", "May", "J
 
 /** Try the login and count unread mail. */
 export async function testAccount(input) {
-  const acc = { ...account(input.id || input.address), ...Object.fromEntries(Object.entries(input).filter(([, v]) => v)) };
+  const list = readAccounts();
+  const key = input.id || input.address;
+  const saved = list.find((x) => x.id === key || x.address === key) ?? {};
+  const acc = withPassword({ ...saved, ...Object.fromEntries(Object.entries(input).filter(([, v]) => v)) });
+  if (!acc.host) acc.host = presetFor(acc.address)?.host ?? "";
+  if (!acc.host) throw new Error("没认出这个邮箱的 IMAP 服务器，请填写");
   const imap = await open(acc);
   try {
     const box = await imap.select("INBOX");

@@ -763,13 +763,17 @@ interface MailAccount {
   port: number;
   user: string;
   hasPassword: boolean;
+  inSecretStore?: boolean;
 }
+type MailTest = { ok: boolean; unread?: number; messages?: number; error?: string };
 function MailSettings() {
   const [accounts, setAccounts] = useState<MailAccount[] | null>(null);
   const [form, setForm] = useState({ address: "", password: "", host: "", port: "993", user: "" });
   const [hint, setHint] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  // the stored app password cannot be read back: testing a saved mailbox takes it typed again
+  const [testPw, setTestPw] = useState<Record<string, string>>({});
   const load = () => as.get<{ accounts: MailAccount[] }>("/mail/accounts").then((r) => setAccounts(r.accounts)).catch(() => setAccounts([]));
   useEffect(() => void load(), []);
   async function guess(address: string) {
@@ -781,8 +785,10 @@ function MailSettings() {
     setBusy("add");
     setMsg(null);
     try {
-      const saved = await as.put<MailAccount>("/mail/accounts", { ...form, port: Number(form.port) || 993 });
-      const t = await as.post<{ ok: boolean; unread?: number; messages?: number; error?: string }>("/mail/test", { id: saved.id });
+      const input = { ...form, port: Number(form.port) || 993 };
+      // test with what was typed, then save (the password goes into the secret store)
+      const t = await as.post<MailTest>("/mail/test", input).catch((e) => ({ ok: false, error: String(e) }) as MailTest);
+      const saved = await as.put<MailAccount>("/mail/accounts", input);
       setMsg(t.ok ? `已连上 ${saved.address}：收件箱 ${t.messages} 封，未读 ${t.unread} 封。` : `已保存，但登录失败：${t.error}`);
       setForm({ address: "", password: "", host: "", port: "993", user: "" });
       setHint(null);
@@ -795,7 +801,7 @@ function MailSettings() {
   }
   async function test(id: string) {
     setBusy(id);
-    const t = await as.post<{ ok: boolean; unread?: number; messages?: number; error?: string }>("/mail/test", { id }).catch((e) => ({ ok: false, error: String(e) }));
+    const t = await as.post<MailTest>("/mail/test", { id, password: testPw[id] || undefined }).catch((e) => ({ ok: false, error: String(e) }) as MailTest);
     setMsg(t.ok ? `连接正常：收件箱 ${t.messages} 封，未读 ${t.unread} 封。` : `连接失败：${t.error}`);
     setBusy(null);
   }
@@ -808,7 +814,7 @@ function MailSettings() {
     <>
       <div className="section">
         <h2>邮箱</h2>
-        <p className="hint">员工通过 IMAP 读邮件、写回复草稿。只读和存草稿，不会替你发送：草稿存进邮箱的草稿箱，你检查后自己发。授权码只保存在这台电脑的 ~/.agentself/mail.json 里。配好后在{`主管页 → 盯守`}打开"邮件"，或者直接让员工"看看今天的邮件"。</p>
+        <p className="hint">员工通过 IMAP 读邮件、写回复草稿。只读和存草稿，不会替你发送：草稿存进邮箱的草稿箱，你检查后自己发。授权码和 API key 一样存进 Paperclip 密钥库，只在员工运行时交给它，不写进任何文件。配好后在{`主管页 → 盯守`}打开"邮件"，或者直接让员工"看看今天的邮件"。</p>
         {accounts === null ? (
           <Skeleton lines={2} />
         ) : accounts.length === 0 ? (
@@ -821,9 +827,22 @@ function MailSettings() {
                 <div className="sub mono">
                   {a.host}:{a.port}
                 </div>
+                {!a.inSecretStore && a.hasPassword && <div className="sub">授权码暂存在本机文件里，建好第一个团队后自动移进密钥库。</div>}
               </div>
-              <span style={{ display: "inline-flex", gap: 6 }}>
-                <button className="btn" disabled={busy !== null} onClick={() => void test(a.id)}>
+              <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+                {a.inSecretStore && (
+                  <input
+                    className="input mono"
+                    type="password"
+                    autoComplete="off"
+                    style={{ width: 150 }}
+                    placeholder="测试要再填授权码"
+                    title="授权码在密钥库里读不回来；这里填的只用于这次测试，不保存"
+                    value={testPw[a.id] ?? ""}
+                    onChange={(e) => setTestPw({ ...testPw, [a.id]: e.target.value })}
+                  />
+                )}
+                <button className="btn" disabled={busy !== null || (!!a.inSecretStore && !testPw[a.id])} onClick={() => void test(a.id)}>
                   {busy === a.id ? "连接中…" : "测试"}
                 </button>
                 <button className="btn ghost" onClick={() => void remove(a)}>

@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
-import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, testAccount } from "./mail.mjs";
+import { listAccounts, MAIL_PRESETS, plainPasswordAccounts, presetFor, readAccounts, removeAccount, saveAccount, testAccount } from "./mail.mjs";
 import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentModel, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { fetchModels, listProviders, removeProvider, saveProvider, sourceLabel, sourceOf, SUBSCRIPTION_MODELS } from "../../../scripts/lib/providers.mjs";
@@ -243,6 +243,40 @@ async function putProvider(id, body) {
   if (key || body.baseUrl || body.model || body.smallModel) void syncAllAgents(() => {}).catch(() => {});
   return saved;
 }
+/**
+ * Save a mailbox. The app password goes into Paperclip's secret store (created once, rotated after);
+ * mail.json keeps the secretId and agents get the password as an env binding on their next sync.
+ * Before any team exists there is no store yet: the password waits in mail.json and moves later.
+ */
+async function putMail(body) {
+  const ctx = await loadContext();
+  const password = typeof body.password === "string" ? body.password.trim() : "";
+  const id = String(body.id ?? "").trim() || String(body.address ?? "").trim().toLowerCase();
+  const cur = readAccounts().find((a) => a.id === id);
+  let secretId = cur?.secretId ?? null;
+  if (password && ctx.company) secretId = await storeMailSecret(ctx.company.id, id, password, secretId);
+  const saved = saveAccount({ ...body, id, ...(secretId ? { password: undefined } : {}) }, { secretId });
+  void syncAllAgents(() => {}).catch(() => {});
+  return saved;
+}
+async function storeMailSecret(companyId, id, password, secretId) {
+  if (secretId) {
+    await pc("POST", `/secrets/${secretId}/rotate`, { value: password });
+    return secretId;
+  }
+  const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agentself-mail-${slug}`, value: password, description: `Agentself：邮箱 ${id} 的授权码` })).id;
+}
+/** Move app passwords still in mail.json (older versions, or saved before the first team) into the store. */
+async function migrateMailPasswords() {
+  const plain = plainPasswordAccounts();
+  if (!plain.length) return 0;
+  const ctx = await loadContext();
+  if (!ctx.company) return 0;
+  for (const a of plain) saveAccount({ ...a, password: undefined }, { secretId: await storeMailSecret(ctx.company.id, a.id, a.password, a.secretId ?? null) });
+  return plain.length;
+}
+
 /** One tiny request to the provider's Anthropic-compatible endpoint with the key just typed (not stored). */
 async function testProvider(id, body) {
   const p = listProviders(HOME).find((x) => x.id === id);
@@ -400,6 +434,10 @@ async function autoUpdateTick() {
 /* ---------------- agent runtime sync ---------------- */
 /** Rewrite every Agentself agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
 export async function syncAllAgents(log = console.log) {
+  // passwords saved before the first team (or by older versions) move into the store first, so the
+  // agents synced below get them as bindings
+  const moved = await migrateMailPasswords().catch((e) => (log(`mailbox password move failed: ${e instanceof Error ? e.message : e}`), 0));
+  if (moved) log(`moved ${moved} mailbox password(s) into the secret store`);
   const ctx = await loadContext();
   let n = 0;
   for (const a of ctx.agents.filter((x) => x.metadata?.agentself && x.status !== "terminated")) {
@@ -726,7 +764,7 @@ async function handleAgentself(req, res, url) {
     const pr = presetFor(url.searchParams.get("address"));
     return send(res, 200, pr ? { host: pr.host, note: pr.note } : {});
   }
-  if (req.method === "PUT" && p === "/mail/accounts") return send(res, 200, saveAccount(await readJson(req)));
+  if (req.method === "PUT" && p === "/mail/accounts") return send(res, 200, await putMail(await readJson(req)));
   const mam = p.match(/^\/mail\/accounts\/(.+)$/);
   if (mam && req.method === "DELETE") {
     removeAccount(decodeURIComponent(mam[1]));
