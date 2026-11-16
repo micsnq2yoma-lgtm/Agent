@@ -27,7 +27,7 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 
 ## 长时间运行的实验
 
-实验要跑很久（本机或远程服务器）时，不要占着这一轮等，也不要反复用 `later` 回来查（每次回来都要重读整段会话，很费额度）：
+实验要跑很久（本机或远程服务器）时，不要占着这一轮等，也不要定时回来查（每次回来都要重读整段会话，很费额度）：
 
 1. 让它在后台运行（本机用后台进程，远程用 `nohup`、`tmux` 或作业系统），日志写到文件。
 2. 写一条**探测命令**：退出码 0 表示已结束，1 表示还在跑，其他表示出错。例如：
@@ -37,7 +37,7 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 4. 用 `watch_job`（Codex 员工用插件工具 `watch`）登记探测命令（间隔、最长等待时间），然后结束本轮。系统定时运行探测命令，不调用模型；结束、出错或超时才叫醒你，评论里附上最后的输出。
 5. 被叫醒后：结束了就接着分析；出错了能修就修好重跑（重跑也算一次失败）；超时了就查明原因，决定继续等（再登记一次）还是停下来问主管。
 
-短时间的等待（几分钟到半小时、不好写探测命令的）可以用 `later`。
+等后台程序（实验、下载、编译、训练）**一律用 `watch_job`**，哪怕只要几分钟：探测命令很好写（看结果文件在不在、进程还在不在）。员工没有"稍后提醒"工具；等主管或用户回答时，对方回复会自动叫醒你，不需要定时回来看。
 
 ## 交付：只交证据，不判定通过
 
@@ -93,11 +93,10 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 | `update_task` | 改自己任务的状态（例如置为 `done`） | 自己的任务 |
 | `submit_evidence` | 按验收标准编号逐条提交证据 | 主管派的任务 |
 | `watch_job` | 长时间实验的看守（探测命令，不调用模型） | 所有任务 |
-| `remind_me` | N 分钟后叫你回来（短时间等待） | 所有任务 |
 | `notify_user` / `ask_user` | 通知用户 / 让用户拍板 | 只在没有父任务时 |
 | `close_card` | 关掉之前发的卡片 | 所有任务 |
 
-**Codex 员工**没有这组工具，用命令行调接口（环境变量里有 `$PAPERCLIP_API_URL`、`$PAPERCLIP_API_KEY`、`$PAPERCLIP_AGENT_ID`、`$PAPERCLIP_COMPANY_ID`、`$PAPERCLIP_RUN_ID`）。插件工具（`evidence`、`watch`、`later`、`notice`、`ask`、`resolve`，参数同上表）这样调用：
+**Codex 员工**没有这组工具，用命令行调接口（环境变量里有 `$PAPERCLIP_API_URL`、`$PAPERCLIP_API_KEY`、`$PAPERCLIP_AGENT_ID`、`$PAPERCLIP_COMPANY_ID`、`$PAPERCLIP_RUN_ID`）。插件工具（`evidence`、`watch`、`notice`、`ask`、`resolve`，参数同上表）这样调用：
 
 ```sh
 curl -s -X POST "$PAPERCLIP_API_URL/api/plugins/tools/execute" \

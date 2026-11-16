@@ -55,3 +55,24 @@ describe("office state mapping (PLAN 7.1 priority)", () => {
     expect(eyeFor("process")).toBe("other");
   });
 });
+
+describe("the router sees what each team can do (PR #4 p14)", () => {
+  it("a lead's description includes its employees' capabilities", async () => {
+    const os = await import("node:os");
+    const path = await import("node:path");
+    process.env.AGENTSELF_HOME ??= path.join(os.tmpdir(), `agentself-test-${Date.now()}`);
+    // @ts-expect-error plain JS module
+    const { leadsOf } = await import("../server/server.mjs");
+    const ctx = {
+      agents: [
+        { id: "L", name: "科研主管", capabilities: "理解需求、验收", status: "idle", metadata: { agentself: { isLead: true, department: "research" } } },
+        { id: "E", name: "科研员", capabilities: "写代码跑实验", status: "idle", metadata: { agentself: { department: "research" } } },
+        { id: "X", name: "离职员工", capabilities: "不该出现", status: "terminated", metadata: { agentself: { department: "research" } } },
+      ],
+      departments: [{ key: "research", name: "科研", projectId: "p", leadAgentId: "L", members: ["L", "E", "X"], description: "" }],
+    };
+    const [lead] = leadsOf(ctx);
+    expect(lead.description).toContain("科研员（写代码跑实验）");
+    expect(lead.description).not.toContain("不该出现");
+  });
+});

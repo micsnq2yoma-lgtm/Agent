@@ -316,7 +316,7 @@ export const TOOLS = {
     },
   },
   remind_me: {
-    roles: ["lead", "employee"],
+    roles: ["lead"], // employees wait on programs with watch_job (no model calls), on people via replies (PR #4 p12)
     description: "N 分钟后叫你回来处理这个任务（短时间等待用）。",
     inputSchema: S({ issueId: str("任务 id"), minutes: { type: "integer", minimum: 1 }, note: str("回来时要做什么") }, ["issueId", "minutes"]),
     run: async (args) => pluginTool("later", args, args.issueId),

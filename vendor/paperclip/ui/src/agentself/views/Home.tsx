@@ -184,10 +184,13 @@ function cardSub(card: Card, t: ReturnType<typeof useSkin>["t"], passed?: string
   return [whoLabel(card.who, t), card.ref, passed].filter(Boolean).join(" · ");
 }
 
+/** CSS class for a card type. `notice` would clash with the composer's `.notice` answer box. */
+const cardClass = (type: Card["type"]) => (type === "notice" ? "notify" : type);
+
 function CardTile({ card, open, onToggle, passed }: { card: Card; open: boolean; onToggle: () => void; passed?: string }) {
   const { t } = useSkin();
   return (
-    <button type="button" className={`card ${card.type} ${open ? "open" : ""}`} aria-expanded={open} onClick={onToggle}>
+    <button type="button" className={`card ${cardClass(card.type)} ${open ? "open" : ""}`} aria-expanded={open} onClick={onToggle}>
       <span className="card-head">
         <span className="card-kind">{kindLabel(card, t)}</span>
         <span className="card-time">{relTime(card.createdAt)}</span>
@@ -546,7 +549,7 @@ export function Home(props: {
         {showHandled && feed && (
           <div className="cards" style={{ marginTop: 14 }}>
             {feed.handled.map((c) => (
-              <button key={c.id} type="button" className={`card handled ${c.type}`} onClick={() => c.issueId && props.openProject(c.issueId)}>
+              <button key={c.id} type="button" className={`card handled ${cardClass(c.type)}`} onClick={() => c.issueId && props.openProject(c.issueId)}>
                 <span className="card-head">
                   <span className="card-kind">{kindLabel(c, t)}</span>
                   <span className="card-time">{relTime(c.createdAt)}</span>

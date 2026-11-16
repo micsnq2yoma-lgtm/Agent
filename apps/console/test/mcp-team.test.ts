@@ -125,6 +125,9 @@ describe("team MCP server", () => {
     expect(names).not.toContain("submit_report");
     expect(names).not.toContain("create_subtask");
     expect(names).toContain("submit_evidence");
+    // waiting on a program is watch_job's job (PR #4 p12: an employee polled with remind_me instead)
+    expect(names).not.toContain("remind_me");
+    expect(names).toContain("watch_job");
   });
 });
 
