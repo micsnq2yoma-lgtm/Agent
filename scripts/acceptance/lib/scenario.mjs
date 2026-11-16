@@ -72,12 +72,34 @@ export async function answerCard(issueId, card, optionIndex = 0) {
   return api("POST", `/issues/${issueId}/interactions/${card.id}/respond`, { answers: [{ questionId: q.id, optionIds: [opt.id] }] });
 }
 
-/** Cancel a task and all its subtasks so nobody keeps working (and spending) after the check. */
-export async function cancelTree(companyId, issueId) {
+/**
+ * Cancel a task and all its subtasks so nobody keeps working (and spending) after the check.
+ * Never cancels under a running agent: a run stopped mid-way never gets its usage receipt, and
+ * Paperclip then hard-pauses that agent's budget for good (PR #4 run: amountObserved 0, paused).
+ * So: wait for the tree's runs to finish (up to `waitMinutes`), then cancel. Tasks still running
+ * after that are left alone and reported.
+ */
+export async function cancelTree(companyId, issueId, { waitMinutes = 20 } = {}) {
   const all = list(await api("GET", `/companies/${companyId}/issues`));
   const ids = [issueId];
   for (let i = 0; i < ids.length; i++) for (const c of all.filter((x) => x.parentId === ids[i])) ids.push(c.id);
-  for (const id of ids.reverse()) await api("PATCH", `/issues/${id}`, { status: "cancelled" }).catch(() => {});
+  const busy = async () => {
+    const out = [];
+    for (const id of ids) if ((await runsOf(id)).some((r) => ["running", "queued"].includes(r.status))) out.push(id);
+    return out;
+  };
+  // pausing first stops new wakeups while the current turn finishes
+  for (const id of ids) await api("PATCH", `/issues/${id}`, { status: "backlog" }).catch(() => {});
+  const end = Date.now() + waitMinutes * 60_000;
+  let running = await busy();
+  while (running.length && Date.now() < end) {
+    log(`cleanup: waiting for ${running.length} running task(s) to finish before cancelling`);
+    await sleep(20_000);
+    running = await busy();
+  }
+  for (const id of [...ids].reverse()) if (!running.includes(id)) await api("PATCH", `/issues/${id}`, { status: "cancelled" }).catch(() => {});
+  if (running.length) log(`cleanup: left ${running.length} task(s) paused (backlog) because a run is still going; cancel them by hand later`);
+  return { cancelled: ids.length - running.length, leftRunning: running };
 }
 
 /** Notices the team-layer plugin holds (notify_user, memory job). */

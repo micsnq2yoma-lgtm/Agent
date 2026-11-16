@@ -127,3 +127,29 @@ describe("team MCP server", () => {
     expect(names).toContain("submit_evidence");
   });
 });
+
+// @ts-expect-error plain JS module
+import { askFirstGate, codexBlock } from "../server/mcp-team.mjs";
+describe("delegation guards (PR #4 p13)", () => {
+  const parent = { id: "top", title: "清理旧实验结果", description: "目录里堆了好几次实验的结果文件，帮我清理一下，只留最新的一份。" };
+  it("refuses to hand an ask-first job to an employee before the user said yes", async () => {
+    const r = await askFirstGate(parent, "删除 3 个旧 CSV", "none", undefined, { interactions: [] });
+    expect(r).toMatch(/先问清单/);
+    expect(r).toMatch(/ask_user/);
+  });
+  it("lets it through once the user answered a card on the parent", async () => {
+    expect(await askFirstGate(parent, "删除 3 个旧 CSV", "approved", undefined, { interactions: [{ status: "answered" }] })).toBeNull();
+    expect(await askFirstGate(parent, "x", "approved", undefined, { interactions: [{ status: "pending" }] })).toMatch(/还没有用户回答过/);
+    expect(await askFirstGate(parent, "x", "approved", undefined, { interactions: [{ status: "rejected" }] })).toMatch(/还没有用户回答过/);
+  });
+  it("a lead can explain a false alarm; plain tasks pass", async () => {
+    expect(await askFirstGate(parent, "x", "none", "清理的是我自己刚生成的临时文件", { interactions: [] })).toBeNull();
+    expect(await askFirstGate({ id: "t", title: "数质数", description: "数一数 1 到 10000 的质数" }, "写脚本", "none", undefined, { interactions: [] })).toBeNull();
+    expect(await askFirstGate(parent, "x", undefined, undefined, { interactions: [] })).toMatch(/none 或 approved/);
+  });
+  it("Codex employees cannot take delegated work until they have team tools", () => {
+    expect(codexBlock({ name: "实验员", adapterType: "codex_local" }, false)).toMatch(/Codex 员工/);
+    expect(codexBlock({ name: "实验员", adapterType: "codex_local" }, true)).toBeNull();
+    expect(codexBlock({ name: "科研员", adapterType: "claude_local" }, false)).toBeNull();
+  });
+});
