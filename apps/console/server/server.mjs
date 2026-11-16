@@ -99,7 +99,18 @@ export function leadsOf(ctx) {
     .filter((a) => a.metadata?.agentself?.isLead && a.status !== "terminated")
     .map((a) => {
       const dept = ctx.departments.find((d) => d.key === a.metadata.agentself.department);
-      return { id: a.id, name: a.name, team: dept?.name ?? a.metadata.agentself.departmentName ?? "", description: [a.capabilities, dept?.description].filter(Boolean).join("；"), projectId: dept?.projectId ?? null };
+      // What the team can actually do lives on its employees; the lead's own capabilities are about
+      // managing. Without them the router cannot tell whose domain "write a script…" is (PR #4 p14).
+      const crew = ctx.agents
+        .filter((e) => dept?.members?.includes(e.id) && e.id !== a.id && e.status !== "terminated" && e.capabilities)
+        .map((e) => `${e.name}（${e.capabilities}）`);
+      return {
+        id: a.id,
+        name: a.name,
+        team: dept?.name ?? a.metadata.agentself.departmentName ?? "",
+        description: [a.capabilities, dept?.description, crew.length ? `员工：${crew.join("，")}` : ""].filter(Boolean).join("；"),
+        projectId: dept?.projectId ?? null,
+      };
     });
 }
 
@@ -155,13 +166,15 @@ async function frontdesk(body) {
   const prompt = buildPrompt({ text, leads, openIssues: issues, now: new Date().toLocaleString("zh-CN"), profile: readProfile(HOME, "user") });
   const { text: raw } = await runClaude(prompt, { model: store.settings.frontdeskModel });
   const r = parseRoute(raw);
+  logRoute(text, raw, r);
   if (body.dryRun) return { dryRun: true, ...r };
 
   if (r.route === "answer") {
     return { route: "answer", answer: addAnswer(ctx.company.id, r.answer, text) };
   }
   if (r.route === "task") {
-    const lead = leads.find((l) => l.id === r.lead);
+    // models sometimes answer with the lead's name instead of the id
+    const lead = leads.find((l) => l.id === r.lead) ?? leads.find((l) => l.name === r.lead);
     if (lead) return createTask(ctx, lead, { title: r.title, text, external, routerNote: r.why ?? "" });
   }
   if (r.route === "followup" && r.issueId) {
@@ -181,6 +194,17 @@ async function frontdesk(body) {
     external,
     candidates: (Array.isArray(r.candidates) ? r.candidates : []).filter((id) => ids.has(id)),
   };
+}
+
+/** One line per routing decision in ~/.agentself/logs/router.log, to see why something went "unclear". */
+function logRoute(text, raw, r) {
+  try {
+    const dir = path.join(HOME, "logs");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(path.join(dir, "router.log"), `${JSON.stringify({ at: new Date().toISOString(), text: text.slice(0, 300), route: r.route, lead: r.lead ?? null, raw: String(raw ?? "").slice(0, 1000) })}\n`);
+  } catch {
+    /* logging must never break routing */
+  }
 }
 
 /* ---------------- agent runtime sync ---------------- */

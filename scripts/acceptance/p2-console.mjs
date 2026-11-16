@@ -55,13 +55,18 @@ results.progressPanel = (await page.locator("aside.progress").isVisible()) && (a
 results.noTopbarBadge = (await page.locator(".pending-badge").count()) === 0;
 
 // 1. instant answer from the composer
-await page.getByLabel("交给团队一件事").fill("1 公里等于多少米？只回答数字。");
+// Earlier runs that stopped early leave their "1000" answer card behind; opening that one instead
+// of the new card shows "8 小时前". Clear them first so the card checked is this run's.
+const Q = "1 公里等于多少米？只回答数字。";
+for (const a of await as("GET", `/answers?companyId=${companyId}`)) if (a.status === "open" && a.question === Q) await as("POST", `/answers/${a.id}/dismiss`);
+await page.getByLabel("交给团队一件事").fill(Q);
 await page.getByRole("button", { name: "发送" }).click();
-await page.waitForSelector(".notice", { timeout: 150_000 });
-results.instantAnswer = /1000|1,000|一千/.test(await page.locator(".notice").first().innerText());
+await page.waitForSelector(".composer-dock .notice", { timeout: 150_000 }); // the composer's answer box, not a 通知 card
+results.instantAnswer = /1000|1,000|一千/.test(await page.locator(".composer-dock .notice").first().innerText());
 await page.waitForTimeout(6000);
 const answerDetail = await openCard(".card.answer", /1000|1,000|一千/);
 results.answerCardShown = !!answerDetail;
+if (answerDetail) results.answerCardFresh = /刚刚|[0-9] 分钟前/.test(await answerDetail.locator(".meta").innerText()); // this run's card
 if (answerDetail) {
   await answerDetail.getByRole("button", { name: "知道了" }).click();
   await page.waitForTimeout(6000);
@@ -144,6 +149,7 @@ const pass =
   results.noTopbarBadge &&
   results.instantAnswer &&
   results.answerCardShown &&
+  results.answerCardFresh &&
   results.answerCardDismissed &&
   results.askAnswered &&
   results.rememberOption &&
