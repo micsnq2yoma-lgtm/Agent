@@ -10,6 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gitBash, pnpmEnv } from "./lib/shell.mjs";
 import { stopAgentself } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,7 +22,7 @@ const step = (s) => console.log(`\n▶ ${s}`);
 const warn = (s) => console.log(`⚠ ${s}`);
 
 function run(cmd, argv, cwd = root, { capture = false } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, stdio: capture ? "pipe" : "inherit", encoding: "utf8", shell: win, windowsHide: true });
+  const r = spawnSync(cmd, argv, { cwd, stdio: capture ? "pipe" : "inherit", encoding: "utf8", shell: win, windowsHide: true, env: pnpmEnv() });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status}）${capture ? `：${(r.stderr || r.stdout || "").trim().slice(-300)}` : ""}`);
   return (r.stdout ?? "").trim();
 }
@@ -52,6 +53,11 @@ const pnpmV = version("pnpm", "-v");
 if (!pnpmV) throw new Error("没有 pnpm：先运行 corepack enable，再 corepack prepare pnpm@9.15.9 --activate");
 ok(`pnpm ${pnpmV}`);
 ok(`git ${version("git")?.replace(/^git version /, "") ?? "?"}`);
+if (win) {
+  const bash = gitBash();
+  if (!bash) throw new Error("没找到 Git Bash（Paperclip 的安装脚本要用）：装 Git for Windows，或者设置环境变量 AGENTSELF_BASH 指向 bash.exe");
+  ok(`Git Bash ${bash}`);
+}
 const claudeV = version("claude");
 claudeV ? ok(`Claude Code ${claudeV}`) : warn("没有 Claude Code：npm i -g @anthropic-ai/claude-code，再运行 claude 登录这台电脑的订阅（主管、路由、核查员都要用）");
 const codexV = version("codex");
@@ -72,7 +78,7 @@ if (fs.existsSync(configPath)) ok(`已有配置 ${configPath}`);
 else {
   // `onboard --yes` writes the default config and then starts Paperclip in the foreground; let it
   // come up once (that also creates the database), then stop it and hand over to the supervisor.
-  const child = spawn("pnpm", ["paperclipai", "onboard", "--yes", "--no-install-service"], { cwd: vendor, stdio: "inherit", shell: win, windowsHide: true });
+  const child = spawn("pnpm", ["paperclipai", "onboard", "--yes", "--no-install-service"], { cwd: vendor, stdio: "inherit", shell: win, windowsHide: true, env: pnpmEnv() });
   const end = Date.now() + 10 * 60_000;
   while (Date.now() < end && !(fs.existsSync(configPath) && (await healthy("http://127.0.0.1:3100/api/health")))) {
     if (child.exitCode !== null) break;

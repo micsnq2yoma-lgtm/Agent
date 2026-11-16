@@ -10,7 +10,7 @@
 | --- | --- | --- | --- |
 | 2026-11-14 | — | 克隆源码并入主仓库 | v0.4 决定源码内置 |
 | 2026-11-14 | `scripts/link-plugin-dev-sdk.mjs`、`scripts/ensure-workspace-package-links.ts` | Windows 上用 junction 代替目录 symlink | 无管理员 / 开发者模式时 symlink 报 EPERM，install 和 build 失败 |
-| 2026-11-14 | `.npmrc` | `script-shell=D:/Application/Git/bin/bash.exe` | 包脚本用 `mkdir -p`、`cp` 等 POSIX 命令，cmd 下失败。注意：路径是本机 Git 路径，换机器要改 |
+| 2026-11-14 → 11-16 | `.npmrc` | 原先写死 `script-shell=D:/Application/Git/bin/bash.exe`；现已去掉，改由 `scripts/install.mjs` / `scripts/update.mjs` 在每台 Windows 电脑上找 Git Bash，以 `npm_config_script_shell` 传给 pnpm（`scripts/lib/shell.mjs`，也可用环境变量 `AGENTSELF_BASH` 指定） | 包脚本用 `mkdir -p`、`cp` 等 POSIX 命令，cmd 下失败；写死的路径在别的电脑和 CI 上不存在 |
 | 2026-11-14 | 仓库根 `.gitattributes` | 全仓库 LF | autocrlf 把源码检出为 CRLF，runner 的生成物校验报 stale |
 | 2026-11-14 | `packages/paperclip-runner/scripts/check-runner-workflow-traceability.mjs` | 动态 import 用 `pathToFileURL` | Windows 绝对路径不能直接 import |
 | 2026-11-14 | `packages/paperclip-runner/scripts/build-binary-optional.mjs`、`package.json` 的 `build:binary` | Windows 无 cargo 时跳过 runnerd 二进制 | 上游发布包本身也没有 Windows 二进制 |
