@@ -3,6 +3,42 @@ The supplied sprite.ts's whale silhouette, belly pattern, palette and spout are
 retained in src/characters.ts. Other provider silhouettes and the shared state
 renderer are authored for Agentself. These are unofficial model-inspired mascots.
 
+Official logo references for the Gemini, Kimi, GLM, Qwen, MiniMax and Grok
+redesigns are listed below. These six sprites are original, unofficial pixel
+characters derived from visual brand cues. Official logo images, SVGs and brand
+asset files are not bundled. The references do not imply brand authorization or
+endorsement, and the MIT notice below does not license the providers' marks.
+The approved Claude, DeepSeek and Codex characters and the neutral sprout used
+for other models are unchanged by this redesign.
+
+Gemini: Four concave star edges and four points, with Google blue, red, yellow
+and green colors.
+https://design.google/library/gemini-ai-visual-design
+https://blog.google/company-news/inside-google/company-announcements/gradient-g-logo-design/
+
+Kimi: Black-and-white K silhouette, branching diagonal strokes and brand blue.
+https://www.kimi.com/en/resources/kimi-brand
+
+GLM: The current Z.AI mark's black-and-white diagonal Z ribbon, short horizontal
+ends and parallel diagonal negative spaces.
+https://www.zhipuai.cn/en
+https://www.zhipuai.cn/logo-en.svg
+
+Qwen: Blue-purple folded ribbons extending in three directions around a central
+negative space, as shown in the current official website mark.
+https://qwen.ai/
+
+MiniMax: A continuous double-peak waveform with rounded turns, vertical gaps
+and the official pink-to-orange palette (#FF3763 to #FF7038).
+https://www.minimax.cn/brand-vi
+https://filecdn.minimax.chat/public/brand-vi/20260914/logo-1.webp
+
+Grok: A black-and-white broken circular ring crossed by a sharp diagonal stroke
+extending from lower left to upper right. The official brand page links to the
+official app listing used to inspect the icon.
+https://x.ai/legal/brand-guidelines
+https://play.google.com/store/apps/details?id=ai.x.grok
+
 MIT License
 
 Copyright (c) 2026 zhizunbao-studio

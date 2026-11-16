@@ -4,20 +4,21 @@ import { ACTION_TEXT, characterFrame, characterSvg, pixelActionFor, SPRITE_HEIGH
 
 describe("model employee sprites", () => {
   it("keeps every frame of every model and action inside its integer-cell canvas", () => {
+    const invalid: Array<{ family: string; action: string; frame: number; pixel: unknown }> = [];
     for (const family of MODEL_FAMILIES) for (const action of Object.keys(ACTION_TEXT) as PixelAction[]) {
       for (let f = 0; f < 4; f++) {
         const pixels = characterFrame(family, action, f);
         expect(pixels.length).toBeGreaterThan(0);
         for (const [x, y, w, h, color] of pixels) {
-          expect([x, y, w, h].every(Number.isInteger)).toBe(true);
-          expect(x).toBeGreaterThanOrEqual(0); expect(y).toBeGreaterThanOrEqual(0);
-          expect(w).toBeGreaterThan(0); expect(h).toBeGreaterThan(0);
-          expect(x + w).toBeLessThanOrEqual(SPRITE_WIDTH);
-          expect(y + h).toBeLessThanOrEqual(SPRITE_HEIGHT);
-          expect(color).toMatch(/^#[0-9a-f]{6}$/i);
+          if (![x, y, w, h].every(Number.isInteger) || x < 0 || y < 0 || w <= 0 || h <= 0
+            || x + w > SPRITE_WIDTH || y + h > SPRITE_HEIGHT || !/^#[0-9a-f]{6}$/i.test(color)) {
+            invalid.push({ family, action, frame: f, pixel: [x, y, w, h, color] });
+          }
         }
       }
     }
+    // Batch assertion bookkeeping so denser artwork cannot time out the audit.
+    expect(invalid).toEqual([]);
   });
   it("uses distinguishable silhouettes, including when desaturated", () => {
     const silhouettes = MODEL_FAMILIES.map(family => JSON.stringify(characterFrame(family).map(p => p.slice(0, 4))));
