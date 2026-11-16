@@ -15,6 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { gitBash, pnpmEnv } from "./lib/shell.mjs";
 import { stopAgentself } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -41,7 +42,7 @@ function state(patch) {
   fs.writeFileSync(stateFile, JSON.stringify({ ...cur, ...patch, updatedAt: new Date().toISOString() }, null, 2));
 }
 function sh(cmd, argv, cwd = root, { quiet = false } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", shell: process.platform === "win32", windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+  const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", shell: process.platform === "win32", windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: pnpmEnv() });
   if (!quiet && r.stdout?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stdout);
   if (r.stderr?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stderr);
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status}）：${(r.stderr || r.stdout || "").trim().split(/\r?\n/).slice(-3).join(" / ")}`);
