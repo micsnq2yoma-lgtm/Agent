@@ -102,6 +102,34 @@ export async function settleReport(issueId, doc) {
 }
 
 const me = () => env("PAPERCLIP_AGENT_ID");
+/* ---------- delegation guards (PR #4 p13: rules enforced in code, not only in the skill) ---------- */
+
+/** Codex employees have no team MCP tools (no submit_evidence / comments), so work given to them
+ * cannot come back. Until that exists, delegation to them is refused unless explicitly allowed. */
+export function codexBlock(employee, allow = process.env.AGENTSELF_ALLOW_CODEX === "1") {
+  if (allow || employee?.adapterType !== "codex_local") return null;
+  return `「${employee.name}」是 Codex 员工：目前没有团队工具，交不了证据、也回不了话。请派给 Claude 员工；没有合适的就用 propose_hire 提议一名 Claude 员工。`;
+}
+
+/** Words that usually mean an ask-first action (profile/askfirst.md): destroying data or results,
+ * sending something out, spending money. A hint, not a classifier: the lead can explain it away. */
+export const ASK_FIRST_HINT = /删除|删掉|清理|清空|覆盖|重置|格式化|rm\s+-|发邮件|发送邮件|发给.{0,8}(客户|老师|导师|同事|对方)|发布|推送|push\b|合并到主分支|付款|支付|购买|下单|转账/i;
+
+/** null = OK to delegate; otherwise the reason it is refused. */
+export async function askFirstGate(parent, description, askFirst, notAskFirstReason, { interactions } = {}) {
+  if (askFirst === "approved") {
+    const list = interactions ?? arr(await pc("GET", `/issues/${parent.id}/interactions`).catch(() => []));
+    const answered = list.some((i) => i.status && i.status !== "pending" && !/reject|cancel|expired|failed/.test(String(i.status)));
+    return answered ? null : "askFirst 写的是 approved，但父任务上还没有用户回答过的卡片。先用 ask_user 问用户，等回答后再派活。";
+  }
+  if (askFirst !== "none") return "askFirst 必须是 none 或 approved。";
+  const text = [parent.title, parent.description, description].filter(Boolean).join("\n");
+  const hit = text.match(ASK_FIRST_HINT);
+  if (hit && !String(notAskFirstReason ?? "").trim())
+    return `这件事看起来命中"先问清单"（出现了「${hit[0]}」）：删除或覆盖数据和结果、对外发送、花钱之前要先问用户。先用 ask_user 在父任务上问（说明要动什么、影响多大），用户同意后再派活并把 askFirst 设为 approved。确实不涉及的话，在 notAskFirstReason 里写明为什么，再派一次。`;
+  return null;
+}
+
 const brief = (i) => ({ id: i.id, identifier: i.identifier ?? null, title: i.title, status: i.status, assigneeAgentId: i.assigneeAgentId ?? null, parentId: i.parentId ?? null });
 
 /* ---------------- tools ---------------- */
@@ -223,15 +251,21 @@ export const TOOLS = {
     roles: ["lead"],
     description:
       "派活：在你负责的父任务下建一个子任务交给你的一名员工，并让父任务等它（父任务置为 blocked）。描述里放完整任务书和带编号的验收标准。父任务还没有 brief 文档时，会把这份任务书同时存为父任务的 brief。一次只派一名员工。",
-    inputSchema: S({ parentId: str("你负责的父任务 id"), assigneeAgentId: str("员工 id（必须是你的员工）"), title: str("子任务标题"), description: str("任务书全文") }, [
-      "parentId",
-      "assigneeAgentId",
-      "title",
-      "description",
-    ]),
-    run: async ({ parentId, assigneeAgentId, title, description }) => {
+    inputSchema: S({
+      parentId: str("你负责的父任务 id"),
+      assigneeAgentId: str("员工 id（必须是你的员工）"),
+      title: str("子任务标题"),
+      description: str("任务书全文"),
+      askFirst: { type: "string", enum: ["none", "approved"], description: "对照先问清单：none = 这件事不涉及清单里的情况；approved = 涉及，且用户已经在父任务的卡片上同意了" },
+      notAskFirstReason: str("仅当系统认为可能命中先问清单、而你确认不涉及时填写：为什么不涉及"),
+    }, ["parentId", "assigneeAgentId", "title", "description", "askFirst"]),
+    run: async ({ parentId, assigneeAgentId, title, description, askFirst, notAskFirstReason }) => {
       const [parent, employee] = await Promise.all([pc("GET", `/issues/${parentId}`), pc("GET", `/agents/${assigneeAgentId}`)]);
       if (employee?.reportsTo !== me()) throw new Error("只能派给你自己的员工（先用 team_overview 看）");
+      const codex = codexBlock(employee);
+      if (codex) throw new Error(codex);
+      const gate = await askFirstGate(parent, description, askFirst, notAskFirstReason);
+      if (gate) throw new Error(gate);
       const child = await pc("POST", `/companies/${parent.companyId ?? companyId()}/issues`, {
         title: String(title).slice(0, 200),
         description,

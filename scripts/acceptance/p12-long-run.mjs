@@ -3,7 +3,7 @@
 // The research employee gets a fake experiment that runs for EXPERIMENT_SECONDS (default 240) in
 // the background and then writes result.json. Expected:
 //  - the employee starts it, registers a probe with watch_job and ENDS its turn (no busy waiting)
-//  - the plugin's probe sees the end and wakes the employee ("⏱ 看守结束" comment)
+//  - the plugin's probe sees the end and wakes the employee ("⏱ 看守已结束" comment, wakeReason agentself_watch)
 //  - a later run reads the result and finishes the task with the number in it
 // Model cost: two short employee turns. ~8–15 min.
 // Usage: node scripts/acceptance/p12-long-run.mjs [--seconds 240]
@@ -70,16 +70,25 @@ const end = await waitFor(
 
 const runs = (await runsOf(issue.id)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 const cs = await comments(issue.id);
-const wake = cs.find((c) => /⏱ 看守结束/.test(c.body ?? ""));
+// the plugin's wake comment reads "⏱ 看守已结束…" (watch.ts wakeComment)
+const wake = cs.find((c) => /⏱ 看守已?结束/.test(c.body ?? ""));
+// and the run it caused carries wakeReason agentself_watch
+const wakeReasons = [];
+for (const r of runs) {
+  const d = await api("GET", `/heartbeat-runs/${r.runId ?? r.id}`).catch(() => null);
+  wakeReasons.push(JSON.stringify(d ?? {}).match(/"wakeReason":"([^"]*)"/)?.[1] ?? null);
+}
 results.experimentStarted = fs.existsSync(path.join(dir, "progress.log"));
 results.experimentFinishedAt = finishedAt;
 // the first turn ended while the experiment was still running (no busy waiting)
 results.firstTurnEndedEarly = !!(finishedAt && runs[0] && (runs[0].finishedAt ?? runs[0].updatedAt) < finishedAt);
-results.watchWoke = !!wake;
-results.runAfterWake = !!(wake && runs.some((r) => r.createdAt >= wake.createdAt));
+results.watchComment = !!wake;
+results.watchWoke = wakeReasons.includes("agentself_watch");
+results.runAfterWake = results.watchWoke || !!(wake && runs.some((r) => r.createdAt >= wake.createdAt));
+results.wakeReasons = wakeReasons;
 results.reportedNumber = cs.some((c) => (c.body ?? "").includes(ACC));
 results.finalStatus = end?.status ?? (await api("GET", `/issues/${issue.id}`)).status;
 results.runs = runs.map((r) => `${r.createdAt.slice(11, 19)} ${r.status}`);
 
 if (!["done", "in_review"].includes(results.finalStatus)) await cancelTree(companyId, issue.id);
-verdict("p12-long-run", results.experimentStarted && results.firstTurnEndedEarly && results.watchWoke && results.runAfterWake && results.reportedNumber && ["done", "in_review"].includes(results.finalStatus), results);
+verdict("p12-long-run", results.experimentStarted && results.firstTurnEndedEarly && results.watchComment && results.watchWoke && results.runAfterWake && results.reportedNumber && ["done", "in_review"].includes(results.finalStatus), results);

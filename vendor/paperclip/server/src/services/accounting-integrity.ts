@@ -98,6 +98,32 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
         throw error;
       }
     },
+    /**
+     * Agentself escape hatch: a run stopped before its usage receipt arrived (e.g. its issue was
+     * cancelled mid-run) stays pending forever, which hard-pauses every budget it touches. The
+     * board may explicitly write such a run off: the captured usage (or the given amount, default
+     * 0) is recorded as an *estimated* cost, the write-off is kept on the run and in the activity
+     * log, and normal accounting then acknowledges it. Never automatic.
+     */
+    writeOff: async (companyId: string, runId: string, input: { reason: string; costUsd?: number | null }, actorId: string) => {
+      const reason = input.reason?.trim();
+      if (!reason) throw conflict("A write-off reason is required");
+      const [run] = await db.select({ id: heartbeatRuns.id, status: heartbeatRuns.status, pending: heartbeatRuns.costAccountingPending })
+        .from(heartbeatRuns).where(and(eq(heartbeatRuns.companyId, companyId), eq(heartbeatRuns.id, runId)));
+      if (!run) throw notFound("Accounting run not found");
+      if (!run.pending) return { accounted: false, alreadySettled: true };
+      if (!["succeeded", "failed", "timed_out", "cancelled", "interrupted"].includes(run.status)) throw conflict("Only finished runs can be written off");
+      const cost = typeof input.costUsd === "number" && Number.isFinite(input.costUsd) && input.costUsd >= 0 ? input.costUsd : null;
+      const note = { reason, actorId, at: new Date().toISOString(), costUsd: cost };
+      await db.execute(sql`update heartbeat_runs set usage_json =
+        (case when ${cost}::numeric is null then coalesce(usage_json, '{}'::jsonb)
+              else coalesce(usage_json, '{}'::jsonb) - 'cacheAdjustedCostUsd' - 'costUsdExact' - 'usageByModel' end)
+        || jsonb_build_object('accountingReceiptReady', true, 'accountingCaptureFailed', false, 'costStatus', 'estimated',
+             'costUsd', coalesce(${cost}::numeric, (usage_json->>'costUsd')::numeric, 0), 'accountingWriteOff', ${JSON.stringify(note)}::jsonb)
+        where id = ${runId} and company_id = ${companyId} and cost_accounting_pending`);
+      await logActivity(db, { companyId, actorType: "user", actorId, action: "accounting.run_written_off", entityType: "heartbeat_run", entityId: runId, details: note });
+      return { accounted: await accountRunCost(db, runId, hooks) };
+    },
     health: (companyId: string): Promise<AccountingHealth> => withAccountingReadSnapshot(db, companyId, async tx => {
       const [counts] = await tx.execute<{ pending: number; unpriced: number; oldest: string | null; cancellations: number; reserved: string }>(sql`
         select (select count(*)::int from heartbeat_runs where company_id = ${companyId} and cost_accounting_pending and status in ('succeeded','failed','timed_out','cancelled','interrupted')) as pending,
