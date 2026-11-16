@@ -3,6 +3,7 @@
 // (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
 // Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
 // /agentself/api/* here, so it listens on loopback only and serves no UI.
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -19,6 +20,7 @@ import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(here, "..", "..", "..");
 const PAPERCLIP = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
 const PORT = Number(process.env.AGENTSELF_PORT ?? 3200);
 const HOST = process.env.AGENTSELF_HOST ?? "127.0.0.1";
@@ -34,6 +36,8 @@ const DEFAULT_SETTINGS = {
   externalDefault: "ask",
   globalBudgetCents: 0,
   feishu: { enabled: false, appId: "", secretRef: "", allowUserIds: [], pushTiers: ["high"] },
+  // nightly self-update (scripts/update.mjs): at `hour` local time, only when nobody is working
+  autoUpdate: { enabled: false, hour: 4 },
 };
 function loadStore() {
   try {
@@ -204,6 +208,68 @@ function logRoute(text, raw, r) {
     fs.appendFileSync(path.join(dir, "router.log"), `${JSON.stringify({ at: new Date().toISOString(), text: text.slice(0, 300), route: r.route, lead: r.lead ?? null, raw: String(raw ?? "").slice(0, 1000) })}\n`);
   } catch {
     /* logging must never break routing */
+  }
+}
+
+/* ---------------- self-update (release: one install per machine) ---------------- */
+const UPDATE_SCRIPT = path.join(REPO_ROOT, "scripts", "update.mjs");
+const updateStateFile = path.join(HOME, "run", "update.json");
+function readUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(updateStateFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+/** `node scripts/update.mjs --check` (git fetch + compare); resolves with its JSON. */
+function checkUpdate() {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [UPDATE_SCRIPT, "--check"], { cwd: REPO_ROOT, windowsHide: true });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("close", (code) => {
+      try {
+        resolve(JSON.parse(out.slice(out.indexOf("{"))));
+      } catch {
+        reject(new Error(`检查更新失败（${code}）：${(err || out).trim().slice(-300)}`));
+      }
+    });
+  });
+}
+/** Who is working right now (an update restarts everything, so wait for them). */
+async function busyAgents() {
+  const ctx = await loadContext();
+  return ctx.agents.filter((a) => a.status === "running").map((a) => a.name);
+}
+/**
+ * Start the update outside this process tree: the update stops the supervisor and everything
+ * under it (this service included), so it must not be one of its children.
+ */
+function launchUpdate() {
+  if (process.platform === "win32") {
+    spawn("cmd.exe", ["/d", "/c", "start", '""', "/b", `"${process.execPath}"`, `"${UPDATE_SCRIPT}"`], { cwd: REPO_ROOT, detached: true, stdio: "ignore", windowsHide: true, windowsVerbatimArguments: true }).unref();
+  } else {
+    spawn(process.execPath, [UPDATE_SCRIPT], { cwd: REPO_ROOT, detached: true, stdio: "ignore" }).unref();
+  }
+}
+let lastAutoUpdateDay = null;
+async function autoUpdateTick() {
+  const a = store.settings.autoUpdate ?? {};
+  const now = new Date();
+  const day = now.toDateString();
+  if (!a.enabled || now.getHours() !== Number(a.hour ?? 4) || lastAutoUpdateDay === day) return;
+  try {
+    const c = await checkUpdate();
+    if (!c.behind) return void (lastAutoUpdateDay = day);
+    const busy = await busyAgents();
+    if (busy.length) return console.log(`auto-update waits: ${busy.join("、")} still working`);
+    lastAutoUpdateDay = day;
+    console.log(`auto-update: ${c.current} → ${c.latest}`);
+    launchUpdate();
+  } catch (e) {
+    console.error(`auto-update check failed: ${e instanceof Error ? e.message : e}`);
   }
 }
 
@@ -439,6 +505,17 @@ async function handleAgentself(req, res, url) {
 
   /* IM (PLAN 6) */
   if (req.method === "GET" && p === "/feishu/status") return send(res, 200, { status: imStatus() });
+  if (req.method === "GET" && p === "/update/status") {
+    const check = url.searchParams.get("check") === "1" ? await checkUpdate() : null;
+    return send(res, 200, { ...readUpdateState(), ...(check ? { lastCheck: check } : {}) });
+  }
+  if (req.method === "POST" && p === "/update/run") {
+    const body = await readJson(req);
+    const busy = await busyAgents();
+    if (busy.length && !body.force) return send(res, 409, { error: `${busy.join("、")} 正在干活，更新会重启整个系统。等他们结束，或勾选"现在就更新"。`, busy });
+    launchUpdate();
+    return send(res, 202, { started: true });
+  }
   return send(res, 404, { error: "not found" });
 }
 
@@ -471,6 +548,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   createServer().listen(PORT, HOST, () => {
     console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
+    setInterval(() => void autoUpdateTick(), 10 * 60_000);
     // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.
     const trySync = (left) =>
       syncAllAgents()

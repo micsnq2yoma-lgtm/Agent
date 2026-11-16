@@ -511,6 +511,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
           <input className="input" defaultValue={s.companyName} onBlur={(e) => e.target.value !== s.companyName && void save({ companyName: e.target.value })} />
         </div>
       </div>
+      <UpdateSection autoUpdate={s.autoUpdate ?? { enabled: false, hour: 4 }} onAuto={(autoUpdate) => void save({ autoUpdate })} />
         </>
       )}
       {tab === "router" && (
@@ -731,12 +732,119 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
         ))}
         <div className="row">
           <span className="label">版本</span>
-          <span className="sub">Paperclip 源码内置（vendor/paperclip，基线 d69631b）</span>
+          <span className="sub">Paperclip 源码内置（vendor/paperclip，基线 d69631b）；Agentself 版本见"通用 → 版本与更新"</span>
         </div>
       </div>
         </>
       )}
       {tab === "profile" && <ProfileEditor />}
+    </div>
+  );
+}
+
+/* ---------- 版本与更新 (scripts/update.mjs) ---------- */
+interface UpdateCheck {
+  current: string;
+  latest: string;
+  behind: number;
+  ahead: number;
+  changes: string[];
+}
+interface UpdateState {
+  status?: "updating" | "updated" | "up_to_date" | "rolled_back" | "broken";
+  current?: string;
+  error?: string | null;
+  backup?: string | null;
+  updatedAt?: string;
+  lastCheck?: UpdateCheck;
+}
+const UPDATE_STATUS: Record<string, string> = {
+  updating: "正在更新…",
+  updated: "上次更新成功",
+  up_to_date: "已是最新",
+  rolled_back: "上次更新失败，已自动回退",
+  broken: "上次更新失败，回退后也没起来，请看日志",
+};
+
+function UpdateSection({ autoUpdate, onAuto }: { autoUpdate: { enabled: boolean; hour: number }; onAuto: (a: { enabled: boolean; hour: number }) => void }) {
+  const [st, setSt] = useState<UpdateState | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const load = (check = false) =>
+    as
+      .get<UpdateState>(`/update/status${check ? "?check=1" : ""}`)
+      .then(setSt)
+      .catch((e) => setMsg(e instanceof Error ? e.message : String(e)));
+  useEffect(() => void load(), []);
+  const c = st?.lastCheck;
+  async function run(force = false) {
+    setBusy("run");
+    setMsg(null);
+    try {
+      await as.post("/update/run", { force });
+      setMsg("开始更新：系统会停下、构建、重启，几分钟后刷新页面。失败会自动回退到当前版本。");
+    } catch (e) {
+      const text = e instanceof Error ? e.message : String(e);
+      if (/正在干活/.test(text) && confirm(`${text}\n\n现在就更新？正在进行的运行会被中断。`)) return run(true);
+      setMsg(text);
+    } finally {
+      setBusy(null);
+    }
+  }
+  return (
+    <div className="section">
+      <h2>版本与更新</h2>
+      <div className="row">
+        <div>
+          <div className="label">当前版本 {st?.current ?? c?.current ?? "—"}</div>
+          <div className="sub">
+            {st?.status ? UPDATE_STATUS[st.status] ?? st.status : "还没有更新过"}
+            {st?.updatedAt ? ` · ${new Date(st.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}
+            {st?.error ? ` · ${st.error}` : ""}
+          </div>
+        </div>
+        <button
+          className="btn"
+          disabled={busy !== null}
+          onClick={() => {
+            setBusy("check");
+            setMsg(null);
+            void load(true).finally(() => setBusy(null));
+          }}
+        >
+          {busy === "check" ? "检查中…" : "检查更新"}
+        </button>
+      </div>
+      {c && c.behind > 0 && (
+        <div className="row">
+          <div>
+            <div className="label">有新版本 {c.latest}（{c.behind} 个更新）</div>
+            <div className="sub mono" style={{ whiteSpace: "pre-wrap" }}>{c.changes.join("\n")}</div>
+          </div>
+          <button className="btn primary" disabled={busy !== null} onClick={() => void run()}>
+            立即更新
+          </button>
+        </div>
+      )}
+      {c && c.behind === 0 && <div className="sub">已是最新（{c.latest}）。</div>}
+      <div className="row">
+        <div>
+          <div className="label">每天自动更新</div>
+          <div className="sub">到点且没有员工在干活时更新；先备份数据库，失败自动回退</div>
+        </div>
+        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+          <select className="input" style={{ width: 96 }} value={autoUpdate.hour} disabled={!autoUpdate.enabled} onChange={(e) => onAuto({ ...autoUpdate, hour: Number(e.target.value) })} aria-label="自动更新时间">
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>
+                {String(h).padStart(2, "0")}:00
+              </option>
+            ))}
+          </select>
+          <button className={`switch ${autoUpdate.enabled ? "on" : ""}`} role="switch" aria-checked={autoUpdate.enabled} aria-label="每天自动更新" onClick={() => onAuto({ ...autoUpdate, enabled: !autoUpdate.enabled })} />
+        </span>
+      </div>
+      {msg && <div className="sub" style={{ marginTop: 8 }}>{msg}</div>}
+      {st?.backup && <div className="sub mono" style={{ marginTop: 4 }}>最近备份：{st.backup}</div>}
     </div>
   );
 }

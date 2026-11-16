@@ -22,24 +22,41 @@ scripts/             启动、建团队、开机自启、验收脚本、界面�
 vendor/paperclip/    Paperclip 源码（已为 Windows 与中文化修改，见 docs/paperclip-changes.md）
 ```
 
-## 运行（Windows 11，Node 24.11+，pnpm 9.15+）
+## 安装（每台电脑一套，Windows 11，Node 24.11+，pnpm 9.15+，Git）
+
+三台电脑各装一套，互不依赖：各自登录自己的 Claude / Codex 订阅，各自配置 API key，数据各自保存在本机。
 
 ```powershell
-# 1. 依赖与构建
-cd vendor\paperclip; pnpm install; pnpm build; cd ..\..
-pnpm install
-cd vendor\paperclip\ui; pnpm exec vite build; cd ..\..\..   # 界面（Paperclip + Agentself 视图）
-cd plugins\team-layer; node build.mjs; cd ..\..
+git clone https://github.com/micsnq2yoma-lgtm/Agentself.git
+cd Agentself
+node scripts\install.mjs     # 检查环境 → 安装依赖并构建 → Paperclip 首次配置 → 启动 → 安装团队层插件 → 开机自启
+```
 
-# 2. 启动：对外只有一个应用 :3100；Agentself 本地服务只听本机 :3200，
-#    由 Paperclip 经 /agentself/api 反向代理。崩溃自动重启，日志在 ~/.agentself/logs
-node scripts\start.mjs
+装完打开 http://127.0.0.1:3100，在侧栏"主管"旁边的 + 新建第一位主管和员工。
 
-# 3. 首次：安装团队层插件并建一个示例部门
-#    （插件：POST /api/plugins/install {packageName:"<repo>\\plugins\\team-layer", isLocalPath:true}）
+先装好并登录：
+- Claude Code：`npm i -g @anthropic-ai/claude-code`，运行 `claude` 登录这台电脑的订阅（主管、路由、核查员都用它）
+- Codex（可选）：`npm i -g @openai/codex`，`codex login`
+
+## 更新
+
+设置 → 通用 → 版本与更新：检查更新、立即更新，或者打开"每天自动更新"（到点且没有员工在干活时更新）。命令行等价于：
+
+```powershell
+node scripts\update.mjs --check   # 有没有新版本
+node scripts\update.mjs           # 备份数据库和 ~/.agentself → 停止 → 拉取 main → 只装 / 只构建改动的部分 → 启动 → 健康检查
+```
+
+新版本起不来时自动回退到上一个版本并重新启动；数据库不自动恢复（新版本可能已经迁移过），备份在 `~/.agentself/backups/`，最多留 5 份。日志在 `~/.agentself/logs/update.log`。
+
+每个 PR 和 main 上的提交都会在 GitHub Actions 里跑单元测试（Linux 和 Windows）和完整构建（`.github/workflows/ci.yml`）。
+
+## 手动运行
+
+```powershell
+node scripts\start.mjs   # 对外只有 :3100；Agentself 本地服务只听本机 :3200，由 Paperclip 经 /agentself/api 反向代理。崩溃自动重启，日志在 ~/.agentself/logs
+node scripts\stop.mjs    # 停止
 node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 验收用的示例团队；日常在应用里用向导新建
-
-# 4. 打开 http://127.0.0.1:3100（默认首页就是工作台）
 ```
 
 开机自启：`powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`（`-Remove` 卸载）。
@@ -57,12 +74,12 @@ node scripts\acceptance\p3-console.mjs      # 皮肤切换、向导建团队（�
 node scripts\acceptance\p4-memory.mjs       # 跨项目记忆 + 空闲整理 git 提交（耗额度）
 node scripts\acceptance\p6-skin.mjs         # 皮肤包导入导出
 node scripts\acceptance\p8-shell.mjs        # 一个端口、一条侧栏、卡片→抽屉→任务页→运行记录、隐藏页可直达（耗少量额度）
-node scriptscceptance\p6-share.mjs        # 共享皮肤（需另起一个实例）
-node scriptscceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
+node scripts\acceptance\p6-share.mjs        # 共享皮肤（需另起一个实例）
+node scripts\acceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
 node scripts\acceptance\p10-pages.mjs       # 侧栏结构、无重复入口、主管页 / 员工完整页 / 合并页 / 设置分标签 / 项目抽屉 / 高级
 ```
 
-删除测试或不用的团队：`node scripts\devemove-team.mjs <团队名>`（先列出要删的内容，加 `--yes` 才执行）。
+删除测试或不用的团队：`node scripts\dev\remove-team.mjs <团队名>`（先列出要删的内容，加 `--yes` 才执行）。预算因为中途取消的运行一直暂停：`node scripts\dev\budget-unstick.mjs`（同样加 `--yes` 才执行）。
 
 ## 许可
 
