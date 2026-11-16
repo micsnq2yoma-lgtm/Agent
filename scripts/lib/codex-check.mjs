@@ -34,9 +34,9 @@ export function explainCodexError(text) {
   const s = String(text ?? "");
   if (/Error loading config\.toml/i.test(s)) {
     const v = /unknown variant [`'"]?([\w-]+)/.exec(s)?.[1];
-    return `本机 Codex 的配置文件（~/.codex/config.toml）读不出来${v ? `：有一项写成了 "${v}"，当前版本不认` : ""}。这是这台电脑自己的 Codex 设置，Agentself 不会替你改；${v === "default" ? '多半是 service_tier = "default"，删掉这一行或改成 "flex"' : "按报错改掉那一行"}，再点"重新检测"。`;
+    return `本机 Codex 的配置文件（~/.codex/config.toml）读不出来${v ? `：有一项写成了 "${v}"，当前版本不认` : ""}。这是这台电脑自己的 Codex 设置，AgenTeam 不会替你改；${v === "default" ? '多半是 service_tier = "default"，删掉这一行或改成 "flex"' : "按报错改掉那一行"}，再点"重新检测"。`;
   }
-  if (/unexpected argument/i.test(s)) return "Codex 收到了被拆开的参数（Windows 上带空格的参数会被拆开）。更新 Agentself 后点\"重新检测\"；还不行就把这段报错发给开发者。";
+  if (/unexpected argument/i.test(s)) return "Codex 收到了被拆开的参数（Windows 上带空格的参数会被拆开）。更新 AgenTeam 后点\"重新检测\"；还不行就把这段报错发给开发者。";
   if (/not logged in|login required|401|unauthorized/i.test(s)) return "这台电脑的 Codex 还没登录：在命令行运行 codex login。";
   return null;
 }

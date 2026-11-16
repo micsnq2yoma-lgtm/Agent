@@ -5,9 +5,9 @@ export default {
   id: "agentself.team-layer",
   apiVersion: 1,
   version: "0.1.0",
-  displayName: "Agentself 团队层",
+  displayName: "AgenTeam 团队层",
   description: "主管与员工：返工上限、跳数上限、卡片工具、三档消息流、员工记忆",
-  author: "Agentself",
+  author: "AgenTeam",
   categories: ["automation"],
   capabilities: [
     "events.subscribe",

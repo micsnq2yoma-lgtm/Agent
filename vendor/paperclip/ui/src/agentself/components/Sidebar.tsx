@@ -58,7 +58,7 @@ export function AgentselfSidebar() {
 
   return (
     <div className="agentself" style={{ height: "100%", width: "100%" }} data-agentself-sidebar="">
-      <aside className="sidebar" aria-label="Agentself 导航">
+      <aside className="sidebar" aria-label="AgenTeam 导航">
         <div className="brand">
           <Wordmark />
           <span style={{ flex: 1 }} />

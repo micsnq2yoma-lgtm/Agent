@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- AgenTeam: three agents linked into one team; the lead in the brand colour -->
+  <style>
+    .ink { fill: #0C151D; stroke: #0C151D; }
+    .eye { fill: #FFFFFF; }
+    @media (prefers-color-scheme: dark) {
+      .ink { fill: #E8EAED; stroke: #E8EAED; }
+      .eye { fill: #15181C; }
+    }
+  </style>
+  <g class="ink" stroke-width="2.2" stroke-linecap="round" fill="none">
+    <line x1="16" y1="9" x2="7.5" y2="23.5"/>
+    <line x1="16" y1="9" x2="24.5" y2="23.5"/>
+    <line x1="7.5" y1="23.5" x2="24.5" y2="23.5"/>
+  </g>
+  <rect x="11" y="3.5" width="10" height="10" rx="3" fill="#E3876A"/>
+  <rect class="ink" x="2.5" y="18.5" width="10" height="10" rx="3" stroke="none"/>
+  <rect class="ink" x="19.5" y="18.5" width="10" height="10" rx="3" stroke="none"/>
+  <g>
+    <rect x="13.6" y="7" width="1.6" height="3" rx=".5" fill="#FFFFFF"/><rect x="16.8" y="7" width="1.6" height="3" rx=".5" fill="#FFFFFF"/>
+    <rect class="eye" x="5.1" y="22" width="1.6" height="3" rx=".5"/><rect class="eye" x="8.3" y="22" width="1.6" height="3" rx=".5"/>
+    <rect class="eye" x="22.1" y="22" width="1.6" height="3" rx=".5"/><rect class="eye" x="25.3" y="22" width="1.6" height="3" rx=".5"/>
+  </g>
+</svg>

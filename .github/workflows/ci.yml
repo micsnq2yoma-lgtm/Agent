@@ -50,7 +50,7 @@ jobs:
           cache-dependency-path: |
             pnpm-lock.yaml
             vendor/paperclip/pnpm-lock.yaml
-      - name: Agentself plugins and packages
+      - name: AgenTeam plugins and packages
         run: |
           pnpm install --frozen-lockfile
           pnpm build

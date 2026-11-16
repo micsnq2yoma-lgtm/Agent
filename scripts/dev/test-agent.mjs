@@ -38,7 +38,7 @@ async function run(label, adapterConfig) {
 }
 
 if (agent.adapterType === "codex_local")
-  for (const p of codexConfigProblems()) console.log(`\n⚠ ${p.file}：${p.message}。${p.fix}（Agentself 不会改这个文件）`);
+  for (const p of codexConfigProblems()) console.log(`\n⚠ ${p.file}：${p.message}。${p.fix}（AgenTeam 不会改这个文件）`);
 await run("当前配置", agent.adapterConfig);
 if (args.includes("--compare") && agent.adapterType === "codex_local") {
   const strip = [];

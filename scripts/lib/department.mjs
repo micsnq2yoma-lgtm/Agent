@@ -226,7 +226,7 @@ export function slugKey(s) {
   return ascii || `team-${Date.now().toString(36)}`;
 }
 
-export async function createDepartment(pack, { key, companyName = "Agentself", api = defaultApi, ensureCompany = defaultEnsureCompany, log = console.log } = {}) {
+export async function createDepartment(pack, { key, companyName = "AgenTeam", api = defaultApi, ensureCompany = defaultEnsureCompany, log = console.log } = {}) {
   const errs = validatePack(pack);
   if (errs.length) throw Object.assign(new Error(errs.join("；")), { status: 400 });
   const lead = { key: "lead", role: "pm", adapterType: "claude_local", ...pack.lead };
@@ -429,7 +429,7 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
   const agent = await api("GET", `/agents/${agentId}`);
   const meta = agent?.metadata?.agentself;
   const cwd = agent?.adapterConfig?.cwd;
-  if (!meta || !cwd) throw Object.assign(new Error("只能改 Agentself 建的主管和员工"), { status: 400 });
+  if (!meta || !cwd) throw Object.assign(new Error("只能改 AgenTeam 建的主管和员工"), { status: 400 });
   const role = meta.isLead ? "lead" : "employee";
   const home = agentselfHome();
   // a model picked for the old source does not carry over to another provider
@@ -458,7 +458,7 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
 export async function setAgentModel(agentId, model, { api = defaultApi, log = console.log } = {}) {
   const agent = await api("GET", `/agents/${agentId}`);
   const meta = agent?.metadata?.agentself;
-  if (!meta || !agent.adapterConfig?.cwd) throw Object.assign(new Error("只能改 Agentself 建的主管和员工"), { status: 400 });
+  if (!meta || !agent.adapterConfig?.cwd) throw Object.assign(new Error("只能改 AgenTeam 建的主管和员工"), { status: 400 });
   const m = String(model ?? "").trim();
   if (m && !/^[\w.:/@-]{1,120}$/.test(m)) throw Object.assign(new Error("模型名不对"), { status: 400 });
   const source = sourceOf(agent);

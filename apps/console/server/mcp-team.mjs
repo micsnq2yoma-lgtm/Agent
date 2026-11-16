@@ -113,7 +113,7 @@ export function codexBlock(employee, allow = process.env.AGENTSELF_ALLOW_CODEX =
   if (allow || employee?.adapterType !== "codex_local") return null;
   const args = employee.adapterConfig?.extraArgs ?? [];
   if (args.some((a) => String(a).includes("mcp_servers.agentself"))) return null;
-  return `「${employee.name}」是 Codex 员工，但还没装上团队工具（交不了证据、也回不了话）。重启 Agentself 本地服务会自动补上；在那之前请派给 Claude 员工。`;
+  return `「${employee.name}」是 Codex 员工，但还没装上团队工具（交不了证据、也回不了话）。重启 AgenTeam 本地服务会自动补上；在那之前请派给 Claude 员工。`;
 }
 
 /** Words that usually mean an ask-first action (profile/askfirst.md): destroying data or results,

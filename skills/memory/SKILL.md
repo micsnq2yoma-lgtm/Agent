@@ -1,9 +1,9 @@
 ---
 name: agentself-memory
-description: Agentself 员工记忆：开工前读 memory/ 里的身份、风格、用户偏好和经验；按任务关键词读 topics；收工前把新学到的写回。每次运行都要用。
+description: AgenTeam 员工记忆：开工前读 memory/ 里的身份、风格、用户偏好和经验；按任务关键词读 topics；收工前把新学到的写回。每次运行都要用。
 ---
 
-# 记忆（Agentself）
+# 记忆（AgenTeam）
 
 你的长期记忆是工作目录下 `memory/` 里的 Markdown 文件。会话结束就忘，**只有写进这些文件的东西下次还记得**。
 

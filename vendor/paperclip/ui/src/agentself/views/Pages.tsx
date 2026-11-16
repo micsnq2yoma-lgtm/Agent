@@ -742,7 +742,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
         ))}
         <div className="row">
           <span className="label">版本</span>
-          <span className="sub">Paperclip 源码内置（vendor/paperclip，基线 d69631b）；Agentself 版本见"通用 → 版本与更新"</span>
+          <span className="sub">Paperclip 源码内置（vendor/paperclip，基线 d69631b）；AgenTeam 版本见"通用 → 版本与更新"</span>
         </div>
       </div>
         </>
@@ -1070,7 +1070,7 @@ function ModelsSettings() {
             <div className="sub">{m?.subscriptions.codex ?? "没有安装：npm i -g @openai/codex，再运行 codex login"}</div>
             {(m?.subscriptions.codexProblems ?? []).map((p) => (
               <div key={p.code} className="sub" data-testid="codex-problem" style={{ color: "var(--as-high)" }}>
-                {p.file}：{p.message}。{p.fix}。不改的话 Codex 员工都起不来（这是本机 Codex 的设置，Agentself 不会改它）。
+                {p.file}：{p.message}。{p.fix}。不改的话 Codex 员工都起不来（这是本机 Codex 的设置，AgenTeam 不会改它）。
               </div>
             ))}
           </div>

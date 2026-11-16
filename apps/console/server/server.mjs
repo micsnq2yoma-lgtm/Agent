@@ -34,7 +34,7 @@ const STORE = path.join(HOME, "console.json");
 
 /* ---------------- store ---------------- */
 const DEFAULT_SETTINGS = {
-  companyName: "Agentself",
+  companyName: "AgenTeam",
   frontdeskModel: DEFAULT_ROUTER_MODEL, // the router model (key kept for existing settings files)
   askWhenUnclear: true,
   skin: "office",
@@ -73,9 +73,24 @@ async function pc(method, p, body) {
 }
 const arr = (x) => (Array.isArray(x) ? x : (x?.items ?? []));
 
+/** The product was renamed Agentself → AgenTeam: the company created under the old name follows once. */
+async function renameLegacyCompany(company) {
+  try {
+    await pc("PATCH", `/companies/${company.id}`, { name: "AgenTeam" });
+    company.name = "AgenTeam";
+    if (store.settings.companyName === "Agentself") {
+      store.settings.companyName = "AgenTeam";
+      saveStore();
+    }
+  } catch {
+    /* keep working under the old name */
+  }
+}
+
 export async function loadContext() {
   const companies = arr(await pc("GET", "/companies")).filter((c) => c.status !== "archived");
-  const company = companies.find((c) => c.name === store.settings.companyName) ?? companies[0] ?? null;
+  const company = companies.find((c) => c.name === store.settings.companyName) ?? companies.find((c) => c.name === "Agentself") ?? companies[0] ?? null;
+  if (company?.name === "Agentself") await renameLegacyCompany(company);
   if (!company) return { company: null, departments: [], agents: [], projects: [] };
   const [agents, projects] = await Promise.all([pc("GET", `/companies/${company.id}/agents`), pc("GET", `/companies/${company.id}/projects`)]);
   const deptMap = new Map();
@@ -236,7 +251,7 @@ async function putProvider(id, body) {
   if (key) {
     if (!ctx.company) throw Object.assign(new Error("先新建一个团队，再填 API key"), { status: 409 });
     if (secretId) await pc("POST", `/secrets/${secretId}/rotate`, { value: key });
-    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `Agentself：${body.name ?? cur?.name ?? id} 的 API key` })).id;
+    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `AgenTeam：${body.name ?? cur?.name ?? id} 的 API key` })).id;
   }
   const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, ...(secretId ? { secretId } : {}) });
   // agents on this provider pick up a new endpoint / model on their next sync
@@ -265,7 +280,7 @@ async function storeMailSecret(companyId, id, password, secretId) {
     return secretId;
   }
   const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agentself-mail-${slug}`, value: password, description: `Agentself：邮箱 ${id} 的授权码` })).id;
+  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agentself-mail-${slug}`, value: password, description: `AgenTeam：邮箱 ${id} 的授权码` })).id;
 }
 /** Move app passwords still in mail.json (older versions, or saved before the first team) into the store. */
 async function migrateMailPasswords() {
@@ -360,7 +375,7 @@ async function putMcpServer(id, body) {
       await pc("POST", `/secrets/${existing}/rotate`, { value });
       return existing;
     }
-    return (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name, value, description: `Agentself 工具服务 ${id}` })).id;
+    return (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name, value, description: `AgenTeam 工具服务 ${id}` })).id;
   };
   for (const [k, v] of wantSecrets) secretIds[k] = await store(`agentself-mcp-${id}-${k.toLowerCase()}`, String(v).trim(), cur?.secretEnv?.[k]);
   if (String(body.token ?? "").trim()) tokenSecretId = await store(`agentself-mcp-${id}-token`, String(body.token).trim(), cur?.tokenSecretId);
@@ -825,7 +840,7 @@ export function createServer() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createServer().listen(PORT, HOST, () => {
-    console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
+    console.log(`AgenTeam local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
     setInterval(() => void autoUpdateTick(), 10 * 60_000);
     // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.

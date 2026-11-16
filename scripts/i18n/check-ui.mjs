@@ -13,7 +13,7 @@ const base = process.env.PAPERCLIP_UI ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p));
 const companies = await (await fetch(`${base}/api/companies`)).json();
-const prefix = (companies.find((c) => c.name === "Agentself") ?? companies[0])?.issuePrefix ?? "AGE";
+const prefix = (companies.find((c) => c.name === "AgenTeam" || c.name === "Agentself") ?? companies[0])?.issuePrefix ?? "AGE";
 const pages = ["dashboard", "issues", "agents", "projects", "org", "routines", "skills", "costs", "approvals", "settings", "inbox"];
 
 const browser = await pw.chromium.launch({ executablePath: exe });

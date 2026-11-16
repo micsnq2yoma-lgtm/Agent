@@ -22,5 +22,7 @@ export const list = (x) => (Array.isArray(x) ? x : (x?.items ?? x?.data ?? []));
 
 export async function ensureCompany(name) {
   const companies = list(await api("GET", "/companies"));
-  return companies.find((c) => c.name === name && c.status !== "archived") ?? (await api("POST", "/companies", { name }));
+  const live = companies.filter((c) => c.status !== "archived");
+  // "Agentself" is the product's old name: an install from before the rename keeps its company
+  return live.find((c) => c.name === name) ?? (name === "AgenTeam" ? live.find((c) => c.name === "Agentself") : null) ?? (await api("POST", "/companies", { name }));
 }

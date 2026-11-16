@@ -14,7 +14,7 @@ export function gitCommit(memDir: string, message: string): string | null {
   const git = (args: string[]) => spawnSync("git", args, { cwd: memDir, encoding: "utf8", windowsHide: true });
   if (!fs.existsSync(path.join(memDir, ".git"))) {
     git(["init", "-q"]);
-    git(["config", "user.name", "Agentself Memory"]);
+    git(["config", "user.name", "AgenTeam Memory"]);
     git(["config", "user.email", "memory@agentself.local"]);
     git(["config", "core.autocrlf", "false"]);
   }

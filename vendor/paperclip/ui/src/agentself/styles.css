@@ -92,6 +92,7 @@ html[data-layout-sidebar="right"] .agentself .sidebar { border-right: none; bord
 .agentself .brand .wordmark { font-size: 21px; }
 .agentself .wordmark { display: inline-flex; align-items: baseline; letter-spacing: 0.02em; font-family: var(--as-font-display); font-weight: 500; line-height: 1; color: var(--as-text); }
 .agentself .wordmark .e { color: var(--as-x-brand); }
+.agentself .wordmark .mark { align-self: center; margin-right: 0.4em; color: var(--as-text); }
 .agentself .search-pill { display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 14px; margin-bottom: 12px; border-radius: var(--as-x-r-control); background: var(--as-surface); box-shadow: var(--as-x-shadow-nav); color: var(--as-x-placeholder); font-size: 14px; text-decoration: none; }
 .agentself .search-pill svg { width: 16px; height: 16px; }
 .agentself .nav-item { display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 14px; border-radius: var(--as-x-r-control); border: none; background: none; text-align: left; width: 100%; color: var(--as-muted); font-size: 15px; line-height: 20px; text-decoration: none; }

@@ -1,15 +1,48 @@
-// AGENTSELF wordmark, set in the display serif with the E in the brand colour (DESIGN §5), and the
-// original pixel robot avatar (employees only).
+// AGENTEAM brand: the mark (three agents linked into one team, the lead in the brand colour) and the
+// wordmark AGEN·T·EAM in the display serif, the T (the letter AGENT and TEAM share) in the brand colour.
+// The original pixel robot avatar (employees only) is below.
 import { BODY_COLORS, EYE_COLORS, ROBOT, hashColor } from "@agentself/pixel-office";
 
-export function Wordmark({ size = 21 }: { size?: number }) {
+/** The mark. Ink follows the text colour (light / dark skins); the lead head takes the brand colour. */
+export function LogoMark({ size = 24 }: { size?: number }) {
+  const eyes = (x: number, y: number) => (
+    <>
+      <rect x={x} y={y} width="1.6" height="3" rx=".5" />
+      <rect x={x + 3.2} y={y} width="1.6" height="3" rx=".5" />
+    </>
+  );
   return (
-    <span className="wordmark" role="img" aria-label="AGENTSELF" style={{ fontSize: size }}>
-      <span aria-hidden="true">AGENTS</span>
+    <svg className="logomark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true" style={{ flex: "none", display: "block" }}>
+      <g stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+        <line x1="16" y1="9" x2="7.5" y2="23.5" />
+        <line x1="16" y1="9" x2="24.5" y2="23.5" />
+        <line x1="7.5" y1="23.5" x2="24.5" y2="23.5" />
+      </g>
+      <rect x="11" y="3.5" width="10" height="10" rx="3" fill="var(--as-x-brand)" />
+      <rect x="2.5" y="18.5" width="10" height="10" rx="3" fill="currentColor" />
+      <rect x="19.5" y="18.5" width="10" height="10" rx="3" fill="currentColor" />
+      <g fill="var(--as-surface, #fff)">
+        {eyes(13.6, 7)}
+        {eyes(5.1, 22)}
+        {eyes(22.1, 22)}
+      </g>
+    </svg>
+  );
+}
+
+export function Wordmark({ size = 21, mark = true }: { size?: number; mark?: boolean }) {
+  return (
+    <span className="wordmark" role="img" aria-label="AGENTEAM" style={{ fontSize: size }}>
+      {mark && (
+        <span className="mark" aria-hidden="true">
+          <LogoMark size={Math.round(size * 1.15)} />
+        </span>
+      )}
+      <span aria-hidden="true">AGEN</span>
       <span aria-hidden="true" className="e">
-        E
+        T
       </span>
-      <span aria-hidden="true">LF</span>
+      <span aria-hidden="true">EAM</span>
     </span>
   );
 }

@@ -203,7 +203,7 @@ function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | 
     body = (
       <div className="page">
         <div className="empty">
-          <b>连不上 Agentself 本地服务</b>
+          <b>连不上 AgenTeam 本地服务</b>
           <span>{s.ctxError}。请确认用 `node scripts/start.mjs` 启动，它会同时拉起本地服务。</span>
         </div>
       </div>
