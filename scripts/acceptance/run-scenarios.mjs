@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const ALL = ["p16-proposals", "p1-rules", "p18-model-sources", "p19-mail", "p20-library", "p12-long-run", "p15-watch-routine", "p13-ask-first", "p11-plan-first", "p1-research", "p14-parallel", "p17-research-full"];
+const ALL = ["p16-proposals", "p1-rules", "p18-model-sources", "p19-mail", "p20-library", "p21-tool-server", "p12-long-run", "p15-watch-routine", "p13-ask-first", "p11-plan-first", "p1-research", "p14-parallel", "p17-research-full"];
 const args = process.argv.slice(2);
 const pick = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1].split(",") : null);
 const only = pick("--only");

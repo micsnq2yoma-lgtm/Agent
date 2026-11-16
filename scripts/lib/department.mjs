@@ -11,6 +11,7 @@ import { initMemory, removeMemoryEntry } from "./memory.mjs";
 import { instructionsPath, writeInstructions } from "./instructions.mjs";
 import { ensureProfile, importRef, profilePath } from "./profile.mjs";
 import { mergeEnv, resolveSource, sourceOf } from "./providers.mjs";
+import { allMcpEnvKeys, claudeMcpEntries, codexMcpEntries, mcpEnvFor } from "./mcp-servers.mjs";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
@@ -79,7 +80,7 @@ export function codexMcpArgs({ role = "employee", nodePath = process.execPath } 
 }
 
 /** Adapter config for one agent. `cwd` is the agent's own home directory (its memory lives there). */
-export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, model, workspacesDir, nodePath = process.execPath }) {
+export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, model, workspacesDir, nodePath = process.execPath, agent = null }) {
   const base = { cwd, instructionsFilePath: instructionsPath(cwd), ...(model ? { model } : {}) };
   if (role === "lead") {
     const mem = path.join(cwd, "memory");
@@ -105,10 +106,20 @@ export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, mo
   if (adapterType === "codex_local")
     // CLI engine (extraArgs and instructions apply only there); no Codex sandbox: on Windows it fails
     // to start shells (error 1223, PR #4 p13), and employees already work in their own directory.
-    return { ...base, engine: "cli", dangerouslyBypassApprovalsAndSandbox: true, extraArgs: codexMcpArgs({ role: "employee", nodePath }) };
+    return { ...base, engine: "cli", dangerouslyBypassApprovalsAndSandbox: true, extraArgs: [...codexMcpArgs({ role: "employee", nodePath }), ...codexMcpEntries(agent ?? { metadata: { agentself: { isLead: false } } })] };
   return base;
 }
 
+
+/**
+ * An agent's env: its own keys, the model source's (API endpoint + key) and the secrets of the tool
+ * servers that apply to it. Keys managed here that no longer apply are dropped.
+ */
+function agentEnv(cur, run, agent) {
+  const mcpKeys = new Set(allMcpEnvKeys());
+  const own = Object.fromEntries(Object.entries(cur ?? {}).filter(([k]) => !mcpKeys.has(k)));
+  return { ...(run ? mergeEnv(own, run.env) : own), ...mcpEnvFor(agent) };
+}
 
 /** Add a source's env bindings (API models) to an adapter config; nothing for subscriptions. */
 function withEnv(config, env) {
@@ -125,12 +136,14 @@ function withEnv(config, env) {
  * and for leads a .claude/settings.local.json that widened or (later) narrowed permissions for whoever
  * runs there. The replaced settings file is kept as .bak.
  */
-export function writeAgentRuntime(cwd, { role, adapterType = "claude_local", home = agentselfHome(), nodePath = process.execPath }) {
+export function writeAgentRuntime(cwd, { role, adapterType = "claude_local", home = agentselfHome(), nodePath = process.execPath, agent = null }) {
   fs.mkdirSync(runtimeDir(cwd), { recursive: true });
   // Skill + the *contents* of the global profile and of the agent's memory (P4: paths alone get skipped).
   writeInstructions({ role, cwd, home, adapterType, repoRoot });
   if (adapterType === "claude_local") {
-    fs.writeFileSync(mcpConfigPath(cwd), JSON.stringify({ mcpServers: { agentself: { command: nodePath, args: [TEAM_MCP_SERVER, `--role=${role === "lead" ? "lead" : "employee"}`] } } }, null, 2));
+    // the team server, plus the tool servers installed for this employee (capabilities → 工具服务)
+    const extra = role === "lead" ? {} : claudeMcpEntries(agent ?? { metadata: { agentself: { isLead: false } } });
+    fs.writeFileSync(mcpConfigPath(cwd), JSON.stringify({ mcpServers: { ...extra, agentself: { command: nodePath, args: [TEAM_MCP_SERVER, `--role=${role === "lead" ? "lead" : "employee"}`] } } }, null, 2));
   }
   removeMemoryEntry(cwd);
   for (const stale of ["lead-skill.md"]) fs.rmSync(path.join(runtimeDir(cwd), stale), { force: true });
@@ -154,7 +167,7 @@ export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir 
   fs.mkdirSync(cwd, { recursive: true });
   const home = agentselfHome();
   ensureProfile(home);
-  writeAgentRuntime(cwd, { role, adapterType: agent.adapterType, home });
+  writeAgentRuntime(cwd, { role, adapterType: agent.adapterType, home, agent });
   // API models: provider settings (endpoint, model, key) may have changed since the agent was made
   let run = null;
   try {
@@ -163,11 +176,13 @@ export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir 
     log(`${role} ${agent.name}: ${e.message}`);
   }
   const apiModel = run && Object.keys(run.env).length ? run.model : undefined;
-  const want = agentAdapterConfig({ role, adapterType: agent.adapterType, cwd, model: apiModel ?? agent.adapterConfig?.model, workspacesDir });
+  const want = agentAdapterConfig({ role, adapterType: agent.adapterType, cwd, model: apiModel ?? agent.adapterConfig?.model, workspacesDir, agent });
   const cur = agent.adapterConfig ?? {};
-  if (run && (Object.keys(run.env).length || Object.keys(cur.env ?? {}).length)) want.env = mergeEnv(cur.env, run.env);
+  const env = agentEnv(cur.env, run, agent);
+  if (Object.keys(env).length || Object.keys(cur.env ?? {}).length) want.env = env;
   if (JSON.stringify({ ...cur, ...want }) !== JSON.stringify(cur)) {
-    await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...cur, ...want } });
+    // full config (cur + want) replaces the stored one, so env keys we dropped really go away
+    await api("PATCH", `/agents/${agent.id}`, { adapterConfig: { ...cur, ...want }, replaceAdapterConfig: true });
     log(`${role} ${agent.name}: runtime updated`);
   }
   return true;
@@ -257,7 +272,8 @@ export async function createDepartment(pack, { key, companyName = "Agentself", a
     const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
     const run = resolveSource(source, home);
     writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
-    const adapterConfig = withEnv(agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model: run.model ?? member.model, workspacesDir }), run.env);
+    const fresh = { metadata: { agentself: { isLead } } }; // tool servers for "all" employees apply from the start
+    const adapterConfig = withEnv(agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model: run.model ?? member.model, workspacesDir, agent: fresh }), { ...run.env, ...mcpEnvFor(fresh) });
     const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id, source } };
     let agent = agents.find((a) => a.metadata?.agentself?.department === deptKey && a.metadata?.agentself?.memberKey === member.key);
     if (!agent) {
@@ -386,7 +402,7 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
     reportsTo: lead.id,
     capabilities: member.capabilities ?? null,
     adapterType,
-    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), withEnv(agentAdapterConfig({ role: "employee", adapterType, cwd, model: run.model ?? member.model, workspacesDir: path.join(home, "workspaces") }), run.env)),
+    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), withEnv(agentAdapterConfig({ role: "employee", adapterType, cwd, model: run.model ?? member.model, workspacesDir: path.join(home, "workspaces") }), { ...run.env, ...mcpEnvFor({ metadata: { agentself: { isLead: false } } }) })),
     budgetMonthlyCents: member.budgetMonthlyCents ?? 0,
     permissions: { canCreateAgents: false },
     desiredSkills,
@@ -410,13 +426,13 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
   const home = agentselfHome();
   const run = resolveSource(source, home);
   if (role === "lead" && run.adapterType !== "claude_local") throw Object.assign(new Error("主管只能用 Claude Code（Claude 订阅或 API 模型）"), { status: 400 });
-  writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
+  writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home, agent });
   const cur = agent.adapterConfig ?? {};
   const keep = Object.fromEntries(Object.entries(cur).filter(([k]) => !["model", "engine", "extraArgs", "env", "dangerouslyBypassApprovalsAndSandbox", "dangerouslySkipPermissions", "instructionsFilePath"].includes(k)));
   // a subscription after an API model starts from the CLI's default model (leads: Opus)
   const model = run.model ?? (sourceOf(agent) === source ? cur.model : undefined);
-  const adapterConfig = { ...keep, ...agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model, workspacesDir: path.join(home, "workspaces") }) };
-  const env = mergeEnv(cur.env, run.env);
+  const adapterConfig = { ...keep, ...agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model, workspacesDir: path.join(home, "workspaces"), agent }) };
+  const env = agentEnv(cur.env, run, agent);
   if (Object.keys(env).length) adapterConfig.env = env;
   // replaceAdapterConfig: Paperclip merges adapter configs by default, which would keep the old
   // adapter's flags (e.g. Claude --mcp-config on a Codex agent)

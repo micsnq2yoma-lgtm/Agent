@@ -16,6 +16,7 @@ import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, test
 import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { listProviders, removeProvider, saveProvider, sourceLabel, sourceOf } from "../../../scripts/lib/providers.mjs";
+import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testServer } from "../../../scripts/lib/mcp-servers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
@@ -295,6 +296,40 @@ async function dismissTeamLayerNotice(noticeId) {
   const id = await teamLayerPluginId();
   if (!id || !ctx.company) throw new Error("没有团队层插件");
   return pc("POST", `/plugins/${id}/actions/notice-dismiss`, { companyId: ctx.company.id, params: { companyId: ctx.company.id, id: noticeId } });
+}
+
+/* ---------------- tool servers (MCP) ---------------- */
+/** Form → spec for a test run (secret values as typed; nothing stored). */
+function mcpSpec(body) {
+  return {
+    transport: body.transport ?? "stdio",
+    command: body.command,
+    args: body.args ?? [],
+    env: { ...(body.env ?? {}), ...(body.secrets ?? {}) },
+    url: body.url,
+    token: body.token,
+  };
+}
+/** Install / change a server: secret values become Paperclip secrets, then every agent is re-synced. */
+async function putMcpServer(id, body) {
+  const ctx = await loadContext();
+  const cur = readServers().find((x) => x.id === id);
+  const secretIds = {};
+  const wantSecrets = Object.entries(body.secrets ?? {}).filter(([, v]) => String(v ?? "").trim());
+  let tokenSecretId;
+  if ((wantSecrets.length || body.token) && !ctx.company) throw Object.assign(new Error("先新建一个团队，再填密钥"), { status: 409 });
+  const store = async (name, value, existing) => {
+    if (existing) {
+      await pc("POST", `/secrets/${existing}/rotate`, { value });
+      return existing;
+    }
+    return (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name, value, description: `Agentself 工具服务 ${id}` })).id;
+  };
+  for (const [k, v] of wantSecrets) secretIds[k] = await store(`agentself-mcp-${id}-${k.toLowerCase()}`, String(v).trim(), cur?.secretEnv?.[k]);
+  if (String(body.token ?? "").trim()) tokenSecretId = await store(`agentself-mcp-${id}-token`, String(body.token).trim(), cur?.tokenSecretId);
+  const saved = saveServer({ ...body, id }, { secretIds, tokenSecretId });
+  void syncAllAgents(() => {}).catch(() => {});
+  return saved;
 }
 
 /* ---------------- self-update (release: one install per machine) ---------------- */
@@ -608,6 +643,16 @@ async function handleAgentself(req, res, url) {
     const body = await readJson(req);
     const agent = await setAgentSource(srcm[1], String(body.source ?? ""), { api: pc, log: () => {} });
     return send(res, 200, { id: agent.id, source: sourceOf(agent), label: sourceLabel(sourceOf(agent), HOME) });
+  }
+  /* tool servers (MCP) for employees */
+  if (req.method === "GET" && p === "/mcp/catalog") return send(res, 200, { catalog: MCP_CATALOG, installed: listServers() });
+  if (req.method === "POST" && p === "/mcp/test") return send(res, 200, await testServer(mcpSpec(await readJson(req))));
+  const mcm = p.match(/^\/mcp\/servers\/([\w-]+)$/);
+  if (mcm && req.method === "PUT") return send(res, 200, await putMcpServer(mcm[1], await readJson(req)));
+  if (mcm && req.method === "DELETE") {
+    removeServer(mcm[1]);
+    void syncAllAgents(() => {}).catch(() => {});
+    return send(res, 200, { ok: true });
   }
   /* paper library (a folder the user chooses) */
   if (p === "/library/settings" && req.method === "GET") return send(res, 200, { ...libraryStats(), defaultRoot: defaultRoot() });

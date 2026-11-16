@@ -149,7 +149,7 @@ results.employeePaperclipTab = s.path.endsWith("/overview") && good(s) && (await
 
 // 4. merged pages and their tabs
 const hubTabs = {};
-for (const p of ["capabilities", "capabilities/connectors", "capabilities/permissions", "usage", "usage/budgets", "usage/costs", "records", "records/runs", "records/artifacts", "records/approvals/all", "org", "routines", "settings"]) {
+for (const p of ["capabilities", "capabilities/skills", "capabilities/connectors", "capabilities/permissions", "usage", "usage/budgets", "usage/costs", "records", "records/runs", "records/artifacts", "records/approvals/all", "org", "routines", "settings"]) {
   await page.goto(`${base}/${prefix}/agentself/${p}`, { waitUntil: "domcontentloaded" });
   hubTabs[p] = good(await state());
 }

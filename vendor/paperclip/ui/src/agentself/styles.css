@@ -435,3 +435,10 @@ html[data-skin] :where(button, [role="tab"], input:not([type="checkbox"]):not([t
 .agentself .lib-panel .lib-abstract { white-space: pre-wrap; font-size: 14px; line-height: 22px; margin: 0; }
 .agentself .lib-panel .drawer-links a { display: inline-flex; gap: 4px; align-items: center; }
 @media (max-width: 760px) { .agentself .lib-add, .agentself .lib-filters { flex-wrap: wrap; } }
+
+/* 能力与工具 · 工具服务 */
+.agentself .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.agentself .catalog-card { text-align: left; }
+.agentself .catalog-card .tertiary { color: var(--as-x-tertiary); }
+.agentself .page-subtitle { font-family: var(--as-font-display); font-weight: 500; font-size: 18px; margin: 18px 0 10px; }
+.agentself .tool-servers .btn svg { width: 14px; height: 14px; }
