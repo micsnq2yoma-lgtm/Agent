@@ -72,8 +72,53 @@ export async function imCards({ items, getInteractions, agentsById, tiers }) {
   return cards;
 }
 
-/** Apply a card button to Paperclip. */
-export async function applyAction(pc, a) {
+/**
+ * Cards that are not Paperclip attention items: new-employee requests (decide tier) and notices
+ * from notify_user / the memory job (low tier). Pure.
+ */
+export function extraCards({ hires = [], notices = [], agentsById = {}, pushNotices = true }) {
+  const cards = [];
+  for (const h of hires) {
+    if (h.status !== "pending") continue;
+    cards.push({
+      id: `hire:${h.id}`,
+      tier: "high",
+      who: h.leadName ?? agentsById[h.leadAgentId]?.name ?? "",
+      department: h.team ?? "",
+      ref: "",
+      title: `新建员工「${h.name}」`,
+      explain: [`负责：${h.capabilities}`, h.reason ? `理由：${h.reason}` : "", `用：${h.adapterType === "codex_local" ? "Codex" : "Claude"}（在网页上批准可以改名字和模型来源）`].filter(Boolean).join("\n"),
+      ifNoReply: "不会新建，主管会等你",
+      options: [
+        { id: "approve", label: "同意" },
+        { id: "reject", label: "不同意" },
+      ],
+      action: { kind: "hire", hireId: h.id },
+    });
+  }
+  if (pushNotices)
+    for (const n of notices) {
+      if (n.status !== "open") continue;
+      cards.push({
+        id: `notice:${n.id}`,
+        tier: "low",
+        who: (n.agentId && agentsById[n.agentId]?.name) || "",
+        department: "",
+        ref: "",
+        title: String(n.title ?? "").split(/\n/)[0].slice(0, 80) || "通知",
+        explain: n.body && n.body !== n.title ? String(n.body).slice(0, 1500) : "",
+        ifNoReply: "",
+        options: [{ id: "dismiss", label: "知道了" }],
+        action: { kind: "notice", noticeId: n.id },
+      });
+    }
+  return cards;
+}
+
+/** Apply a card button to Paperclip (or, for hire / notice cards, to the given handlers). */
+export async function applyAction(pc, a, handlers = {}) {
+  if (a.kind === "hire") return handlers.hire(a.hireId, a.optionId === "approve" ? "approve" : "reject");
+  if (a.kind === "notice") return handlers.notice(a.noticeId);
   if (a.kind === "interaction") {
     if (a.optionId === "__accept") return pc("POST", `/issues/${a.issueId}/interactions/${a.interactionId}/accept`, {});
     if (a.optionId === "__reject") return pc("POST", `/issues/${a.issueId}/interactions/${a.interactionId}/reject`, { reason: "在飞书里选择了需要修改，请在网页补充具体意见" });
@@ -112,7 +157,15 @@ export async function startIm(deps) {
       const agentsById = Object.fromEntries(ctx.agents.map((a) => [a.id, a]));
       const cache = {};
       const getInteractions = async (issueId) => (cache[issueId] ??= arr(await deps.pc("GET", `/issues/${issueId}/interactions`)));
-      const cards = await imCards({ items: attention, getInteractions, agentsById, tiers: f.pushTiers ?? ["high"] });
+      const cards = [
+        ...(await imCards({ items: attention, getInteractions, agentsById, tiers: f.pushTiers ?? ["high"] })),
+        ...extraCards({
+          hires: deps.store.hireRequests ?? [],
+          notices: deps.notices ? await deps.notices(ctx.company.id).catch(() => []) : [],
+          agentsById,
+          pushNotices: f.pushNotices !== false,
+        }),
+      ];
       const live = new Set(cards.map((c) => c.id));
       for (const card of cards) {
         if (sent[card.id]) continue;
@@ -148,7 +201,7 @@ export async function startIm(deps) {
       await channel.sendText({ type: "open_id", id: msg.userId }, reply);
     },
     onAction: async (a) => {
-      await applyAction(deps.pc, a);
+      await applyAction(deps.pc, a, deps.handlers ?? {});
       const s = sent[a.cardId];
       const label = `已处理：${s?.card.options.find((o) => o.id === a.optionId)?.label ?? a.optionId}`;
       if (s) {

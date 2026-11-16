@@ -6,6 +6,7 @@ import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
 import { adapterOfSource, reloadModels, useModels, type Provider } from "../lib/models";
 import { SourceSelect } from "../components/SourceSelect";
+import { Skeleton } from "../components/Skeleton";
 import { Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 
@@ -431,6 +432,7 @@ export const SETTINGS_TABS = [
   ["general", "通用"],
   ["router", "路由"],
   ["models", "模型与订阅"],
+  ["mail", "邮箱"],
   ["feishu", "飞书"],
   ["budget", "预算"],
   ["external", "对外动作"],
@@ -580,6 +582,9 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
                 {label}
               </label>
             ))}
+            <label style={{ fontSize: 13 }} title={`员工的通知、记忆整理的提醒；新建${t("employee")}的请求跟着"${t("decide")}"推送`}>
+              <input type="checkbox" checked={s.feishu.pushNotices !== false} onChange={(e) => void save({ feishu: { ...s.feishu, pushNotices: e.target.checked } })} /> 通知
+            </label>
           </span>
         </div>
         <div className="row">
@@ -742,7 +747,119 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
       )}
       {tab === "profile" && <ProfileEditor />}
       {tab === "models" && <ModelsSettings />}
+      {tab === "mail" && <MailSettings />}
     </div>
+  );
+}
+
+/* ---------- 邮箱 (apps/console/server/mail.mjs) ---------- */
+interface MailAccount {
+  id: string;
+  address: string;
+  host: string;
+  port: number;
+  user: string;
+  hasPassword: boolean;
+}
+function MailSettings() {
+  const [accounts, setAccounts] = useState<MailAccount[] | null>(null);
+  const [form, setForm] = useState({ address: "", password: "", host: "", port: "993", user: "" });
+  const [hint, setHint] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = () => as.get<{ accounts: MailAccount[] }>("/mail/accounts").then((r) => setAccounts(r.accounts)).catch(() => setAccounts([]));
+  useEffect(() => void load(), []);
+  async function guess(address: string) {
+    const r = await as.get<{ host?: string; note?: string }>(`/mail/preset?address=${encodeURIComponent(address)}`).catch(() => ({}) as { host?: string; note?: string });
+    if (r.host) setForm((f) => ({ ...f, host: f.host || r.host! }));
+    setHint(r.note ?? (address.includes("@") ? "没认出这个邮箱，请填 IMAP 服务器（一般是 imap.域名，端口 993）" : null));
+  }
+  async function add() {
+    setBusy("add");
+    setMsg(null);
+    try {
+      const saved = await as.put<MailAccount>("/mail/accounts", { ...form, port: Number(form.port) || 993 });
+      const t = await as.post<{ ok: boolean; unread?: number; messages?: number; error?: string }>("/mail/test", { id: saved.id });
+      setMsg(t.ok ? `已连上 ${saved.address}：收件箱 ${t.messages} 封，未读 ${t.unread} 封。` : `已保存，但登录失败：${t.error}`);
+      setForm({ address: "", password: "", host: "", port: "993", user: "" });
+      setHint(null);
+      void load();
+    } catch (e) {
+      setMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+  async function test(id: string) {
+    setBusy(id);
+    const t = await as.post<{ ok: boolean; unread?: number; messages?: number; error?: string }>("/mail/test", { id }).catch((e) => ({ ok: false, error: String(e) }));
+    setMsg(t.ok ? `连接正常：收件箱 ${t.messages} 封，未读 ${t.unread} 封。` : `连接失败：${t.error}`);
+    setBusy(null);
+  }
+  async function remove(a: MailAccount) {
+    if (!confirm(`删除邮箱 ${a.address}？`)) return;
+    await as.del(`/mail/accounts/${encodeURIComponent(a.id)}`).catch(() => {});
+    void load();
+  }
+  return (
+    <>
+      <div className="section">
+        <h2>邮箱</h2>
+        <p className="hint">员工通过 IMAP 读邮件、写回复草稿。只读和存草稿，不会替你发送：草稿存进邮箱的草稿箱，你检查后自己发。授权码只保存在这台电脑的 ~/.agentself/mail.json 里。配好后在{`主管页 → 盯守`}打开"邮件"，或者直接让员工"看看今天的邮件"。</p>
+        {accounts === null ? (
+          <Skeleton lines={2} />
+        ) : accounts.length === 0 ? (
+          <div className="sub">还没有邮箱。</div>
+        ) : (
+          accounts.map((a) => (
+            <div key={a.id} className="row">
+              <div>
+                <div className="label">{a.address}</div>
+                <div className="sub mono">
+                  {a.host}:{a.port}
+                </div>
+              </div>
+              <span style={{ display: "inline-flex", gap: 6 }}>
+                <button className="btn" disabled={busy !== null} onClick={() => void test(a.id)}>
+                  {busy === a.id ? "连接中…" : "测试"}
+                </button>
+                <button className="btn ghost" onClick={() => void remove(a)}>
+                  删除
+                </button>
+              </span>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="section">
+        <h2>添加邮箱</h2>
+        <div className="grid2">
+          <label className="field">
+            邮箱地址
+            <input className="input" value={form.address} placeholder="me@qq.com" onChange={(e) => setForm({ ...form, address: e.target.value })} onBlur={(e) => void guess(e.target.value)} />
+          </label>
+          <label className="field">
+            授权码 / 应用密码（不是登录密码）
+            <input className="input mono" type="password" autoComplete="off" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+          </label>
+        </div>
+        {hint && <div className="sub" style={{ margin: "6px 0" }}>{hint}</div>}
+        <div className="grid2">
+          <label className="field">
+            IMAP 服务器
+            <input className="input mono" value={form.host} placeholder="imap.qq.com" onChange={(e) => setForm({ ...form, host: e.target.value })} />
+          </label>
+          <label className="field">
+            端口
+            <input className="input mono" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} />
+          </label>
+        </div>
+        <button className="btn primary" style={{ marginTop: 10 }} disabled={busy !== null || !form.address || !form.password} onClick={() => void add()}>
+          {busy === "add" ? "连接中…" : "保存并测试"}
+        </button>
+        {msg && <div className="sub" style={{ marginTop: 8 }}>{msg}</div>}
+      </div>
+    </>
   );
 }
 
@@ -1112,7 +1229,7 @@ interface Template {
 // Plan B entry 2: scheduled watching goes straight to an employee; the lead is not woken.
 export const WATCH_TEMPLATES = [
   { label: "新论文", cron: "30 8 * * *", prompt: "检索过去 24 小时与我课题相关的新论文（arXiv、主要会议和期刊），只挑真正值得我看的 0–3 篇，每篇一句话说明为什么值得看并附链接；没有就写\"无事\"。关键词和课题见全局档案\"关于我\"。" },
-  { label: "邮件", cron: "0 8 * * 1-5", prompt: "整理过去 24 小时的未读邮件：标出需要我回复或决定的，写好回复草稿但不要发送；其余的一句话归类。没有需要我处理的就写\"无事\"。" },
+  { label: "邮件", cron: "0 8 * * 1-5", prompt: "用 mail_new 看上次检查以来的新邮件（邮箱在 设置 → 邮箱）。需要我回复或决定的，用 mail_read 读全文，用 mail_draft 写好回复草稿（只存草稿，不发送），再用 notify_user 告诉我：谁、什么事、草稿写了什么，一封一句；其余的不用告诉我。没有需要我处理的就在任务里评论\"无事\"，不要通知我。" },
   { label: "新闻", cron: "0 19 * * *", prompt: "汇总今天与我关注领域相关的重要新闻和动态（关注点见全局档案\"关于我\"），只保留真正重要的 0–5 条，每条一句话加来源链接；没有就写\"无事\"。" },
 ];
 

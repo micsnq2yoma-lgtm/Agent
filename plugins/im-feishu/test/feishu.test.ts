@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
 import { buildCard, parseAction, verifyInbound } from "../src/index.mjs";
 // @ts-expect-error plain JS module
-import { applyAction, imCards, startIm, stopIm, imStatus } from "../../../apps/console/server/im.mjs";
+import { applyAction, extraCards, imCards, startIm, stopIm, imStatus } from "../../../apps/console/server/im.mjs";
 
 const ALLOW = ["ou_me"];
 const card = {
@@ -163,5 +163,33 @@ describe("IM host", () => {
     delete process.env.AGENTSELF_FEISHU_APP_SECRET;
     await startIm({ settings: { feishu: { enabled: true, appId: "x", allowUserIds: ["ou"] } }, store: {}, saveStore: () => {}, pc: async () => ({}), loadContext: async () => ({}), frontdesk: async () => ({}), createChannel: async () => ({}) });
     expect(imStatus()).toContain("AGENTSELF_FEISHU_APP_SECRET");
+  });
+});
+
+describe("new-employee requests and notices go to Feishu too", () => {
+  const hires = [
+    { id: "h1", status: "pending", leadAgentId: "L", leadName: "科研主管", team: "科研", name: "小码", capabilities: "写代码", adapterType: "codex_local", reason: "缺人" },
+    { id: "h2", status: "approved", leadAgentId: "L", name: "旧的", capabilities: "", adapterType: "claude_local" },
+  ];
+  const notices = [
+    { id: "n1", status: "open", title: "新论文：稀疏注意力", body: "新论文：稀疏注意力\n值得看", agentId: "E" },
+    { id: "n2", status: "handled", title: "旧通知" },
+  ];
+  it("pending requests become decide cards with approve / decline; open notices become 知道了 cards", () => {
+    const cards = extraCards({ hires, notices, agentsById: { E: { name: "科研员" } } });
+    expect(cards.map((c) => c.id)).toEqual(["hire:h1", "notice:n1"]);
+    expect(cards[0]).toMatchObject({ tier: "high", title: "新建员工「小码」", action: { kind: "hire", hireId: "h1" } });
+    expect(cards[0].options.map((o) => o.id)).toEqual(["approve", "reject"]);
+    expect(cards[1]).toMatchObject({ tier: "low", who: "科研员", options: [{ id: "dismiss", label: "知道了" }], action: { kind: "notice", noticeId: "n1" } });
+    expect(extraCards({ hires: [], notices, pushNotices: false })).toEqual([]);
+  });
+  it("buttons go to the hire / notice handlers, not to Paperclip", async () => {
+    const calls: string[] = [];
+    const handlers = { hire: async (id: string, act: string) => calls.push(`hire ${id} ${act}`), notice: async (id: string) => calls.push(`notice ${id}`) };
+    const pc = async () => calls.push("paperclip");
+    await applyAction(pc, { kind: "hire", hireId: "h1", optionId: "approve" }, handlers);
+    await applyAction(pc, { kind: "hire", hireId: "h1", optionId: "reject" }, handlers);
+    await applyAction(pc, { kind: "notice", noticeId: "n1", optionId: "dismiss" }, handlers);
+    expect(calls).toEqual(["hire h1 approve", "hire h1 reject", "notice n1"]);
   });
 });

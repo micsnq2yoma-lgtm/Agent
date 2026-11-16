@@ -7,7 +7,7 @@ import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-const ALL = ["p16-proposals", "p1-rules", "p18-model-sources", "p12-long-run", "p15-watch-routine", "p13-ask-first", "p11-plan-first", "p1-research", "p14-parallel", "p17-research-full"];
+const ALL = ["p16-proposals", "p1-rules", "p18-model-sources", "p19-mail", "p12-long-run", "p15-watch-routine", "p13-ask-first", "p11-plan-first", "p1-research", "p14-parallel", "p17-research-full"];
 const args = process.argv.slice(2);
 const pick = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1].split(",") : null);
 const only = pick("--only");
@@ -41,5 +41,5 @@ for (const name of names) {
   void code;
 }
 console.log("\n| 脚本 | 结果 | 分钟 | 结果行 |\n|---|---|---|---|");
-for (const r of rows) console.log(`| ${r.name} | ${r.code === 0 ? "✅ PASS" : "❌ FAIL"} | ${r.minutes} | \`${r.line.replace(/\|/g, "\\|")}\` |`);
+for (const r of rows) console.log(`| ${r.name} | ${r.code !== 0 ? "❌ FAIL" : / SKIP /.test(r.line) ? "⏭ 跳过" : "✅ PASS"} | ${r.minutes} | \`${r.line.replace(/\|/g, "\\|")}\` |`);
 process.exitCode = rows.every((r) => r.code === 0) ? 0 : 1;

@@ -17,8 +17,8 @@ const { companyId, projectId, leadAgentId } = await researchTeam();
 const models = await as("GET", "/providers");
 const sources = only ?? [...(models.subscriptions.codex ? ["codex"] : []), ...models.providers.filter((p) => p.hasKey).map((p) => `api:${p.id}`)];
 if (!sources.length) {
-  verdict("p18-model-sources", false, { note: "这台电脑没有 Codex，也没有填过 key 的 API 服务商：先在 设置 → 模型与订阅 里配置" });
-  process.exit();
+  console.log(`RESULT p18-model-sources SKIP ${JSON.stringify({ note: "这台电脑没有 Codex，也没有填过 key 的 API 服务商（设置 → 模型与订阅），跳过" })}`);
+  process.exit(0);
 }
 
 const results = {};

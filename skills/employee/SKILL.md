@@ -93,6 +93,8 @@ description: Agentself 员工通用技能：按主管的任务书干活、有问
 | `update_task` | 改自己任务的状态（例如置为 `done`） | 自己的任务 |
 | `submit_evidence` | 按验收标准编号逐条提交证据 | 主管派的任务 |
 | `watch_job` | 长时间实验的看守（探测命令，不调用模型） | 所有任务 |
+| `mail_new` / `mail_recent` / `mail_read` | 看新邮件（只看上次以来的）/ 最近的邮件 / 读一封全文；都不会标为已读 | 配了邮箱时 |
+| `mail_draft` | 写回复或新邮件，存进草稿箱，由用户自己发；**不能发送** | 配了邮箱时 |
 | `notify_user` / `ask_user` | 通知用户 / 让用户拍板 | 只在没有父任务时 |
 | `close_card` | 关掉之前发的卡片 | 所有任务 |
 

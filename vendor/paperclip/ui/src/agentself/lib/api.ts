@@ -25,6 +25,7 @@ export const as = {
   get: <T,>(p: string) => req<T>("GET", `/agentself/api${p}`),
   post: <T,>(p: string, b?: unknown) => req<T>("POST", `/agentself/api${p}`, b ?? {}),
   put: <T,>(p: string, b: unknown) => req<T>("PUT", `/agentself/api${p}`, b),
+  del: <T,>(p: string) => req<T>("DELETE", `/agentself/api${p}`),
 };
 
 export const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : (((x as { items?: T[] })?.items ?? []) as T[]));
@@ -118,7 +119,7 @@ export interface Settings {
   skin: string;
   externalDefault: "ask" | "direct";
   globalBudgetCents: number;
-  feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[] };
+  feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[]; pushNotices?: boolean };
   autoUpdate?: { enabled: boolean; hour: number };
 }
 export interface Context {

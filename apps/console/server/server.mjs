@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
+import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, testAccount } from "./mail.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { listProviders, removeProvider, saveProvider, sourceLabel, sourceOf } from "../../../scripts/lib/providers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
@@ -276,6 +277,23 @@ async function verifierSetting(body) {
     return { verifierModel: v, available: true };
   }
   return { verifierModel: cur.verifierModel ?? "sonnet", available: true };
+}
+
+/* ---------------- team-layer notices (notify_user, memory job) for Feishu ---------------- */
+async function teamLayerPluginId() {
+  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer")?.id ?? null;
+}
+async function teamLayerNotices(companyId) {
+  const id = await teamLayerPluginId();
+  if (!id) return [];
+  const r = await pc("POST", `/plugins/${id}/data/notices`, { companyId, params: { companyId } });
+  return Array.isArray(r?.data) ? r.data : [];
+}
+async function dismissTeamLayerNotice(noticeId) {
+  const ctx = await loadContext();
+  const id = await teamLayerPluginId();
+  if (!id || !ctx.company) throw new Error("没有团队层插件");
+  return pc("POST", `/plugins/${id}/actions/notice-dismiss`, { companyId: ctx.company.id, params: { companyId: ctx.company.id, id: noticeId } });
 }
 
 /* ---------------- self-update (release: one install per machine) ---------------- */
@@ -590,6 +608,26 @@ async function handleAgentself(req, res, url) {
     const agent = await setAgentSource(srcm[1], String(body.source ?? ""), { api: pc, log: () => {} });
     return send(res, 200, { id: agent.id, source: sourceOf(agent), label: sourceLabel(sourceOf(agent), HOME) });
   }
+  /* mailboxes (IMAP; read and drafts only) */
+  if (req.method === "GET" && p === "/mail/accounts") return send(res, 200, { accounts: listAccounts(), presets: MAIL_PRESETS.map((x) => ({ host: x.host, note: x.note })) });
+  if (req.method === "GET" && p === "/mail/preset") {
+    const pr = presetFor(url.searchParams.get("address"));
+    return send(res, 200, pr ? { host: pr.host, note: pr.note } : {});
+  }
+  if (req.method === "PUT" && p === "/mail/accounts") return send(res, 200, saveAccount(await readJson(req)));
+  const mam = p.match(/^\/mail\/accounts\/(.+)$/);
+  if (mam && req.method === "DELETE") {
+    removeAccount(decodeURIComponent(mam[1]));
+    return send(res, 200, { ok: true });
+  }
+  if (req.method === "POST" && p === "/mail/test") {
+    const body = await readJson(req);
+    try {
+      return send(res, 200, await testAccount(body));
+    } catch (e) {
+      return send(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   if (p === "/verifier" && (req.method === "GET" || req.method === "PUT")) return send(res, 200, await verifierSetting(req.method === "PUT" ? await readJson(req) : null));
   if (req.method === "GET" && p === "/update/status") {
     const check = url.searchParams.get("check") === "1" ? await checkUpdate() : null;
@@ -614,6 +652,11 @@ function restartIm() {
     loadContext,
     frontdesk,
     createChannel: async (opts) => (await import("@agentself/im-feishu")).createFeishuChannel(opts),
+    notices: teamLayerNotices,
+    handlers: {
+      hire: (id, action) => resolveHire(id, action, {}),
+      notice: (id) => dismissTeamLayerNotice(id),
+    },
   }).catch((e) => console.error("IM start failed", e));
 }
 

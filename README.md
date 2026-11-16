@@ -61,7 +61,11 @@ node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 
 
 开机自启：`powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`（`-Remove` 卸载）。
 
-飞书：在设置页填 App ID、白名单 open_id 并启用；App Secret 放在环境变量 `AGENTSELF_FEISHU_APP_SECRET`（不写进任何文件）。
+飞书：在设置页填 App ID、白名单 open_id 并启用；App Secret 放在环境变量 `AGENTSELF_FEISHU_APP_SECRET`（不写进任何文件）。要你拍板的卡片、新建员工请求和通知都会推送，按钮直接生效。
+
+邮箱：设置 → 邮箱，填地址和授权码（IMAP）。员工只读邮件、存回复草稿，不会替你发送。
+
+模型：设置 → 模型与订阅。订阅用本机登录的 Claude Code 和 Codex；其余模型填 API key（存进 Paperclip 密钥库）。
 
 ## 测试
 

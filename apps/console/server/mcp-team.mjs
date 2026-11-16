@@ -8,6 +8,7 @@
 // PAPERCLIP_RUN_ID. Zero dependencies: newline-delimited JSON-RPC 2.0 on stdin/stdout, logs on stderr.
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
+import { listAccounts, newMail, readMail, recentMail, saveDraft } from "./mail.mjs";
 
 const env = (k) => process.env[k] ?? "";
 const PLUGIN = "agentself.team-layer";
@@ -141,6 +142,38 @@ const S = (properties, required = []) => ({ type: "object", properties, required
 const str = (description) => ({ type: "string", description });
 
 export const TOOLS = {
+  /* ---- mailboxes (settings → 邮箱; IMAP, read-only outside: drafts are saved, never sent) ---- */
+  mail_new: {
+    roles: ["employee"],
+    description: "看邮箱里自上次检查以来的新邮件（第一次是最近一天），只返回发件人、主题、时间和 uid，不会标为已读。检查一次就会往前推进，不会重复返回同一封。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), max: { type: "integer", minimum: 1, maximum: 100 } }),
+    run: async (a) => newMail({ account: a.account, max: a.max ?? 30 }),
+  },
+  mail_recent: {
+    roles: ["employee"],
+    description: "最近几天的邮件列表（不推进'新邮件'的进度），可按发件人或主题里的文字筛选、只看未读。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), days: { type: "integer", minimum: 1, maximum: 60 }, query: str("发件人或主题里包含的文字"), unreadOnly: { type: "boolean" } }),
+    run: async (a) => recentMail({ account: a.account, days: a.days ?? 3, query: a.query ?? "", unreadOnly: !!a.unreadOnly }),
+  },
+  mail_read: {
+    roles: ["employee"],
+    description: "读一封邮件的全文（附件只列名字），不会标为已读。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), uid: { type: "integer" } }, ["uid"]),
+    run: async (a) => readMail({ account: a.account, uid: a.uid }),
+  },
+  mail_draft: {
+    roles: ["employee"],
+    description: "写一封回复或新邮件，存进邮箱的草稿箱，由用户自己检查后发送。不会发送（发送邮件是先问清单里的对外动作）。回复时给 replyToUid，主题可以不填。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), to: str("收件人"), cc: str("抄送"), subject: str("主题"), body: str("正文（纯文本）"), replyToUid: { type: "integer" } }, ["to", "body"]),
+    run: async (a) => saveDraft({ account: a.account, to: a.to, cc: a.cc ?? "", subject: a.subject ?? "", body: a.body, replyToUid: a.replyToUid ?? null }),
+  },
+  mail_accounts: {
+    roles: ["employee", "lead"],
+    description: "列出配置好的邮箱（不含密码）。",
+    inputSchema: S({}),
+    run: async () => listAccounts(),
+  },
+
   team_overview: {
     roles: ["lead"],
     description: "看你的员工（reportsTo 是你）和其他主管。选人、转交前先看这个。",
