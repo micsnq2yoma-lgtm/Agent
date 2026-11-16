@@ -9,6 +9,7 @@
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 import { listAccounts, newMail, readMail, recentMail, saveDraft } from "./mail.mjs";
+import { addPaper, getPaper, readFulltext, searchLibrary, setFulltext, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 
 const env = (k) => process.env[k] ?? "";
 const PLUGIN = "agentself.team-layer";
@@ -142,6 +143,50 @@ const S = (properties, required = []) => ({ type: "object", properties, required
 const str = (description) => ({ type: "string", description });
 
 export const TOOLS = {
+  /* ---- paper library (settings → 论文库; a folder the user chose) ---- */
+  library_search: {
+    roles: ["employee", "lead"],
+    description: "在论文库里检索（标题、作者、摘要、笔记、全文，中文英文都可以），返回最相关的论文和命中的段落。查新论文之前先查一下是不是已经收过、读过。",
+    inputSchema: S({ query: str("要找什么"), limit: { type: "integer", minimum: 1, maximum: 30 }, tag: str("只看某个标签"), status: { type: "string", enum: ["unread", "reading", "read", "skipped"] } }, ["query"]),
+    run: async (a) => searchLibrary(a.query, { limit: a.limit ?? 10, tag: a.tag ?? null, status: a.status ?? null }),
+  },
+  library_get: {
+    roles: ["employee", "lead"],
+    description: "一篇论文的信息、摘要、笔记，以及 PDF 在本机的路径（需要看图表时可以直接读 PDF）。",
+    inputSchema: S({ id: str("论文 id（检索结果里的 id）") }, ["id"]),
+    run: async (a) => getPaper(a.id),
+  },
+  library_read: {
+    roles: ["employee", "lead"],
+    description: "分段读论文全文（每次最多 2 万字，用 offset 往后读）。",
+    inputSchema: S({ id: str("论文 id"), offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1000, maximum: 20000 } }, ["id"]),
+    run: async (a) => readFulltext(a.id, { offset: a.offset ?? 0, limit: a.limit ?? 12000 }),
+  },
+  library_add: {
+    roles: ["employee"],
+    description: "把论文收进论文库：arXiv 编号或链接、DOI、PDF 链接或本机 PDF 路径。会自动取元数据、下载 PDF、抽全文；已经收过的直接返回原来那篇。",
+    inputSchema: S({ ref: str("arXiv 编号 / 链接、DOI、PDF 链接或本机路径"), tags: { type: "array", items: { type: "string" } } }, ["ref"]),
+    run: async (a) => addPaper({ ref: a.ref, tags: a.tags ?? [], by: "员工" }),
+  },
+  library_note: {
+    roles: ["employee"],
+    description: "给论文追加一条笔记（带日期）：读后的要点、和用户课题的关系、能不能用。用户在论文库里能看到。",
+    inputSchema: S({ id: str("论文 id"), text: str("笔记（Markdown）") }, ["id", "text"]),
+    run: async (a) => ({ notes: writeNotes(a.id, a.text, { by: "员工" }) }),
+  },
+  library_update: {
+    roles: ["employee"],
+    description: "改论文的阅读状态或标签（unread 未读 / reading 在读 / read 已读 / skipped 不看）。",
+    inputSchema: S({ id: str("论文 id"), status: { type: "string", enum: ["unread", "reading", "read", "skipped"] }, tags: { type: "array", items: { type: "string" } } }, ["id"]),
+    run: async (a) => updatePaper(a.id, { ...(a.status ? { status: a.status } : {}), ...(a.tags ? { tags: a.tags } : {}) }),
+  },
+  library_set_fulltext: {
+    roles: ["employee"],
+    description: "PDF 抽不出文字时（论文信息里 fulltext.status = needs_agent），自己读完 PDF 后把正文写回来，以后就能检索。",
+    inputSchema: S({ id: str("论文 id"), text: str("论文正文") }, ["id", "text"]),
+    run: async (a) => setFulltext(a.id, a.text, "agent"),
+  },
+
   /* ---- mailboxes (settings → 邮箱; IMAP, read-only outside: drafts are saved, never sent) ---- */
   mail_new: {
     roles: ["employee"],

@@ -7,6 +7,7 @@ import { cronText } from "../lib/cron";
 import { adapterOfSource, reloadModels, useModels, type Provider } from "../lib/models";
 import { SourceSelect } from "../components/SourceSelect";
 import { Skeleton } from "../components/Skeleton";
+import { LibrarySettings } from "./Library";
 import { Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 
@@ -433,6 +434,7 @@ export const SETTINGS_TABS = [
   ["router", "路由"],
   ["models", "模型与订阅"],
   ["mail", "邮箱"],
+  ["library", "论文库"],
   ["feishu", "飞书"],
   ["budget", "预算"],
   ["external", "对外动作"],
@@ -748,6 +750,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
       {tab === "profile" && <ProfileEditor />}
       {tab === "models" && <ModelsSettings />}
       {tab === "mail" && <MailSettings />}
+      {tab === "library" && <LibrarySettings />}
     </div>
   );
 }
@@ -1228,7 +1231,7 @@ interface Template {
 }
 // Plan B entry 2: scheduled watching goes straight to an employee; the lead is not woken.
 export const WATCH_TEMPLATES = [
-  { label: "新论文", cron: "30 8 * * *", prompt: "检索过去 24 小时与我课题相关的新论文（arXiv、主要会议和期刊），只挑真正值得我看的 0–3 篇，每篇一句话说明为什么值得看并附链接；没有就写\"无事\"。关键词和课题见全局档案\"关于我\"。" },
+  { label: "新论文", cron: "30 8 * * *", prompt: "检索过去 24 小时与我课题相关的新论文（arXiv、主要会议和期刊），关键词和课题见全局档案\"关于我\"。先用 library_search 查论文库，已经收过或读过的跳过。只挑真正值得我看的 0–3 篇：用 library_add 收进论文库（标签\"盯守\"），用 library_note 写一句为什么值得看，再用 notify_user 告诉我标题和这句话。没有就在任务里评论\"无事\"，不要通知我。" },
   { label: "邮件", cron: "0 8 * * 1-5", prompt: "用 mail_new 看上次检查以来的新邮件（邮箱在 设置 → 邮箱）。需要我回复或决定的，用 mail_read 读全文，用 mail_draft 写好回复草稿（只存草稿，不发送），再用 notify_user 告诉我：谁、什么事、草稿写了什么，一封一句；其余的不用告诉我。没有需要我处理的就在任务里评论\"无事\"，不要通知我。" },
   { label: "新闻", cron: "0 19 * * *", prompt: "汇总今天与我关注领域相关的重要新闻和动态（关注点见全局档案\"关于我\"），只保留真正重要的 0–5 条，每条一句话加来源链接；没有就写\"无事\"。" },
 ];

@@ -4,6 +4,7 @@ import {
   ArchivedPage,
   CapabilitiesPage,
   DepartmentRoutePage,
+  LibraryPage,
   NewDepartmentPage,
   OrgRoutePage,
   ProjectsPage,
@@ -19,6 +20,7 @@ export function agentselfRoutes() {
     <>
       <Route path="agentself" element={<WorkbenchPage />} />
       <Route path="agentself/projects" element={<ProjectsPage />} />
+      <Route path="agentself/library" element={<LibraryPage />} />
       <Route path="agentself/departments/new" element={<NewDepartmentPage />} />
       <Route path="agentself/departments/:departmentKey" element={<DepartmentRoutePage />} />
       <Route path="agentself/departments/:departmentKey/:tab" element={<DepartmentRoutePage />} />

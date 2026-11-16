@@ -417,3 +417,21 @@ html[data-skin] :where(button, [role="tab"], input:not([type="checkbox"]):not([t
 .agentself .provider:first-of-type { border-top: 0; }
 .agentself .provider-form { padding: 4px 0 14px; display: flex; flex-direction: column; gap: 8px; }
 .agentself .provider-form .input { width: 100%; box-sizing: border-box; }
+
+/* 论文库 */
+.agentself .library.dragging { outline: 2px dashed var(--as-accent); outline-offset: -8px; border-radius: var(--as-x-r-panel); }
+.agentself .lib-add { display: flex; gap: 8px; align-items: center; }
+.agentself .lib-add .btn svg { width: 16px; height: 16px; }
+.agentself .lib-filters { display: flex; gap: 8px; align-items: center; margin: 4px 0 14px; }
+.agentself .lib-filters .search-pill { display: flex; align-items: center; gap: 8px; }
+.agentself .lib-filters .search-pill input { flex: 1; border: 0; background: transparent; outline: none; font: inherit; min-width: 0; }
+.agentself .lib-list { display: flex; flex-direction: column; gap: 10px; }
+.agentself .lib-row { display: flex; flex-direction: column; gap: 6px; text-align: left; border: 0; cursor: pointer; padding: 16px 18px; border-radius: var(--as-x-r-panel); background: var(--as-surface); box-shadow: var(--as-x-shadow-card); color: inherit; font: inherit; }
+.agentself .lib-row.on { box-shadow: inset 0 0 0 1.5px var(--as-text), var(--as-x-shadow-card); }
+.agentself .lib-title { font-weight: 600; font-size: 15px; line-height: 22px; }
+.agentself .lib-meta { font-size: 13px; color: var(--as-muted); }
+.agentself .lib-passage { font-size: 13px; line-height: 20px; color: var(--as-muted); background: var(--as-x-tile); border-radius: 10px; padding: 8px 10px; }
+.agentself .lib-chips { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.agentself .lib-panel .lib-abstract { white-space: pre-wrap; font-size: 14px; line-height: 22px; margin: 0; }
+.agentself .lib-panel .drawer-links a { display: inline-flex; gap: 4px; align-items: center; }
+@media (max-width: 760px) { .agentself .lib-add, .agentself .lib-filters { flex-wrap: wrap; } }

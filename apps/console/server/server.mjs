@@ -13,6 +13,7 @@ import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./fron
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
 import { listAccounts, MAIL_PRESETS, presetFor, removeAccount, saveAccount, testAccount } from "./mail.mjs";
+import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
 import { listProviders, removeProvider, saveProvider, sourceLabel, sourceOf } from "../../../scripts/lib/providers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
@@ -607,6 +608,58 @@ async function handleAgentself(req, res, url) {
     const body = await readJson(req);
     const agent = await setAgentSource(srcm[1], String(body.source ?? ""), { api: pc, log: () => {} });
     return send(res, 200, { id: agent.id, source: sourceOf(agent), label: sourceLabel(sourceOf(agent), HOME) });
+  }
+  /* paper library (a folder the user chooses) */
+  if (p === "/library/settings" && req.method === "GET") return send(res, 200, { ...libraryStats(), defaultRoot: defaultRoot() });
+  if (p === "/library/settings" && req.method === "PUT") {
+    const body = await readJson(req);
+    const r = setLibraryRoot(body.root, { move: !!body.move });
+    return send(res, 200, { ...r, ...libraryStats() });
+  }
+  if (p === "/library/papers" && req.method === "GET") {
+    const q = url.searchParams.get("q") ?? "";
+    const filters = { tag: url.searchParams.get("tag") || null, status: url.searchParams.get("status") || null, limit: Number(url.searchParams.get("limit") ?? 200) };
+    if (q.trim()) return send(res, 200, { results: searchLibrary(q, filters) });
+    let all = listPapers();
+    if (filters.tag) all = all.filter((x) => (x.tags ?? []).includes(filters.tag));
+    if (filters.status) all = all.filter((x) => x.status === filters.status);
+    return send(res, 200, { results: all.slice(0, filters.limit) });
+  }
+  if (p === "/library/papers" && req.method === "POST") {
+    const body = await readJson(req);
+    return send(res, 200, await addPaper({ ref: String(body.ref ?? "").trim(), tags: body.tags ?? [], by: "用户" }));
+  }
+  if (p === "/library/upload" && req.method === "POST") {
+    const chunks = [];
+    let size = 0;
+    for await (const c of req) {
+      size += c.length;
+      if (size > 200 * 1024 * 1024) return send(res, 413, { error: "PDF 超过 200 MB" });
+      chunks.push(c);
+    }
+    const name = url.searchParams.get("name") ?? "paper.pdf";
+    const tags = (url.searchParams.get("tags") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    return send(res, 200, await addPaper({ file: { name, data: Buffer.concat(chunks) }, tags, by: "用户" }));
+  }
+  const lpm = p.match(/^\/library\/papers\/([\w.-]+)(?:\/(notes|pdf))?$/);
+  if (lpm) {
+    const [, id, sub] = lpm;
+    if (!sub && req.method === "GET") return send(res, 200, getPaper(id));
+    if (!sub && req.method === "PUT") return send(res, 200, updatePaper(id, await readJson(req)));
+    if (!sub && req.method === "DELETE") {
+      removePaper(id);
+      return send(res, 200, { ok: true });
+    }
+    if (sub === "notes" && req.method === "PUT") {
+      const body = await readJson(req);
+      return send(res, 200, { notes: writeNotes(id, String(body.text ?? ""), { mode: body.mode === "append" ? "append" : "replace", by: "用户" }) });
+    }
+    if (sub === "pdf" && req.method === "GET") {
+      const f = pdfPath(id);
+      if (!f) return send(res, 404, { error: "这篇没有 PDF" });
+      res.writeHead(200, { "content-type": "application/pdf", "content-disposition": `inline; filename="${id}.pdf"` });
+      return fs.createReadStream(f).pipe(res);
+    }
   }
   /* mailboxes (IMAP; read and drafts only) */
   if (req.method === "GET" && p === "/mail/accounts") return send(res, 200, { accounts: listAccounts(), presets: MAIL_PRESETS.map((x) => ({ host: x.host, note: x.note })) });

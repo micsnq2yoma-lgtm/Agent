@@ -67,6 +67,7 @@ const sideText = await side.innerText();
 results.sidebarItems = {
   workbench: (await page.getByTestId("nav-workbench").count()) === 1,
   projects: (await page.getByTestId("nav-projects").count()) === 1,
+  library: (await page.getByTestId("nav-library").count()) === 1,
   leadSection: (await side.locator(".nav-section").first().innerText()).includes(office ? "主管" : "尚书"),
   manage: (await page.getByTestId("nav-manage").count()) === 1,
   settings: (await page.getByTestId("nav-settings").count()) === 1,
@@ -164,7 +165,7 @@ results.settingsProfile = (await page.locator(".profile-list [role=tab]").count(
 await page.locator(".tabbar[aria-label=设置分类] [role=tab]", { hasText: "高级" }).click();
 await page.waitForTimeout(800);
 results.settingsAdvanced = (await page.locator("a", { hasText: "打开" }).count()) >= 5;
-results.settingsOk = ["通用", "路由", "飞书", "预算", "对外动作", "皮肤", "关于我", "高级"].every((l) => settingsTabs.includes(l)) && results.settingsProfile && results.settingsAdvanced;
+results.settingsOk = ["通用", "路由", "模型与订阅", "邮箱", "论文库", "飞书", "预算", "对外动作", "皮肤", "关于我", "高级"].every((l) => settingsTabs.includes(l)) && results.settingsProfile && results.settingsAdvanced;
 
 // 5. project drawer (§4.9), when there is a project to open
 await page.goto(`${base}/${prefix}/agentself`, { waitUntil: "domcontentloaded" });

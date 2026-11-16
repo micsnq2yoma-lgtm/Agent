@@ -17,6 +17,7 @@ import { Team } from "./views/Team";
 import { ProjectDrawer } from "./views/ProjectDrawer";
 import { EmployeeDrawer } from "./views/EmployeeDrawer";
 import { Archived, NewDepartment, Projects, Routines, SettingsPage, settingsTabLabel, useSettingsTab } from "./views/Pages";
+import { LibraryView } from "./views/Library";
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "./components/Skeleton";
 import "./styles.css";
@@ -351,6 +352,10 @@ export function ProjectsPage() {
   const s = useAgentself();
   const { t } = useSkin();
   return <PageFrame ctx={s.ctx} crumbs={[t("project")]}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
+}
+export function LibraryPage() {
+  const s = useAgentself();
+  return <PageFrame ctx={s.ctx} crumbs={["论文库"]}>{() => <LibraryView toast={s.toast} />}</PageFrame>;
 }
 export function RoutinesPage() {
   const s = useAgentself();
