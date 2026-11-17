@@ -5,6 +5,7 @@
 ## 手动运行
 
 ```powershell
+node scripts\launch.mjs  # 一键：没在运行就启动，就绪后在浏览器里打开（桌面快捷方式运行的就是它；--no-open 只启动不打开）
 node scripts\start.mjs   # 对外只有 :3100；AgenTeam 本地服务只听本机 :3200，由 Paperclip 经 /agenteam/api 反向代理。崩溃自动重启，日志在 ~/.agenteam/logs
 node scripts\stop.mjs    # 停止
 node scripts\build.mjs   # 手动重新构建（--install 先装依赖，--ui 只构建界面）
