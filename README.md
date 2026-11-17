@@ -117,9 +117,7 @@ AgenTeam 站在这些项目的肩膀上。完整的第三方许可见 `NOTICE` �
 | [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI） | 整个底座：任务、运行、界面、插件系统 | 源码内置于 `vendor/paperclip` 并有修改，见 [docs/paperclip-changes.md](docs/paperclip-changes.md) |
 | [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT） | 卡片协议（ask / notice / resolve / later）、跳数上限、事件规则、全局档案与双入口 | 设计遵循，自行实现 |
 | LobeHub | 验收作为一等数据：任务书、逐条证据、逐条判定；记忆“提议 → 审核 → 写入” | 只借鉴思路 |
-| DeepSeek Super-Agent / 知乎相关讨论 | 上下文拓扑：主管不干活由架构保证、每任务一个干净会话、员工不直接对用户说话 | 只借鉴思路 |
 | MyAgents（AGPL） | 产品思路 | 只借鉴思路，未打开或复制其代码 |
-| [claude-code-pixel-pet](https://github.com/search?q=claude-code-pixel-pet)（MIT） | 像素员工的画法参考 | 参考；鲸鱼形象参考了需求方提供的 `sprite.ts`，Codex 形象按需求方的视觉参考重绘 |
 | Noto Serif SC、Cormorant Garamond、JetBrains Mono（SIL OFL） | 界面字体 | 随应用打包，许可文本在字体目录 |
 
 ## 许可

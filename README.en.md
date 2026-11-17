@@ -115,10 +115,7 @@ AgenTeam stands on the shoulders of these projects. Full third-party licenses ar
 | [Paperclip](https://github.com/paperclipai/paperclip) (MIT, © Paperclip AI) | The whole foundation: tasks, runs, UI, plugin system | Source vendored in `vendor/paperclip` with modifications; see [docs/paperclip-changes.md](docs/paperclip-changes.md) |
 | [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop) (MIT) | Card protocol (ask / notice / resolve / later), hop limit, event rules, global profile and two entry points | Design followed, own implementation |
 | LobeHub | Acceptance as first-class data: brief, per-criterion evidence, per-criterion verdict; memory “propose → review → write” | Ideas only |
-| DeepSeek Super-Agent / related Zhihu discussion | Context topology: “the lead does not do the work” enforced by architecture, one clean session per task, employees never talk to the user directly | Ideas only |
 | MyAgents (AGPL) | Product ideas | Ideas only; its code was not opened or copied |
-| [claude-code-pixel-pet](https://github.com/search?q=claude-code-pixel-pet) (MIT) | Reference for the pixel employee art | Reference; the whale follows a requester-supplied `sprite.ts`, Codex is redrawn from the requester's visual reference |
-| Noto Serif SC, Cormorant Garamond, JetBrains Mono (SIL OFL) | UI fonts | Bundled; license text sits in the font folders |
 
 ## License
 
