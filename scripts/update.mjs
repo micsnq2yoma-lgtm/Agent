@@ -42,8 +42,10 @@ function state(patch) {
   }
   fs.writeFileSync(stateFile, JSON.stringify({ ...cur, ...patch, updatedAt: new Date().toISOString() }, null, 2));
 }
+// git and gh are real executables: run them without a shell, so arguments with spaces or "&" stay whole.
+const NO_SHELL = new Set(["git", "gh"]);
 function sh(cmd, argv, cwd = root, { quiet = false } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", shell: process.platform === "win32", windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: pnpmEnv() });
+  const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", shell: process.platform === "win32" && !NO_SHELL.has(cmd), windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: pnpmEnv() });
   if (!quiet && r.stdout?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stdout);
   if (r.stderr?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stderr);
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status}）：${(r.stderr || r.stdout || "").trim().split(/\r?\n/).slice(-3).join(" / ")}`);

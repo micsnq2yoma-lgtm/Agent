@@ -3,6 +3,8 @@
 // (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
 // Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
 // /agenteam/api/* here, so it listens on loopback only and serves no UI.
+// first: AGENTSELF_* from before the rename count before any module below reads the environment
+import "../../../scripts/lib/legacy.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -21,7 +23,7 @@ import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testSe
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
-import { migrateHome, resolveHome } from "../../../scripts/lib/legacy.mjs";
+import { legacyHome, migrateHome, rewriteLegacyPaths, resolveHome } from "../../../scripts/lib/legacy.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
@@ -91,17 +93,25 @@ async function renameLegacyCompany(company) {
 
 /** Agents created before the rename carry metadata.agentself; it moves to metadata.agenteam once. */
 async function migrateAgentMetadata(agents) {
+  const oldHome = legacyHome();
   for (const a of agents) {
+    const patch = {};
     const old = a.metadata?.agentself;
-    if (!old) continue;
-    const { agentself: _drop, ...rest } = a.metadata;
-    const metadata = { ...rest, agenteam: rest.agenteam ?? old };
-    try {
-      await pc("PATCH", `/agents/${a.id}`, { metadata });
-      a.metadata = metadata;
-    } catch {
-      a.metadata = metadata; // use the new shape now; the next load retries the write
+    if (old) {
+      const { agentself: _drop, ...rest } = a.metadata;
+      patch.metadata = { ...rest, agenteam: rest.agenteam ?? old };
     }
+    // the working folder (and any other path) still under ~/.agentself moved with the data folder
+    const cfg = oldHome && a.adapterConfig ? rewriteLegacyPaths(a.adapterConfig, oldHome, HOME) : null;
+    if (cfg) Object.assign(patch, { adapterConfig: cfg, replaceAdapterConfig: true });
+    if (!Object.keys(patch).length) continue;
+    try {
+      await pc("PATCH", `/agents/${a.id}`, patch);
+    } catch {
+      /* use the new shape now; the next load retries the write */
+    }
+    if (patch.metadata) a.metadata = patch.metadata;
+    if (patch.adapterConfig) a.adapterConfig = patch.adapterConfig;
   }
 }
 

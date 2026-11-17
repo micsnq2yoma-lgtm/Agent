@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { adoptLegacyEnv, migrateHome, migrateRuntimeDir, resolveHome } from "../../../scripts/lib/legacy.mjs";
+import { adoptLegacyEnv, migrateHome, migrateRuntimeDir, relinkAcceptanceTask, resolveHome, rewriteLegacyPaths } from "../../../scripts/lib/legacy.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-legacy-"));
 
@@ -44,5 +44,28 @@ describe("legacy rename", () => {
     expect(migrateRuntimeDir(cwd)).toBe(true);
     expect(fs.existsSync(path.join(cwd, ".agentself"))).toBe(false);
     expect(migrateRuntimeDir(cwd)).toBe(false);
+  });
+  it("agent paths under the old data folder follow it (Windows slashes and case), others stay", () => {
+    const cfg = { cwd: "C:\\Users\\A\\.agentself\\workspaces\\x", files: ["c:/users/a/.agentself/w/i.md"], other: "C:\\Users\\A\\.agentselfish", n: 1 };
+    expect(rewriteLegacyPaths(cfg, "C:\\Users\\A\\.agentself", "C:\\Users\\A\\.agenteam", { win: true })).toEqual({
+      cwd: "C:\\Users\\A\\.agenteam\\workspaces\\x",
+      files: ["C:/Users/A/.agenteam/w/i.md"],
+      other: "C:\\Users\\A\\.agentselfish",
+      n: 1,
+    });
+    expect(rewriteLegacyPaths({ cwd: "/srv/x" }, "/h/.agentself", "/h/.agenteam")).toBeNull();
+    expect(rewriteLegacyPaths({ cwd: "/h/.agentself/w" }, "/h/.agentself", "/h/.agentself")).toBeNull();
+  });
+  it("the acceptance task's wrapper is pointed at the moved folder and the task re-pointed", () => {
+    const h = tmp();
+    const oldHome = path.join(h, ".agentself");
+    const newHome = path.join(h, ".agenteam");
+    fs.mkdirSync(newHome);
+    fs.writeFileSync(path.join(newHome, "acceptance-watch.cmd"), `node watch.mjs >> "${oldHome}\\logs\\acceptance-watch.log"`);
+    const calls: string[][] = [];
+    expect(relinkAcceptanceTask(oldHome, newHome, { win: true, run: (_c: string, a: string[]) => (calls.push(a), { status: 0 }) })).toBe(true);
+    expect(fs.readFileSync(path.join(newHome, "acceptance-watch.cmd"), "utf8")).toContain(`${newHome}\\logs`);
+    expect(calls[0]).toEqual(["/Change", "/TN", "AgenTeam-acceptance", "/TR", `"${path.join(newHome, "acceptance-watch.cmd")}"`]);
+    expect(relinkAcceptanceTask(oldHome, path.join(h, "none"), { win: true })).toBe(false);
   });
 });

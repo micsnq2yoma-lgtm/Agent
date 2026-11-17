@@ -116,7 +116,8 @@ function log(msg) {
   fs.appendFileSync(logFile, line + "\n");
 }
 function run(cmd, argv, { cwd = root, input } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, input, encoding: "utf8", shell: win, windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+  // git and gh are real executables: no shell, or "&" in an API URL splits the command on Windows.
+  const r = spawnSync(cmd, argv, { cwd, input, encoding: "utf8", shell: win && cmd !== "git" && cmd !== "gh", windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status ?? r.error?.message}）：${(r.stderr || r.stdout || "").trim().split(/\r?\n/).slice(-3).join(" / ")}`);
   return (r.stdout ?? "").trim();
 }
