@@ -6,7 +6,7 @@ import { useSkin } from "../lib/skin";
 import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 import { SourceSelect } from "../components/SourceSelect";
-import { modelChoices, sourceLabel, sourceOfAgent, useModels } from "../lib/models";
+import { modelChoices, priceOf, priceText, sourceLabel, sourceOfAgent, useModels } from "../lib/models";
 
 interface MemoryFile {
   path: string;
@@ -275,6 +275,11 @@ function ModelPicker({ agent, onChanged, toast }: { agent: Agent; onChanged: () 
       <button className="btn sm" disabled={v === current} onClick={() => void apply()}>
         应用
       </button>
+      {source.startsWith("api:") && (
+        <span className="sub" data-testid="model-price">
+          {priceText(priceOf(models, source, v || models?.providers.find((x) => `api:${x.id}` === source)?.model)) || "还没填价格"}
+        </span>
+      )}
     </span>
   );
 }

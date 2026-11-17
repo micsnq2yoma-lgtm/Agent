@@ -20,6 +20,7 @@ import { Archived, NewDepartment, Projects, Routines, SettingsPage, settingsTabL
 import { LibraryView } from "./views/Library";
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "./components/Skeleton";
+import "./fonts-cjk.css";
 import "./styles.css";
 
 export const AS_BASE = "/agentself";

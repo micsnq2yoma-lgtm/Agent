@@ -44,3 +44,13 @@ Used for headings, the wordmark and stat numbers when the commercial Tiempos Hea
 - Taken from the npm package `@fontsource-variable/jetbrains-mono` 5.3.0 (`files/jetbrains-mono-latin-wght-normal.woff2`), bundled without modification as `JetBrainsMono-Variable-latin.woff2`
 - Weights 100–800
 - License: SIL Open Font License 1.1; included in `JetBrainsMono-OFL.txt`
+
+## Noto Serif SC (AgenTeam)
+
+- Upstream project: https://github.com/notofonts/noto-cjk (packaged by Fontsource: `@fontsource/noto-serif-sc` 5.3.1)
+- Files: `noto-serif-sc/noto-serif-sc-*-500-normal.woff2` (weight 500 only, split by unicode-range; `src/agentself/fonts-cjk.css` declares them)
+- License: SIL Open Font License 1.1 (`noto-serif-sc/OFL.txt`)
+
+Redistribution note: the WOFF2 slices are included unmodified from the Fontsource package. Used for
+Chinese headings in the AgenTeam views so they do not fall back to SimSun on Windows; the browser
+downloads only the slices a page actually uses.

@@ -78,6 +78,10 @@ Windows 上不要直接在 `vendor\paperclip` 里跑 `pnpm build`：Paperclip �
 
 模型：设置 → 模型与订阅。订阅用本机登录的 Claude Code 和 Codex；其余模型填 API key（存进 Paperclip 密钥库）。
 
+## 多机验收
+
+开发在云端会话里进行，验收在你自己的 Windows 电脑上做，两边通过 GitHub PR 自动协作：开发方在 PR 上发「验收请求」并打上「待验收」标签；验收机上的轮询脚本发现后切到 PR 版本、构建、重启，交给本机的 Codex 跑验收，把结果评论回 PR 并打上「已验收」或「需修改」；开发方据此修复，直到通过。一台电脑的准备步骤见 `docs/acceptance/MAINTAINER.md` 末尾（装 gh 和 Codex 并登录，然后 `node scripts\dev\acceptance-watch.mjs --install --machine <名称>`）。
+
 ## 测试
 
 ```powershell

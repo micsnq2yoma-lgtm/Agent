@@ -142,4 +142,7 @@ export interface Issue {
   createdAt: string;
   updatedAt: string;
   blockedByIssueIds?: string[];
+  /** "routine_execution" when a routine (定时任务) created it; originId is then the routine id */
+  originKind?: string;
+  originId?: string | null;
 }

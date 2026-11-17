@@ -6,6 +6,8 @@ import { ArrowUp, ChevronDown, ChevronRight, FileText, X } from "lucide-react";
 import { list, pc, type Context, type Issue } from "../lib/api";
 import { loadAcceptance, VERDICT_TEXT, type Acceptance } from "../lib/acceptance";
 import { progressOf, STAGE_NAMES, statusOf } from "../lib/progress";
+import { loadWatches, type ReminderView, type WatchView } from "../lib/feed";
+import { cronText } from "../lib/cron";
 import { useSkin } from "../lib/skin";
 import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Stages } from "./Home";
@@ -42,6 +44,25 @@ interface Comment {
 /** A subtask is the employee's job: backlog there means "not started", not "paused". */
 const SUB_STATUS: Record<string, string> = { ...STATUS, backlog: "未开始", in_review: "已交付", done: "已交付" };
 
+interface RoutineInfo {
+  id: string;
+  title?: string;
+  status?: string;
+  triggers?: Array<{ kind?: string; cronExpression?: string | null; nextRunAt?: string | null; lastFiredAt?: string | null; enabled?: boolean }>;
+}
+/** "今天 14:30" / "明天 09:00" / "11月18日 09:00" */
+function when(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(d) - day(new Date())) / 86_400_000);
+  const t = d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+  if (diff === 0) return `今天 ${t}`;
+  if (diff === 1) return `明天 ${t}`;
+  if (diff === -1) return `昨天 ${t}`;
+  return `${d.getMonth() + 1}月${d.getDate()}日 ${t}`;
+}
+
 const hhmm = (iso: string) => new Date(iso).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ctx: Context; issueId: string; onClose: () => void; toast: (s: string) => void; cards?: Card[] }) {
@@ -54,6 +75,8 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
   const [say, setSay] = useState("");
   const [sayTo, setSayTo] = useState<string>(issueId);
   const [busy, setBusy] = useState(false);
+  const [watching, setWatching] = useState<{ watches: WatchView[]; reminders: ReminderView[] }>({ watches: [], reminders: [] });
+  const [routine, setRoutine] = useState<RoutineInfo | null>(null);
 
   const agentName = (id: string | null | undefined) => ctx.agents.find((a) => a.id === id)?.name ?? (id ? "系统" : "你");
 
@@ -64,6 +87,9 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
     setAll(everything);
     const kids = everything.filter((x) => x.parentId === issueId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     setDocs(list<Doc>(await pc.get(`/issues/${issueId}/documents`).catch(() => [])));
+    // 盯守: watches / reminders on the task and its subtasks, and the routine that created it
+    setWatching(await loadWatches(ctx.company!.id, [issueId, ...kids.map((k) => k.id)]));
+    setRoutine(i.originKind === "routine_execution" && i.originId ? await pc.get<RoutineInfo>(`/routines/${i.originId}`).catch(() => null) : null);
     setAcc(await loadAcceptance(issueId, kids[0]?.id ?? null).catch(() => null));
     const comments = list<Comment>(await pc.get(`/issues/${issueId}/comments`).catch(() => []));
     const items = comments.map((c) => ({ at: c.createdAt, text: `${agentName(c.authorAgentId)}：${c.body.replace(/\s+/g, " ").slice(0, 140)}` }));
@@ -239,6 +265,61 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
                   运行记录
                   <ChevronRight size={14} aria-hidden="true" />
                 </Link>
+              </div>
+            </section>
+          )}
+
+          {(routine || watching.watches.length > 0 || watching.reminders.length > 0) && (
+            <section data-testid="drawer-watch">
+              <h3>盯守</h3>
+              <div className="watch-list">
+                {routine &&
+                  (routine.triggers ?? [])
+                    .filter((tr) => tr.kind === "schedule" || tr.cronExpression)
+                    .map((tr, k) => (
+                      <div key={`r${k}`} className="watch-row">
+                        <span className="wkind">{t("routine")}</span>
+                        <div className="grow">
+                          <div>
+                            {routine.title ?? "定时任务"} · {cronText(tr.cronExpression)}
+                            {routine.status && routine.status !== "active" ? "（已停用）" : ""}
+                          </div>
+                          <div className="sub">
+                            {[tr.nextRunAt ? `下次 ${when(tr.nextRunAt)}` : null, tr.lastFiredAt ? `上次 ${when(tr.lastFiredAt)}` : null].filter(Boolean).join(" · ") || "这一次由它生成"}
+                          </div>
+                        </div>
+                        <Link to="/agentself/routines" onClick={onClose}>
+                          管理
+                        </Link>
+                      </div>
+                    ))}
+                {watching.watches.map((w) => (
+                  <div key={w.id} className="watch-row">
+                    <span className="wkind">实验</span>
+                    <div className="grow">
+                      <div>
+                        {agentName(w.agentId)}每 {w.everyMinutes} 分钟探测一次{w.note ? `：${w.note}` : ""}
+                      </div>
+                      <div className="sub">
+                        已查 {w.checks} 次 · 下次 {when(w.nextAt)} · {when(w.expiresAt)} 前结束
+                      </div>
+                      <div className="sub mono watch-cmd" title={w.command}>
+                        {w.command}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {watching.reminders.map((r, k) => (
+                  <div key={`m${k}`} className="watch-row">
+                    <span className="wkind">提醒</span>
+                    <div className="grow">
+                      <div>
+                        {when(r.dueAt)} 叫醒{agentName(r.agentId)}
+                      </div>
+                      {r.note && <div className="sub">{r.note}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
           )}
