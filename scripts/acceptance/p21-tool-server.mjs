@@ -45,6 +45,7 @@ results.codeCommented = (await comments(issue.id)).some((c) => (c.body ?? "").in
 results.status = (await api("GET", `/issues/${issue.id}`)).status;
 // always: a finished task left behind would be handed back to the next run (Paperclip's 48 h same-title rule)
 results.taskCleanup = await cancelTree(companyId, issue.id).catch((e) => ({ error: e.message }));
-await as("DELETE", "/mcp/servers/p21-echo").catch(() => {});
+// removing the server must remove its secret too, or the next run fails with 409 (found on PR #9)
+results.removed = await as("DELETE", "/mcp/servers/p21-echo").catch((e) => ({ error: e.message }));
 await as("POST", "/agents/sync").catch(() => {});
-verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false && results.taskCleanup?.deleted > 0, results);
+verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false && results.taskCleanup?.deleted > 0 && results.removed?.secretsDeleted > 0, results);

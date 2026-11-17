@@ -362,6 +362,13 @@ function mcpSpec(body) {
     token: body.token,
   };
 }
+const pcList = async (p) => arr(await pc("GET", p).catch(() => []));
+/** Delete a removed server's own secrets in Paperclip (best effort: a secret that is gone already is fine). */
+async function dropMcpSecrets(server) {
+  const ids = [...Object.values(server?.secretEnv ?? {}), server?.tokenSecretId].filter(Boolean);
+  for (const sid of ids) await pc("DELETE", `/secrets/${sid}`).catch(() => {});
+  return ids.length;
+}
 /** Install / change a server: secret values become Paperclip secrets, then every agent is re-synced. */
 async function putMcpServer(id, body) {
   const ctx = await loadContext();
@@ -371,6 +378,9 @@ async function putMcpServer(id, body) {
   let tokenSecretId;
   if ((wantSecrets.length || body.token) && !ctx.company) throw Object.assign(new Error("先新建一个团队，再填密钥"), { status: 409 });
   const store = async (name, value, existing) => {
+    // a secret of the same name may be left over from a server that was removed before secrets were
+    // deleted with it (or by hand): reuse it instead of failing with 409 "already exists"
+    existing ??= (await pcList(`/companies/${ctx.company.id}/secrets`)).find((x) => x.name === name)?.id;
     if (existing) {
       await pc("POST", `/secrets/${existing}/rotate`, { value });
       return existing;
@@ -717,9 +727,12 @@ async function handleAgentself(req, res, url) {
   const mcm = p.match(/^\/mcp\/servers\/([\w-]+)$/);
   if (mcm && req.method === "PUT") return send(res, 200, await putMcpServer(mcm[1], await readJson(req)));
   if (mcm && req.method === "DELETE") {
+    const gone = readServers().find((x) => x.id === mcm[1]);
     removeServer(mcm[1]);
-    void syncAllAgents(() => {}).catch(() => {});
-    return send(res, 200, { ok: true });
+    // agents are re-synced first, so none of them still references the secrets being deleted
+    await syncAllAgents(() => {}).catch(() => {});
+    const secrets = await dropMcpSecrets(gone);
+    return send(res, 200, { ok: true, secretsDeleted: secrets });
   }
   /* paper library (a folder the user chooses) */
   if (p === "/library/settings" && req.method === "GET") return send(res, 200, { ...libraryStats(), defaultRoot: defaultRoot() });
