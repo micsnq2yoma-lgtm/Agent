@@ -10,7 +10,8 @@ import { loadAcceptance, VERDICT_TEXT, type Acceptance } from "../lib/acceptance
 import { leadOf, progressOf, STAGE_NAMES, type Progress } from "../lib/progress";
 import { useSkin } from "../lib/skin";
 import { PackIcon } from "../lib/icons";
-import { Robot, Wordmark, eyeOf } from "../components/Brand";
+import { Robot, eyeOf } from "../components/Brand";
+import { WorkbenchHero } from "../components/WorkbenchHero";
 import { useDialogActions } from "@/context/DialogContext";
 import { SourceSelect } from "../components/SourceSelect";
 
@@ -506,10 +507,7 @@ export function Home(props: {
   return (
     <div className="workbench">
       <div className="workbench-main">
-        <div className="hero">
-          <Wordmark size={56} />
-          <div className="tagline-en">Focus your attention on valuable things.</div>
-        </div>
+        <WorkbenchHero />
         <div className="results-head">
           <div className="filters" role="tablist" aria-label="筛选">
             {filters.map(([f, label, n]) => (

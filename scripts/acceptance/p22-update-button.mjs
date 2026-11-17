@@ -71,7 +71,7 @@ if (!doUpdate) {
   const t = await snap();
   results.upToDateShown = /已是最新/.test(t);
   results.noUpdateStarted = (await get("/update/status")).status !== "updating";
-  results.RESULT = results.noAutoSwitch && results.buttonThere && results.upToDateShown && results.noUpdateStarted && errors.length === 0 ? "PASS" : "FAIL";
+  results.RESULT = results.noAutoSwitch && results.noAutoSetting && results.buttonThere && results.upToDateShown && results.noUpdateStarted && errors.length === 0 ? "PASS" : "FAIL";
 } else {
   // 有员工在干活会弹确认：脚本里选“取消”会让更新不开始，所以这里要求实例上没有员工在跑
   page.on("dialog", (d) => {
@@ -82,7 +82,10 @@ if (!doUpdate) {
   let reloadShown = false;
   while (Date.now() < deadline) {
     await snap();
-    if ((await section().getByRole("button", { name: "刷新页面" }).count()) > 0) {
+    // A prematurely shown reload button is not proof that the detached updater has finished.
+    const state = await get("/update/status").catch(() => null);
+    const finished = ["updated", "up_to_date", "rolled_back", "broken"].includes(state?.status) && !!state?.updatedAt && state.updatedAt !== before.updatedAt;
+    if (finished && (await section().getByRole("button", { name: "刷新页面" }).count()) > 0) {
       reloadShown = true;
       break;
     }
@@ -105,7 +108,7 @@ if (!doUpdate) {
   results.nowUpToDate = (after.lastCheck?.behind ?? 1) === 0;
   results.updated = after.status === "updated" && results.versionAfter === results.latest;
   results.RESULT =
-    results.noAutoSwitch && results.buttonThere && results.sawStarted && results.resultShown && results.reloadShown && results.updated && results.nowUpToDate && errors.length === 0 ? "PASS" : "FAIL";
+    results.noAutoSwitch && results.noAutoSetting && results.buttonThere && results.sawStarted && results.resultShown && results.reloadShown && results.updated && results.nowUpToDate && errors.length === 0 ? "PASS" : "FAIL";
 }
 results.progressTexts = [...texts].slice(-8).map((t) => t.slice(0, 160));
 results.pageErrors = errors;

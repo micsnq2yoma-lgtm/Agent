@@ -17,6 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
 import { resolveHome } from "./lib/legacy.mjs";
+import { mergeUpdateState } from "./lib/update-state.mjs";
 import { stopAgenteam } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -40,7 +41,7 @@ function state(patch) {
   } catch {
     /* first run */
   }
-  fs.writeFileSync(stateFile, JSON.stringify({ ...cur, ...patch, updatedAt: new Date().toISOString() }, null, 2));
+  fs.writeFileSync(stateFile, JSON.stringify(mergeUpdateState(cur, patch), null, 2));
 }
 // git and gh are real executables: run them without a shell, so arguments with spaces or "&" stay whole.
 const NO_SHELL = new Set(["git", "gh"]);
