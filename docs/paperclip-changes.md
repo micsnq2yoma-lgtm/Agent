@@ -46,3 +46,5 @@
 - 启动：`cd vendor/paperclip && pnpm paperclipai run`（数据目录 `~/.paperclip/instances/default`，与之前 npx 版相同）
 
 改名（2026-11-17）：Agentself → AgenTeam。`ui/src/agentself/` → `ui/src/agenteam/`，`server/src/agentself/` → `server/src/agenteam/`；别名 `@agentself/*` → `@agenteam/*`；`/agentself/api` → `/agenteam/api`；`data-agentself-*` → `data-agenteam-*`；环境变量 `AGENTSELF_*` → `AGENTEAM_*`（旧名仍认）。团队层插件的内部标识改为 `agenteam.team-layer`：新增迁移 `packages/db/src/migrations/0375_rename_team_layer_plugin.sql`（并在 `meta/_journal.json` 加一项），原地改 `plugins` 表的 key、包名和 manifest id，插件 uuid 不变，plugin_state 等数据都保留；上游更新时注意这条迁移的编号和日志项不要冲突。迁移逻辑在 `scripts/lib/legacy.mjs`。
+
+改名后的工作区路径（2026-11-17）：新增迁移 `packages/db/src/migrations/0376_agenteam_workspace_paths.sql`（并在 `meta/_journal.json` 加一项），把 `execution_workspaces`、`project_workspaces`、`workspace_runtime_services`、`execution_workspace_repository_roots` 里的路径和 `agents.adapter_config` 里整段名为 `.agentself` 的路径段改成 `.agenteam`（只改整段，`.agentself-p6` 这类不动；可重复执行）。不改的话，任务继承的执行工作区恢复不了，唤醒运行在 setup 阶段失败。

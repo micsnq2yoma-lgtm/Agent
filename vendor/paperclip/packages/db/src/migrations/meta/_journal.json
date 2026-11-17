@@ -2619,6 +2619,13 @@
       "when": 1792800000000,
       "tag": "0375_rename_team_layer_plugin",
       "breakpoints": true
+    },
+    {
+      "idx": 376,
+      "version": "7",
+      "when": 1792800001000,
+      "tag": "0376_agenteam_workspace_paths",
+      "breakpoints": true
     }
   ]
 }
