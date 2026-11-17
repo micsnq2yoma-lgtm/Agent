@@ -10,7 +10,7 @@ Say one sentence and walk away. A team of AI agents you named does the whole job
 
 [中文](README.md) · **English**
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Features](#features) · [Guide (中文)](docs/guide.md) · [Direction (中文)](docs/v0.6-direction.md)
+[Quick start](#quick-start) · [How it works](#how-it-works) · [Features](#features) · [Guide (中文)](docs/guide.md)
 
 [![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/AgenTeam?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/AgenTeam/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/AgenTeam/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/AgenTeam/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
@@ -71,7 +71,7 @@ node scripts\update.mjs --check   # is there a new version
 node scripts\update.mjs           # back up → stop → pull main → incremental build → start → health check
 ```
 
-A version that fails to start is rolled back automatically. The database is not restored automatically; backups are in `~/.agenteam/backups/` (5 kept). Every PR and main run unit tests and a full build on GitHub Actions (Linux + Windows).
+A version that fails to start is rolled back automatically. The database is not restored automatically; backups are in `~/.agenteam/backups/` (5 kept). Unit tests and a full build run continuously on Linux and Windows.
 
 ## Architecture
 
@@ -87,11 +87,9 @@ A version that fails to start is rolled back automatically. The database is not 
 | `skills/` `packs/` | Lead / employee / memory skill packs; blank team templates |
 | `scripts/` | Start, install, update, acceptance scripts, localization tools |
 
-**Renamed from Agentself.** Directories, API paths, env vars and the data directory are all `agenteam` now (`~/.agenteam`, `/agenteam/api`, `AGENTEAM_*`). Existing installs migrate on the first start after updating: `~/.agentself` is renamed to `~/.agenteam`, old `AGENTSELF_*` variables are still honored, and agent metadata and per-agent `.agentself` folders are converted. Nothing is lost. The team-layer plugin's internal id is now `agenteam.team-layer` too, renamed in place by a database migration, so its reminder and watch state are kept. Team files exported by older versions (`agentself.department/1`) can still be imported.
-
 ## Docs (Chinese)
 
-[Guide](docs/guide.md) · [Direction](docs/v0.6-direction.md) · [Design spec](docs/handoff/design/DESIGN.md) · [Pixel employees](docs/pixel-employees.md) · [Changes to Paperclip](docs/paperclip-changes.md) · [History](docs/history/)
+[Guide](docs/guide.md) · [Design spec](docs/handoff/design/DESIGN.md) · [Pixel employees](docs/pixel-employees.md) · [Changes to Paperclip](docs/paperclip-changes.md)
 
 ## Star History
 

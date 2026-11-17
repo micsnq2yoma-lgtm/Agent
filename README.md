@@ -10,7 +10,7 @@
 
 **中文** · [English](README.en.md)
 
-[快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md) · [路线](docs/v0.6-direction.md)
+[快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md)
 
 [![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/AgenTeam?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/AgenTeam/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/AgenTeam/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/AgenTeam/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
@@ -69,7 +69,7 @@ node scripts\update.mjs --check   # 有没有新版本
 node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量构建 → 启动 → 健康检查
 ```
 
-新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agenteam/backups/`（留 5 份）。每个 PR 和 main 都在 GitHub Actions 跑单测和完整构建（Linux + Windows）。
+新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agenteam/backups/`（留 5 份）。单元测试和完整构建在 Linux 和 Windows 上持续运行。
 
 ## 架构
 
@@ -85,15 +85,11 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 | `skills/` `packs/` | 主管 / 员工 / 记忆技能包；新建团队的空白模板 |
 | `scripts/` | 启动、安装、更新、验收脚本、中文化工具 |
 
-**从 Agentself 改名而来。** 目录、接口路径、环境变量和数据目录都已统一为 `agenteam`（`~/.agenteam`、`/agenteam/api`、`AGENTEAM_*`）。已有安装更新后首次启动时自动迁移：`~/.agentself` 改名为 `~/.agenteam`，旧的 `AGENTSELF_*` 环境变量仍然认，员工的元数据和工作目录里的 `.agentself` 也会自动转过来，不丢数据。团队层插件的内部标识也改成了 `agenteam.team-layer`，由一条数据库迁移原地改名，插件里的提醒、盯守等状态保留。旧版导出的团队文件（`agentself.department/1`）仍可导入。
-
 ## 文档
 
-- [使用与开发手册](docs/guide.md)：手动运行、邮箱 / 论文库 / MCP / 模型 / 飞书的配置位置、多机验收、测试
-- [当前方向与需求清单](docs/v0.6-direction.md)（与历史方案冲突时以它为准）
+- [使用与开发手册](docs/guide.md)：手动运行、邮箱 / 论文库 / MCP / 模型 / 飞书的配置位置、测试
 - [界面设计规范](docs/handoff/design/DESIGN.md) · [像素员工](docs/pixel-employees.md)
 - [对 Paperclip 源码的改动](docs/paperclip-changes.md)
-- [历史方案与各阶段报告](docs/history/)
 
 ## Star History
 
