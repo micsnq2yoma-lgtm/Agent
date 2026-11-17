@@ -69,8 +69,6 @@ node scripts\update.mjs --check   # 有没有新版本
 node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量构建 → 启动 → 健康检查
 ```
 
-新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agenteam/backups/`（留 5 份）。单元测试和完整构建在 Linux 和 Windows 上持续运行。
-
 ## 架构
 
 <p align="center"><img src="docs/assets/architecture-zh.png" width="900" alt="AgenTeam 架构"></p>
