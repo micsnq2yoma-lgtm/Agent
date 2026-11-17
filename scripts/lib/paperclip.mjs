@@ -1,4 +1,4 @@
-// Minimal Paperclip REST client for Agentself scripts (local_trusted board access).
+// Minimal Paperclip REST client for AgenTeam scripts (local_trusted board access).
 export const API = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
 
 export async function api(method, path, body) {

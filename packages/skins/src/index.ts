@@ -259,7 +259,7 @@ export function validateSkin(x: unknown): string[] {
 
 /**
  * P9: map skin tokens onto the Paperclip admin UI's CSS variables (shadcn-style names),
- * so switching skins recolours the whole app, not just the Agentself views.
+ * so switching skins recolours the whole app, not just the AgenTeam views.
  */
 export function paperclipVars(skin: Skin, dark = false): Record<string, string> {
   const t = dark ? { ...skin.tokens, ...skin.darkTokens } : skin.tokens;

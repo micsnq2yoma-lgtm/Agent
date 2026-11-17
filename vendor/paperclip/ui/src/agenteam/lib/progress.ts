@@ -21,7 +21,7 @@ export interface Progress {
 /** The lead that owns a top-level task: its assignee when that is a lead, else the team's lead. */
 export function leadOf(ctx: Context, top: Issue) {
   const a = ctx.agents.find((x) => x.id === top.assigneeAgentId);
-  if (a?.metadata?.agentself?.isLead) return a;
+  if (a?.metadata?.agenteam?.isLead) return a;
   const dept = ctx.departments.find((d) => d.projectId === top.projectId);
   return ctx.agents.find((x) => x.id === dept?.leadAgentId) ?? a ?? null;
 }

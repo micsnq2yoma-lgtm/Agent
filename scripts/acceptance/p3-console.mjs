@@ -8,7 +8,7 @@ import { removeTeam } from "../lib/teardown.mjs";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_CONSOLE ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p));
 const j = async (method, p, body) => {
@@ -25,7 +25,7 @@ page.on("pageerror", (e) => errors.push(String(e)));
 
 // 1. skins: office -> court -> office, terminology follows
 await page.goto(base, { waitUntil: "domcontentloaded" });
-await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
+await page.waitForSelector(".agenteam .composer", { timeout: 60_000 });
 await page.getByRole("link", { name: "设置", exact: true }).click();
 await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "朝堂" }).getByRole("button", { name: /^使用/ }).click();
@@ -46,7 +46,7 @@ results.backToOffice = officeText.includes("工作台") && !officeText.includes(
 // 2. wizard (plan B / SETO): nothing is preset — name a team, its lead and one employee through the UI
 const TEAM = "验收团队";
 // leftovers from earlier runs (before this script cleaned up after itself) go first
-const leftovers = await j("GET", "/agentself/api/context");
+const leftovers = await j("GET", "/agenteam/api/context");
 for (const d of leftovers.departments.filter((d) => d.name === TEAM)) await removeTeam({ companyId: leftovers.company.id, projectId: d.projectId, members: d.members });
 {
   await page.getByRole("link", { name: "新建主管" }).first().click(); // the + next to 主管 in the sidebar
@@ -59,13 +59,13 @@ for (const d of leftovers.departments.filter((d) => d.name === TEAM)) await remo
   await page.getByRole("button", { name: "创建" }).click();
   await page.waitForTimeout(8000);
 }
-const ctx = await j("GET", "/agentself/api/context");
+const ctx = await j("GET", "/agenteam/api/context");
 const life = ctx.departments.find((d) => d.name === TEAM);
 results.wizardCreated = !!life && life.members.length >= 1;
 if (life) {
   const agent = ctx.agents.find((a) => life.members.includes(a.id));
   results.wizardAgentReady = { name: agent?.name, status: agent?.status, skills: agent ? (await j("GET", `/api/agents/${agent.id}/skills`)).desiredSkills?.length : 0 };
-  const mem = await j("GET", `/agentself/api/memory/${agent.id}`);
+  const mem = await j("GET", `/agenteam/api/memory/${agent.id}`);
   results.wizardIdentityFile = mem.some((f) => f.path === "identity.md");
 }
 
@@ -82,7 +82,7 @@ await page.screenshot({ path: ".agenteam-shots/p3-usage.png" });
 await page.getByRole("link", { name: "工作台", exact: true }).first().click();
 await page.getByRole("tab", { name: "像素团队" }).click();
 await page.waitForTimeout(5000);
-const office = await j("GET", "/agentself/api/office");
+const office = await j("GET", "/agenteam/api/office");
 const plates = await page.locator(".nameplate").count();
 results.officePeople = { snapshot: office.people.length, nameplates: plates, anims: office.people.map((p) => `${p.name}:${p.anim}`) };
 await page.screenshot({ path: ".agenteam-shots/p3-team.png" });
@@ -90,10 +90,10 @@ await page.getByRole("tab", { name: "工作台" }).click();
 await browser.close();
 
 // leave no test team behind: the wizard's lead, employee and project
-const after = await j("GET", "/agentself/api/context");
+const after = await j("GET", "/agenteam/api/context");
 results.cleanup = [];
 for (const d of after.departments.filter((d) => d.name === TEAM)) results.cleanup.push(...(await removeTeam({ companyId: after.company.id, projectId: d.projectId, members: d.members })));
-results.cleanedUp = !(await j("GET", "/agentself/api/context")).departments.some((d) => d.name === TEAM);
+results.cleanedUp = !(await j("GET", "/agenteam/api/context")).departments.some((d) => d.name === TEAM);
 
 results.pageErrors = errors;
 const pass =

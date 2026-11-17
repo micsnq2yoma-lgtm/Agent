@@ -1,8 +1,8 @@
 // AGENTEAM brand: the mark (three agents linked into one team, the lead in the brand colour) and the
 // wordmark AGEN·T·EAM in the display serif, the T (the letter AGENT and TEAM share) in the brand colour.
 // Model-specific pixel employee portraits use the registered employee identity and observed status.
-import { characterDataUrl } from "@agentself/pixel-office";
-import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agentself/shared";
+import { characterDataUrl } from "@agenteam/pixel-office";
+import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agenteam/shared";
 import { useSyncExternalStore } from "react";
 import { employeeRevision, registeredEmployee, subscribeEmployees } from "../lib/avatar";
 
@@ -63,9 +63,9 @@ export function eyeOf(adapterType: string | undefined, model?: unknown): ModelFa
   return modelFamilyFor(adapterType, model);
 }
 
-export function modelName(a: { adapterType?: string; adapterConfig?: { model?: string }; metadata?: { agentself?: { source?: string } } } | undefined): string {
+export function modelName(a: { adapterType?: string; adapterConfig?: { model?: string }; metadata?: { agenteam?: { source?: string } } } | undefined): string {
   if (!a) return "";
-  const src = a.metadata?.agentself?.source;
+  const src = a.metadata?.agenteam?.source;
   // API models: "deepseek · deepseek-chat" (the provider matters more than the raw model id)
   if (src?.startsWith("api:")) return [src.slice(4), a.adapterConfig?.model].filter(Boolean).join(" · ");
   if (a.adapterConfig?.model) return a.adapterConfig.model;

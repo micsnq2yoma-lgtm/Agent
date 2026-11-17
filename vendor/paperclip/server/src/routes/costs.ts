@@ -11,7 +11,7 @@ import { billingReconciliationService } from "../services/billing-reconciliation
 import { adjustCostSchema, importBillingInvoiceSchema, repairAccountingSchema, retryAccountingSchema } from "@paperclipai/shared";
 import { z } from "zod";
 
-// Agentself: body of the run write-off escape hatch
+// AgenTeam: body of the run write-off escape hatch
 const writeOffRunSchema = z.object({ reason: z.string().trim().min(1).max(1000), costUsd: z.number().nonnegative().max(100000).optional().nullable() });
 import { Router } from "express";
 import type { Db } from "@paperclipai/db";
@@ -462,7 +462,7 @@ export function costRoutes(
     res.json(await integrity.repair(req.params.companyId as string, req.body.fingerprint, req.body.reason, getActorInfo(req).actorId)));
   router.post("/companies/:companyId/accounting/retry", validate(retryAccountingSchema), async (req, res) =>
     res.json(await integrity.retry(req.params.companyId as string, req.body.runId, getActorInfo(req).actorId)));
-  // Agentself: explicit write-off of a run whose usage receipt never arrived (see accounting-integrity.ts)
+  // AgenTeam: explicit write-off of a run whose usage receipt never arrived (see accounting-integrity.ts)
   router.post("/companies/:companyId/accounting/runs/:runId/write-off", validate(writeOffRunSchema), async (req, res) =>
     res.json(await integrity.writeOff(req.params.companyId as string, req.params.runId as string, req.body, getActorInfo(req).actorId)));
   router.get("/companies/:companyId/accounting/invoices", async (req, res) => res.json(await billing.list(req.params.companyId as string)));

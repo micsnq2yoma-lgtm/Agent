@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Run Paperclip's environment test (the same "hello probe" new agents must pass) for one agent, and
-// print every check. With --compare it runs a second time without the Agentself MCP `-c` overrides,
-// to tell an Agentself setting apart from the CLI / login / machine.
+// print every check. With --compare it runs a second time without the AgenTeam MCP `-c` overrides,
+// to tell an AgenTeam setting apart from the CLI / login / machine.
 //   node scripts/dev/test-agent.mjs <agent name or id> [--compare]
 import { api, list } from "../lib/paperclip.mjs";
 import { codexConfigProblems, explainCodexError } from "../lib/codex-check.mjs";

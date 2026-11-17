@@ -1,6 +1,6 @@
 // The user's global profile (v0.6 / plan B): one "about me" plus decision records that every lead reads
 // before interpreting a request, and employees read for background. Plain Markdown under
-// <AGENTSELF_HOME>/profile, edited by the user in the app; leads only append decisions through the
+// <AGENTEAM_HOME>/profile, edited by the user in the app; leads only append decisions through the
 // local service (they have no general file-write tools).
 import fs from "node:fs";
 import os from "node:os";

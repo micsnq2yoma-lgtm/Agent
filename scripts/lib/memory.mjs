@@ -18,7 +18,7 @@ export function ensureGit(dir) {
   if (!fs.existsSync(path.join(dir, ".git"))) {
     git(dir, ["init", "-q"]);
     git(dir, ["config", "user.name", "AgenTeam Memory"]);
-    git(dir, ["config", "user.email", "memory@agentself.local"]);
+    git(dir, ["config", "user.email", "memory@agenteam.local"]);
     git(dir, ["config", "core.autocrlf", "false"]);
   }
 }
@@ -36,7 +36,7 @@ export function commitMemory(cwd, message) {
   return git(dir, ["rev-parse", "--short", "HEAD"]).stdout.trim();
 }
 
-const ENTRY_MARK = "<!-- agentself:memory -->";
+const ENTRY_MARK = "<!-- agenteam:memory -->";
 
 /**
  * Plan B fix (P1 on Windows): Paperclip runs a child task in its parent's execution workspace, so an

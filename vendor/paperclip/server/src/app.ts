@@ -1,5 +1,5 @@
 import { promptInjectionPreventionRoutes } from "./routes/prompt-injection-prevention.js";
-import { agentselfProxy } from "./agentself/proxy.js";
+import { agenteamProxy } from "./agenteam/proxy.js";
 import { voiceSessionRoutes, voiceWebhookRoutes } from "./routes/voice-sessions.js";
 import { eq } from "drizzle-orm";
 import { chatEndpoints } from "@paperclipai/db";
@@ -593,8 +593,8 @@ export async function createApp(
     createChatWebhookDiagnostics(),
     chatWebhookBodyParser,
   );
-  // Agentself (P8): same-origin proxy to the Agentself local service, before body parsing.
-  app.use("/agentself/api", agentselfProxy());
+  // AgenTeam (P8): same-origin proxy to the AgenTeam local service, before body parsing.
+  app.use("/agenteam/api", agenteamProxy());
   const jsonBodyParser = express.json({ limit: DEFAULT_JSON_BODY_LIMIT, verify: captureRawBody });
   // File tickets authenticate before parsing bytes; JSON attachments must remain bytes too.
   app.use((req, res, next) => ["/mcp/files/upload", "/mcp/runner/files/upload"].includes(req.path) ? next() : jsonBodyParser(req, res, next));

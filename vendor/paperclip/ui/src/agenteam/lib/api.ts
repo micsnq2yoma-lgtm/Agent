@@ -1,4 +1,4 @@
-// Data access for the console: Paperclip REST (proxied at /api) + Agentself local service (/agentself/api, proxied by the Paperclip server).
+// Data access for the console: Paperclip REST (proxied at /api) + AgenTeam local service (/agenteam/api, proxied by the Paperclip server).
 import { useCallback, useEffect, useRef, useState } from "react";
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -22,10 +22,10 @@ export const pc = {
 };
 
 export const as = {
-  get: <T,>(p: string) => req<T>("GET", `/agentself/api${p}`),
-  post: <T,>(p: string, b?: unknown) => req<T>("POST", `/agentself/api${p}`, b ?? {}),
-  put: <T,>(p: string, b: unknown) => req<T>("PUT", `/agentself/api${p}`, b),
-  del: <T,>(p: string) => req<T>("DELETE", `/agentself/api${p}`),
+  get: <T,>(p: string) => req<T>("GET", `/agenteam/api${p}`),
+  post: <T,>(p: string, b?: unknown) => req<T>("POST", `/agenteam/api${p}`, b ?? {}),
+  put: <T,>(p: string, b: unknown) => req<T>("PUT", `/agenteam/api${p}`, b),
+  del: <T,>(p: string) => req<T>("DELETE", `/agenteam/api${p}`),
 };
 
 export const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : (((x as { items?: T[] })?.items ?? []) as T[]));
@@ -61,7 +61,7 @@ export function usePoll<T>(load: () => Promise<T>, ms: number, deps: unknown[] =
   return [data, error, run];
 }
 
-const CACHE_PREFIX = "agentself.cache.";
+const CACHE_PREFIX = "agenteam.cache.";
 function readCache<T>(key: string): T | null {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
@@ -99,7 +99,7 @@ export interface Agent {
   capabilities?: string | null;
   budgetMonthlyCents?: number;
   spentMonthlyCents?: number;
-  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string; source?: string } };
+  metadata?: { agenteam?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string; source?: string } };
 }
 export interface Department {
   key: string;
@@ -120,7 +120,6 @@ export interface Settings {
   externalDefault: "ask" | "direct";
   globalBudgetCents: number;
   feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[]; pushNotices?: boolean };
-  autoUpdate?: { enabled: boolean; hour: number };
 }
 export interface Context {
   company: Company | null;

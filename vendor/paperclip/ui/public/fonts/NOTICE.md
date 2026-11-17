@@ -29,7 +29,7 @@ The refreshed task-row specimen uses this variable webfont for task identifiers.
 It supports upright weights 100–800. Existing uses of the system monospace stack
 remain unchanged until their design is reviewed.
 
-## Cormorant Garamond (Agentself SETO skin, display serif)
+## Cormorant Garamond (AgenTeam SETO skin, display serif)
 
 - Upstream project: https://github.com/CatharsisFonts/Cormorant
 - Taken from the npm package `@fontsource-variable/cormorant-garamond` 5.3.0 (`files/cormorant-garamond-latin-wght-normal.woff2`, `files/cormorant-garamond-latin-ext-wght-normal.woff2`), bundled without modification as `CormorantGaramond-Variable-latin.woff2` and `CormorantGaramond-Variable-latin-ext.woff2`
@@ -38,7 +38,7 @@ remain unchanged until their design is reviewed.
 
 Used for headings, the wordmark and stat numbers when the commercial Tiempos Headline is not installed locally (docs/handoff/design/DESIGN.md §9.11).
 
-## JetBrains Mono (Agentself SETO skin, monospace)
+## JetBrains Mono (AgenTeam SETO skin, monospace)
 
 - Upstream project: https://github.com/JetBrains/JetBrainsMono
 - Taken from the npm package `@fontsource-variable/jetbrains-mono` 5.3.0 (`files/jetbrains-mono-latin-wght-normal.woff2`), bundled without modification as `JetBrainsMono-Variable-latin.woff2`
@@ -48,7 +48,7 @@ Used for headings, the wordmark and stat numbers when the commercial Tiempos Hea
 ## Noto Serif SC (AgenTeam)
 
 - Upstream project: https://github.com/notofonts/noto-cjk (packaged by Fontsource: `@fontsource/noto-serif-sc` 5.3.1)
-- Files: `noto-serif-sc/noto-serif-sc-*-500-normal.woff2` (weight 500 only, split by unicode-range; `src/agentself/fonts-cjk.css` declares them)
+- Files: `noto-serif-sc/noto-serif-sc-*-500-normal.woff2` (weight 500 only, split by unicode-range; `src/agenteam/fonts-cjk.css` declares them)
 - License: SIL Open Font License 1.1 (`noto-serif-sc/OFL.txt`)
 
 Redistribution note: the WOFF2 slices are included unmodified from the Fontsource package. Used for

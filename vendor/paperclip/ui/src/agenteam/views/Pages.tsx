@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins";
+import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agenteam/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
@@ -175,7 +175,7 @@ export function Capabilities({ ctx, agentIds, permissionsOnly = false, embedded 
       <div className="section">
         <h2>对外动作权限</h2>
         <p className="hint">发邮件、发布、推代码、花钱等不可撤回的动作，默认「先问我」：{t("employee")}只做到草稿就绪，再用{t("card")}请你确认。连接器的 Allowed / Ask first / Off 在高级设置里调整。</p>
-        <Link className="btn" to="/agentself/capabilities/connectors">
+        <Link className="btn" to="/agenteam/capabilities/connectors">
           打开连接器设置
         </Link>
         <p className="hint">单个{t("employee")}的权限与信任级别在其完整页的「权限」标签里调整。</p>
@@ -228,7 +228,7 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
   // API employees: their real token counts × the price the user filled in for each model
   const estimate = (id: string): { yuan: number; missing: boolean } | null => {
     const a = ctx.agents.find((x) => x.id === id);
-    const source = a?.metadata?.agentself?.source;
+    const source = a?.metadata?.agenteam?.source;
     if (!source?.startsWith("api:")) return null;
     let yuan = 0;
     let missing = false;
@@ -460,7 +460,7 @@ function ProfileEditor() {
             <div className="md-preview">{draft || "（空）"}</div>
           )}
           <div className="sub mono" style={{ marginTop: 8 }}>
-            ~/.agentself/profile/{sel}.md
+            ~/.agenteam/profile/{sel}.md
           </div>
         </div>
       </div>
@@ -558,7 +558,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
           <input className="input" defaultValue={s.companyName} onBlur={(e) => e.target.value !== s.companyName && void save({ companyName: e.target.value })} />
         </div>
       </div>
-      <UpdateSection autoUpdate={s.autoUpdate ?? { enabled: false, hour: 4 }} onAuto={(autoUpdate) => void save({ autoUpdate })} />
+      <UpdateSection />
         </>
       )}
       {tab === "router" && (
@@ -601,9 +601,9 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
         <div className="row">
           <div>
             <div className="label">App Secret</div>
-            <div className="sub">存在环境变量 AGENTSELF_FEISHU_APP_SECRET，不写进配置文件</div>
+            <div className="sub">存在环境变量 AGENTEAM_FEISHU_APP_SECRET，不写进配置文件</div>
           </div>
-          <span className="sub">{s.feishu.secretRef || "AGENTSELF_FEISHU_APP_SECRET"}</span>
+          <span className="sub">{s.feishu.secretRef || "AGENTEAM_FEISHU_APP_SECRET"}</span>
         </div>
         <div className="row">
           <span className="label">推送哪些</span>
@@ -751,7 +751,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
                 const blob = new Blob([JSON.stringify(sk, null, 2)], { type: "application/json" });
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
-                a.download = `agentself-skin-${sk.id}.json`;
+                a.download = `agenteam-skin-${sk.id}.json`;
                 a.click();
                 URL.revokeObjectURL(a.href);
               }}
@@ -1249,31 +1249,87 @@ const UPDATE_STATUS: Record<string, string> = {
   broken: "上次更新失败，回退后也没起来，请看日志",
 };
 
-function UpdateSection({ autoUpdate, onAuto }: { autoUpdate: { enabled: boolean; hour: number }; onAuto: (a: { enabled: boolean; hour: number }) => void }) {
+function UpdateSection() {
   const [st, setSt] = useState<UpdateState | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<"check" | "update" | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
   const load = (check = false) =>
     as
       .get<UpdateState>(`/update/status${check ? "?check=1" : ""}`)
-      .then(setSt)
-      .catch((e) => setMsg(e instanceof Error ? e.message : String(e)));
+      .then((v) => (setSt(v), v))
+      .catch((e) => (setMsg(e instanceof Error ? e.message : String(e)), null));
   useEffect(() => void load(), []);
   const c = st?.lastCheck;
-  async function run(force = false) {
-    setBusy("run");
-    setMsg(null);
+
+  /** The update stops the whole system and starts it again, so the page loses the service for a while: poll until it is back. */
+  async function follow(startedAt: number) {
+    const end = Date.now() + 25 * 60_000;
+    let seenDown = false;
+    while (Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 3000));
+      let v: UpdateState | null = null;
+      try {
+        v = await as.get<UpdateState>("/update/status");
+      } catch {
+        seenDown = true;
+        setMsg("系统正在重启…（构建和重启要几分钟，不用刷新）");
+        continue;
+      }
+      setSt(v);
+      if (v.status === "updating") {
+        setMsg("正在更新：备份、拉取、构建中…");
+        continue;
+      }
+      const fresh = v.updatedAt ? Date.parse(v.updatedAt) >= startedAt - 5000 : false;
+      if (fresh || seenDown) {
+        setMsg(
+          v.status === "updated"
+            ? `更新完成：${v.current ?? ""}`
+            : v.status === "rolled_back"
+              ? `更新失败，已自动回退到当前版本${v.error ? `：${v.error}` : ""}`
+              : v.status === "broken"
+                ? `更新失败，回退后也没起来，请看日志 ~/.agenteam/logs/update.log${v.error ? `：${v.error}` : ""}`
+                : (UPDATE_STATUS[v.status ?? ""] ?? "更新结束"),
+        );
+        setDone(true);
+        return;
+      }
+    }
+    setMsg("等了 25 分钟还没结束，请看 ~/.agenteam/logs/update.log");
+  }
+
+  async function updateNow(force = false): Promise<void> {
+    const startedAt = Date.now();
     try {
       await as.post("/update/run", { force });
-      setMsg("开始更新：系统会停下、构建、重启，几分钟后刷新页面。失败会自动回退到当前版本。");
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
-      if (/正在干活/.test(text) && confirm(`${text}\n\n现在就更新？正在进行的运行会被中断。`)) return run(true);
+      if (/正在干活/.test(text) && confirm(`${text}\n\n现在就更新？正在进行的运行会被中断。`)) return updateNow(true);
       setMsg(text);
-    } finally {
       setBusy(null);
+      return;
     }
+    setMsg("已在后台开始更新：系统会停下、构建、重启。失败会自动回退到当前版本。");
+    await follow(startedAt);
+    setBusy(null);
   }
+
+  /** One button: look for a newer version, and if there is one, update in the background. */
+  async function checkAndUpdate() {
+    setBusy("check");
+    setMsg(null);
+    setDone(false);
+    const v = await load(true);
+    if (!v?.lastCheck) return setBusy(null);
+    if (v.lastCheck.behind === 0) {
+      setMsg(`已是最新（${v.lastCheck.latest}）`);
+      return setBusy(null);
+    }
+    setBusy("update");
+    await updateNow();
+  }
+
   return (
     <div className="section">
       <h2>版本与更新</h2>
@@ -1285,48 +1341,26 @@ function UpdateSection({ autoUpdate, onAuto }: { autoUpdate: { enabled: boolean;
             {st?.updatedAt ? ` · ${new Date(st.updatedAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}` : ""}
             {st?.error ? ` · ${st.error}` : ""}
           </div>
+          <div className="sub">点一下：检查有没有新版本，有就在后台更新（先备份数据库，失败自动回退）。</div>
         </div>
-        <button
-          className="btn"
-          disabled={busy !== null}
-          onClick={() => {
-            setBusy("check");
-            setMsg(null);
-            void load(true).finally(() => setBusy(null));
-          }}
-        >
-          {busy === "check" ? "检查中…" : "检查更新"}
+        <button className="btn primary" disabled={busy !== null} onClick={() => void checkAndUpdate()}>
+          {busy === "check" ? "检查中…" : busy === "update" ? "更新中…" : "检查并更新"}
         </button>
       </div>
       {c && c.behind > 0 && (
         <div className="row">
           <div>
-            <div className="label">有新版本 {c.latest}（{c.behind} 个更新）</div>
+            <div className="label">新版本 {c.latest}（{c.behind} 个更新）</div>
             <div className="sub mono" style={{ whiteSpace: "pre-wrap" }}>{c.changes.join("\n")}</div>
           </div>
-          <button className="btn primary" disabled={busy !== null} onClick={() => void run()}>
-            立即更新
-          </button>
         </div>
       )}
-      {c && c.behind === 0 && <div className="sub">已是最新（{c.latest}）。</div>}
-      <div className="row">
-        <div>
-          <div className="label">每天自动更新</div>
-          <div className="sub">到点且没有员工在干活时更新；先备份数据库，失败自动回退</div>
-        </div>
-        <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-          <select className="input" style={{ width: 96 }} value={autoUpdate.hour} disabled={!autoUpdate.enabled} onChange={(e) => onAuto({ ...autoUpdate, hour: Number(e.target.value) })} aria-label="自动更新时间">
-            {Array.from({ length: 24 }, (_, h) => (
-              <option key={h} value={h}>
-                {String(h).padStart(2, "0")}:00
-              </option>
-            ))}
-          </select>
-          <button className={`switch ${autoUpdate.enabled ? "on" : ""}`} role="switch" aria-checked={autoUpdate.enabled} aria-label="每天自动更新" onClick={() => onAuto({ ...autoUpdate, enabled: !autoUpdate.enabled })} />
-        </span>
-      </div>
       {msg && <div className="sub" style={{ marginTop: 8 }}>{msg}</div>}
+      {done && (
+        <button className="btn" style={{ marginTop: 8 }} onClick={() => window.location.reload()}>
+          刷新页面
+        </button>
+      )}
       {st?.backup && <div className="sub mono" style={{ marginTop: 4 }}>最近备份：{st.backup}</div>}
     </div>
   );
@@ -1452,7 +1486,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setErr(null);
     try {
       const pack = {
-        schema: "agentself.department/1",
+        schema: "agenteam.department/1",
         ...(templateKey ? { key: templateKey } : {}),
         name,
         icon,
@@ -1471,7 +1505,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
           identity: `你是用户的${t("lead")}，负责「${name}」。${description}`,
         },
         members: members.map((m) => ({ ...m, identity: m.identity || `你是${name}的${m.name}，负责${m.title}。` })),
-        skills: ["agentself-lead", "agentself-employee", "agentself-memory"],
+        skills: ["agenteam-lead", "agenteam-employee", "agenteam-memory"],
         routines: routineCron && routinePrompt ? [{ key: "r1", title: routinePrompt.slice(0, 30), cron: routineCron, to: members[0]?.key, prompt: routinePrompt }] : [],
       };
       const r = await as.post<{ department: string }>("/departments", pack);

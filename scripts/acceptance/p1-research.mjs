@@ -9,7 +9,7 @@ import path from "node:path";
 import { api, list } from "../lib/paperclip.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const dept = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agentself", "department-research.json"), "utf8"));
+const dept = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agenteam", "department-research.json"), "utf8"));
 const { companyId, projectId, leadAgentId } = dept;
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 

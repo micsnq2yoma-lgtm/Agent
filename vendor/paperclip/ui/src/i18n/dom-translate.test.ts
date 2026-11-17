@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { __test, translateText } from "./dom-translate";
 
-describe("Agentself zh-CN DOM translation", () => {
+describe("AgenTeam zh-CN DOM translation", () => {
   it("translates dictionary entries and keeps surrounding whitespace", () => {
     __test.DICT.set("Settings", "设置");
     expect(translateText("Settings")).toBe("设置");
@@ -25,7 +25,7 @@ describe("Agentself zh-CN DOM translation", () => {
   });
 });
 
-describe("Agentself skin terminology (P9)", () => {
+describe("AgenTeam skin terminology (P9)", () => {
   it("rewrites dictionary words with the skin terms, including already-Chinese text", () => {
     __test.setTerms([["智能体", "员工"], ["管理台", "我"]]);
     expect(translateText("1 agent")).toBe("1 个员工");

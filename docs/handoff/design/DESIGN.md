@@ -1,7 +1,7 @@
 ---
 version: v0.6-seto
-name: Agentself 办公室皮肤 · SETO 风格
-description: Agentself v0.6 默认皮肤「办公室」的视觉规范。冷灰底、白色浮层、墨黑主操作、胶囊控件、衬线标题。所有数值直接对应 packages/skins 的 SkinTokens 与 styles.css 的 --as-* 变量。
+name: AgenTeam 办公室皮肤 · SETO 风格
+description: AgenTeam v0.6 默认皮肤「办公室」的视觉规范。冷灰底、白色浮层、墨黑主操作、胶囊控件、衬线标题。所有数值直接对应 packages/skins 的 SkinTokens 与 styles.css 的 --as-* 变量。
 canvas: https://claude.ai/artifact/QRQj7fpA5MyjfporeVFzXv
 
 colors:
@@ -91,9 +91,9 @@ shadow:
   cardDark: "0 0 0 1px rgba(255,255,255,0.05), 0 8px 24px rgba(0,0,0,0.32)"
 ---
 
-# Agentself 设计规范 · v0.6 · SETO 风格
+# AgenTeam 设计规范 · v0.6 · SETO 风格
 
-本文件放在 `docs/handoff/design/DESIGN.md`。设计稿画布：Agentself v0.6 界面 · SETO 风格（链接见文件头 `canvas`）。
+本文件放在 `docs/handoff/design/DESIGN.md`。设计稿画布：AgenTeam v0.6 界面 · SETO 风格（链接见文件头 `canvas`）。
 
 - 画布里的 7 张图是视觉目标，本文件是实现依据。
 - 两者冲突时以本文件为准。
@@ -231,13 +231,13 @@ border-radius: var(--as-radius-control, 999px);
 ### 4.1 侧栏 `.sidebar` `.nav-item` `.nav-section` `.count`
 
 ```css
-.agentself .sidebar { padding: 20px 20px 24px; background: var(--as-sidebar); border-right: 1px solid var(--as-border); }
-.agentself .nav-item { height: 44px; padding: 0 14px; gap: 14px; border-radius: var(--as-radius-control, 999px); font-size: 15px; color: var(--as-muted); }
-.agentself .nav-item svg { width: 18px; height: 18px; stroke: var(--as-placeholder); stroke-width: 1.8; }
-.agentself .nav-item.active { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
-.agentself .nav-item.active svg { stroke: var(--as-text); }
-.agentself .nav-item .count.hot { min-width: 22px; height: 22px; display: grid; place-items: center; padding: 0 6px; font-size: 11px; font-weight: 700; background: var(--as-high); color: #fff; border-radius: 999px; }
-.agentself .nav-section { margin: 20px 6px 4px 14px; font-size: 13px; font-weight: 600; color: var(--as-text); }
+.agenteam .sidebar { padding: 20px 20px 24px; background: var(--as-sidebar); border-right: 1px solid var(--as-border); }
+.agenteam .nav-item { height: 44px; padding: 0 14px; gap: 14px; border-radius: var(--as-radius-control, 999px); font-size: 15px; color: var(--as-muted); }
+.agenteam .nav-item svg { width: 18px; height: 18px; stroke: var(--as-placeholder); stroke-width: 1.8; }
+.agenteam .nav-item.active { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
+.agenteam .nav-item.active svg { stroke: var(--as-text); }
+.agenteam .nav-item .count.hot { min-width: 22px; height: 22px; display: grid; place-items: center; padding: 0 6px; font-size: 11px; font-weight: 700; background: var(--as-high); color: #fff; border-radius: 999px; }
+.agenteam .nav-section { margin: 20px 6px 4px 14px; font-size: 13px; font-weight: 600; color: var(--as-text); }
 ```
 
 - **图标：** 全部用 `lucide-react` 线性图标（stroke 1.8，18px），删掉文字符号「⌕ ▾ ▸ ＋」。
@@ -279,10 +279,10 @@ border-radius: var(--as-radius-control, 999px);
 把一排边框胶囊改成一个分段控件：
 
 ```css
-.agentself .filters { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--as-surface-subtle); }
-.agentself .filter { height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--as-muted); font-size: 13px; font-weight: 500; }
-.agentself .filter.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
-.agentself .filter .n { color: var(--as-text-tertiary); }
+.agenteam .filters { display: inline-flex; gap: 2px; padding: 4px; border-radius: 999px; background: var(--as-surface-subtle); }
+.agenteam .filter { height: 32px; padding: 0 14px; border: 0; border-radius: 999px; background: none; color: var(--as-muted); font-size: 13px; font-weight: 500; }
+.agenteam .filter.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
+.agenteam .filter .n { color: var(--as-text-tertiary); }
 ```
 
 - 「结果」标题去掉，筛选器放在左边。
@@ -291,16 +291,16 @@ border-radius: var(--as-radius-control, 999px);
 ### 4.6 待你处理卡片 `.cards` `.card`
 
 ```css
-.agentself .cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
-.agentself .card { min-height: 124px; padding: 18px; gap: 6px; border: 0; border-radius: var(--as-radius); background: var(--as-surface); box-shadow: var(--as-shadow-card); cursor: pointer; }
-.agentself .card.decide, .agentself .card.deliver, .agentself .card.failed, .agentself .card.answer { border-top: 0; }   /* 删除彩色顶边 */
-.agentself .card-head { display: flex; justify-content: space-between; font-size: 12px; line-height: 18px; }
-.agentself .card-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--as-muted); font-weight: 500; }
-.agentself .card-kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--as-high); display: none; }
-.agentself .card.decide .card-kind::before, .agentself .card.failed .card-kind::before, .agentself .card.hire .card-kind::before { display: block; }
-.agentself .card-time { color: var(--as-text-tertiary); }
-.agentself .card-title { margin-top: auto; font-size: 15px; line-height: 22px; -webkit-line-clamp: 2; }
-.agentself .card-sub { font-size: 13px; line-height: 20px; color: var(--as-muted); }
+.agenteam .cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.agenteam .card { min-height: 124px; padding: 18px; gap: 6px; border: 0; border-radius: var(--as-radius); background: var(--as-surface); box-shadow: var(--as-shadow-card); cursor: pointer; }
+.agenteam .card.decide, .agenteam .card.deliver, .agenteam .card.failed, .agenteam .card.answer { border-top: 0; }   /* 删除彩色顶边 */
+.agenteam .card-head { display: flex; justify-content: space-between; font-size: 12px; line-height: 18px; }
+.agenteam .card-kind { display: inline-flex; align-items: center; gap: 6px; color: var(--as-muted); font-weight: 500; }
+.agenteam .card-kind::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--as-high); display: none; }
+.agenteam .card.decide .card-kind::before, .agenteam .card.failed .card-kind::before, .agenteam .card.hire .card-kind::before { display: block; }
+.agenteam .card-time { color: var(--as-text-tertiary); }
+.agenteam .card-title { margin-top: auto; font-size: 15px; line-height: 22px; -webkit-line-clamp: 2; }
+.agenteam .card-sub { font-size: 13px; line-height: 20px; color: var(--as-muted); }
 ```
 
 卡片里只放四样东西：
@@ -334,7 +334,7 @@ card-sub   = 谁 · 编号（交付卡加 "3/3 通过"）
 - **验收摘要（新增）：** 3 列的 `surface-tile` 小块，每块是编号 + 标准 + 判定标签。来自「独立核查」文档。
 - **`.opts`：** 第一项用 `.btn.primary`，其余用 `.btn`。然后是 `返工`（ghost，铅笔图标），弹性空白，最右边 `稍后提醒`（ghost，时钟图标）。
 - **`.report`：** 交付卡用，`surface-tile` 底、圆角 12。
-- **页脚：** 上方 1px `border-soft`。左边 `不回复：…`（tertiary 12px），右边复选框「以后同类直接这样做」，勾选后走 `POST /agentself/api/profile/decisions`。
+- **页脚：** 上方 1px `border-soft`。左边 `不回复：…`（tertiary 12px），右边复选框「以后同类直接这样做」，勾选后走 `POST /agenteam/api/profile/decisions`。
 
 ### 4.8 任务进展面板（新增 `.progress`）
 
@@ -395,9 +395,9 @@ card-sub   = 谁 · 编号（交付卡加 "3/3 通过"）
 把下划线标签改成胶囊标签。我们的页面和 Paperclip 嵌入页统一用这一种。
 
 ```css
-.agentself .tabbar { border-bottom: 0; gap: 4px; margin: 20px 0; }
-.agentself .tabbar a { height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 18px; border: 0; border-radius: 999px; color: var(--as-muted); font-weight: 500; margin: 0; }
-.agentself .tabbar a.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
+.agenteam .tabbar { border-bottom: 0; gap: 4px; margin: 20px 0; }
+.agenteam .tabbar a { height: 40px; display: inline-flex; align-items: center; gap: 6px; padding: 0 18px; border: 0; border-radius: 999px; color: var(--as-muted); font-weight: 500; margin: 0; }
+.agenteam .tabbar a.on { background: var(--as-surface); color: var(--as-text); font-weight: 600; box-shadow: var(--as-shadow-nav); }
 ```
 
 ### 4.12 统计条 `.stats` 与面板内统计块
@@ -489,7 +489,7 @@ card-sub   = 谁 · 编号（交付卡加 "3/3 通过"）
 | # | 文件 | 改什么 |
 | --- | --- | --- |
 | 1 | `packages/skins/src/index.ts` | office 皮肤改值；`SkinTokens` 加可选新键；`paperclipVars` 改 `--muted` / `--accent` / `--primary-foreground`，加 `--font-heading` |
-| 2 | `ui/src/agentself/styles.css` | 按 §4 改 `.sidebar` `.nav-item` `.topbar` `.toggle` `.btn` `.composer` `.chip-select` `.filters` `.cards` `.card` `.detail` `.drawer` `.tabbar` `.stats` `.section` `table.data` `.bar` `.empty` `.toast`；新增 `.progress` `.stages` `.icon-btn` `.criteria` |
+| 2 | `ui/src/agenteam/styles.css` | 按 §4 改 `.sidebar` `.nav-item` `.topbar` `.toggle` `.btn` `.composer` `.chip-select` `.filters` `.cards` `.card` `.detail` `.drawer` `.tabbar` `.stats` `.section` `table.data` `.bar` `.empty` `.toast`；新增 `.progress` `.stages` `.icon-btn` `.criteria` |
 | 3 | `components/Sidebar.tsx` | 四项导航；lucide 图标；主管行用 pack icon；删除 `.nav-me`（我 / 通知） |
 | 4 | `components/Brand.tsx` | 字标 E 用 `--as-brand`；Robot 底块改 `--as-avatar-bg` 加圆角 |
 | 5 | `App.tsx`（topbar） | 去掉 `.pending-badge`，顶栏 64，无底线 |

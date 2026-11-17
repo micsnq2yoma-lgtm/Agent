@@ -86,7 +86,7 @@ export async function deleteCompany(db: Db, id: string) {
             .delete(heartbeatRunEvents)
             .where(inArray(heartbeatRunEvents.runId, companyRunIds.map((run) => run.id)));
         }
-        // Agentself: decisions.origin_run_id references heartbeat_runs; delete decisions
+        // AgenTeam: decisions.origin_run_id references heartbeat_runs; delete decisions
         // (children cascade) before runs, otherwise company deletion fails with a FK error.
         await tx.delete(decisions).where(eq(decisions.companyId, id));
         await tx.delete(decisionBundles).where(eq(decisionBundles.companyId, id));

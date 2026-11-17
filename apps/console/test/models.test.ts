@@ -5,20 +5,20 @@ import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
 import { estimateYuan, listProviders, mergeEnv, normalizeContextLengths, normalizePrices, parseModelContextLengths, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
-import { contextLengthOf, contextLengthText } from "../../../vendor/paperclip/ui/src/agentself/lib/model-context";
-import type { ModelsInfo } from "../../../vendor/paperclip/ui/src/agentself/lib/models";
+import { contextLengthOf, contextLengthText } from "../../../vendor/paperclip/ui/src/agenteam/lib/model-context";
+import type { ModelsInfo } from "../../../vendor/paperclip/ui/src/agenteam/lib/models";
 // @ts-expect-error plain JS module
 import { agentAdapterConfig, codexMcpArgs, validatePack } from "../../../scripts/lib/department.mjs";
 // @ts-expect-error plain JS module
 import { tomlStr } from "../../../scripts/lib/mcp-servers.mjs";
 
-const home = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-models-"));
-const previousHome = process.env.AGENTSELF_HOME;
-// everything that reads ~/.agentself (mailboxes, tool servers) reads this empty home, not the machine's
-process.env.AGENTSELF_HOME = home;
+const home = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-models-"));
+const previousHome = process.env.AGENTEAM_HOME;
+// everything that reads ~/.agenteam (mailboxes, tool servers) reads this empty home, not the machine's
+process.env.AGENTEAM_HOME = home;
 afterAll(() => {
-  if (previousHome === undefined) delete process.env.AGENTSELF_HOME;
-  else process.env.AGENTSELF_HOME = previousHome;
+  if (previousHome === undefined) delete process.env.AGENTEAM_HOME;
+  else process.env.AGENTEAM_HOME = previousHome;
   fs.rmSync(home, { recursive: true, force: true });
 });
 
@@ -55,21 +55,21 @@ describe("API providers", () => {
   it("older agents follow their adapter", () => {
     expect(sourceOf({ adapterType: "codex_local" })).toBe("codex");
     expect(sourceOf({ adapterType: "claude_local" })).toBe("claude");
-    expect(sourceOf({ adapterType: "claude_local", metadata: { agentself: { source: "api:glm" } } })).toBe("api:glm");
+    expect(sourceOf({ adapterType: "claude_local", metadata: { agenteam: { source: "api:glm" } } })).toBe("api:glm");
   });
 });
 
 describe("Codex employees get the team tools", () => {
   it("the team MCP server is registered through -c overrides, with the run's variables forwarded", () => {
     const args = codexMcpArgs({ nodePath: "D:\\Apps\\node\\node.exe" });
-    expect(args).toContain("mcp_servers.agentself.command='D:\\Apps\\node\\node.exe'");
-    expect(args.find((a: string) => a.startsWith("mcp_servers.agentself.args="))).toMatch(/mcp-team\.mjs','--role=employee'\]$/);
-    expect(args).toContain("mcp_servers.agentself.env_vars=['PAPERCLIP_API_URL','PAPERCLIP_API_KEY','PAPERCLIP_AGENT_ID','PAPERCLIP_COMPANY_ID','PAPERCLIP_RUN_ID','PAPERCLIP_TASK_ID','AGENTSELF_HOME']");
+    expect(args).toContain("mcp_servers.agenteam.command='D:\\Apps\\node\\node.exe'");
+    expect(args.find((a: string) => a.startsWith("mcp_servers.agenteam.args="))).toMatch(/mcp-team\.mjs','--role=employee'\]$/);
+    expect(args).toContain("mcp_servers.agenteam.env_vars=['PAPERCLIP_API_URL','PAPERCLIP_API_KEY','PAPERCLIP_AGENT_ID','PAPERCLIP_COMPANY_ID','PAPERCLIP_RUN_ID','PAPERCLIP_TASK_ID','AGENTEAM_HOME']");
   });
   it("no argument has whitespace in it: Windows splits those on the way to Codex (codex-cli 0.128)", () => {
     const args = codexMcpArgs({ nodePath: "C:\\Program Files\\nodejs\\node.exe" });
     for (const a of args) expect(a).not.toMatch(/\s/);
-    expect(args).toContain("mcp_servers.agentself.command='node'");
+    expect(args).toContain("mcp_servers.agenteam.command='node'");
   });
   it("values with spaces or quotes become escaped basic strings", () => {
     expect(tomlStr("D:\\My Docs\\x.mjs")).toBe('"D:\\\\My\\u0020Docs\\\\x.mjs"');
@@ -79,11 +79,12 @@ describe("Codex employees get the team tools", () => {
   it("Codex employees use the CLI engine without the Codex sandbox", () => {
     const c = agentAdapterConfig({ role: "employee", adapterType: "codex_local", cwd: "/w/e", nodePath: "node" });
     expect(c).toMatchObject({ engine: "cli", dangerouslyBypassApprovalsAndSandbox: true });
-    expect(c.extraArgs.join(" ")).toMatch(/mcp_servers\.agentself/);
+    expect(c.extraArgs.join(" ")).toMatch(/mcp_servers\.agenteam/);
   });
   it("a lead cannot run on Codex; employees can use any source", () => {
-    const base = { schema: "agentself.department/1", name: "T", lead: { name: "L" }, members: [{ key: "a", name: "A", source: "api:deepseek" }] };
+    const base = { schema: "agenteam.department/1", name: "T", lead: { name: "L" }, members: [{ key: "a", name: "A", source: "api:deepseek" }] };
     expect(validatePack(base)).toEqual([]);
+    expect(validatePack({ ...base, schema: "agentself.department/1" })).toEqual([]); // exported by a version before the rename
     expect(validatePack({ ...base, lead: { name: "L", source: "codex" } }).join()).toMatch(/主管只能用 Claude Code/);
     expect(validatePack({ ...base, members: [{ key: "a", name: "A", source: "gemini" }] }).join()).toMatch(/模型来源不支持/);
   });
@@ -119,20 +120,20 @@ describe("model market", () => {
     expect(resolveSource("claude", home, { model: "sonnet" })).toEqual({ adapterType: "claude_local", env: {}, model: "sonnet" });
   });
   it("setAgentModel stores the choice and rewrites the env for API agents", async () => {
-    process.env.AGENTSELF_HOME = home;
+    process.env.AGENTEAM_HOME = home;
     const calls: Array<[string, string, Record<string, unknown>]> = [];
-    const agent = { id: "E", adapterType: "claude_local", adapterConfig: { cwd: "/w/e", model: "deepseek-reasoner", env: { HTTP_PROXY: "p" } }, metadata: { agentself: { isLead: false, source: "api:deepseek" } } };
+    const agent = { id: "E", adapterType: "claude_local", adapterConfig: { cwd: "/w/e", model: "deepseek-reasoner", env: { HTTP_PROXY: "p" } }, metadata: { agenteam: { isLead: false, source: "api:deepseek" } } };
     const api = async (method: string, p: string, body: Record<string, unknown>) => {
       calls.push([method, p, body]);
       return method === "GET" ? agent : { ...agent, ...body };
     };
     await setAgentModel("E", "deepseek-chat", { api, log: () => {} });
-    const patch = calls.find((c) => c[0] === "PATCH")![2] as { adapterConfig: { model: string; env: Record<string, unknown> }; replaceAdapterConfig: boolean; metadata: { agentself: { model: string } } };
+    const patch = calls.find((c) => c[0] === "PATCH")![2] as { adapterConfig: { model: string; env: Record<string, unknown> }; replaceAdapterConfig: boolean; metadata: { agenteam: { model: string } } };
     expect(patch.adapterConfig.model).toBe("deepseek-chat");
     expect(patch.adapterConfig.env.ANTHROPIC_MODEL).toBe("deepseek-chat");
     expect(patch.adapterConfig.env.HTTP_PROXY).toBe("p");
     expect(patch.replaceAdapterConfig).toBe(true);
-    expect(patch.metadata.agentself.model).toBe("deepseek-chat");
+    expect(patch.metadata.agenteam.model).toBe("deepseek-chat");
     await expect(setAgentModel("E", "bad model name!", { api, log: () => {} })).rejects.toThrow(/模型名不对/);
   });
 });

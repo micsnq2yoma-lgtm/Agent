@@ -1,5 +1,5 @@
 {
-  "name": "@agentself/pixel-office",
+  "name": "@agenteam/pixel-office",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,5 +7,5 @@
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": { ".": "./src/index.ts" },
-  "dependencies": { "@agentself/shared": "workspace:*" }
+  "dependencies": { "@agenteam/shared": "workspace:*" }
 }

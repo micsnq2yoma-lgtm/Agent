@@ -1,5 +1,5 @@
 // Team-layer rules (PLAN 4.2, 4.3, 4.5). Pure functions — no I/O — so they can be unit-tested.
-import type { MessageKind, Tier } from "@agentself/shared";
+import type { MessageKind, Tier } from "@agenteam/shared";
 
 /* ------------------------------------------------------------------ */
 /* Studio gate                                                         */

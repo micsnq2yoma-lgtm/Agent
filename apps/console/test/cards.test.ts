@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildCards, countByType, filterCards, type AttentionItem, type Interaction } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
+import { buildCards, countByType, filterCards, type AttentionItem, type Interaction } from "../../../vendor/paperclip/ui/src/agenteam/lib/cards";
 
 const agents = [
-  { id: "lead", name: "科研主管", adapterType: "claude_local", metadata: { agentself: { department: "research", isLead: true } } },
-  { id: "emp", name: "实验员", adapterType: "codex_local", metadata: { agentself: { department: "research" } } },
+  { id: "lead", name: "科研主管", adapterType: "claude_local", metadata: { agenteam: { department: "research", isLead: true } } },
+  { id: "emp", name: "实验员", adapterType: "codex_local", metadata: { agenteam: { department: "research" } } },
 ];
 const deptOf = (p: string | null | undefined) => (p === "proj" ? "科研部" : null);
 
@@ -125,7 +125,7 @@ describe("workbench cards", () => {
   });
 });
 
-import { hireCards, relTime } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
+import { hireCards, relTime } from "../../../vendor/paperclip/ui/src/agenteam/lib/cards";
 describe("hire cards (SETO §4.6)", () => {
   const hire = { id: "h1", leadAgentId: "l", leadName: "科研主管", team: "科研", issueId: "top", name: "小码", capabilities: "写代码", adapterType: "codex_local" as const, reason: "缺人", createdAt: "2026-11-15T10:00:00Z" };
   it("turns a pending hiring request into a decide-tier card", () => {
@@ -150,7 +150,7 @@ describe("hire cards (SETO §4.6)", () => {
   });
 });
 
-import { noticeCards } from "../../../vendor/paperclip/ui/src/agentself/lib/cards";
+import { noticeCards } from "../../../vendor/paperclip/ui/src/agenteam/lib/cards";
 describe("notice cards (notify_user was stored but never shown)", () => {
   const agents = [{ id: "emp", name: "科研员", adapterType: "claude_local" }] as never;
   const issues = [{ id: "t1", identifier: "AGE-200" }] as never;

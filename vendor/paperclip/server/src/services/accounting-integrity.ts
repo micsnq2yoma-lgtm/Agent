@@ -99,7 +99,7 @@ export function accountingIntegrityService(db: Db, hooks: BudgetServiceHooks = {
       }
     },
     /**
-     * Agentself escape hatch: a run stopped before its usage receipt arrived (e.g. its issue was
+     * AgenTeam escape hatch: a run stopped before its usage receipt arrived (e.g. its issue was
      * cancelled mid-run) stays pending forever, which hard-pauses every budget it touches. The
      * board may explicitly write such a run off: the captured usage (or the given amount, default
      * 0) is recorded as an *estimated* cost, the write-off is kept on the run and in the activity

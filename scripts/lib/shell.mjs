@@ -8,7 +8,7 @@ import path from "node:path";
 /** Git Bash on this machine, or null (not Windows, or Git not found). */
 export function gitBash() {
   if (process.platform !== "win32") return null;
-  if (process.env.AGENTSELF_BASH && fs.existsSync(process.env.AGENTSELF_BASH)) return process.env.AGENTSELF_BASH;
+  if (process.env.AGENTEAM_BASH && fs.existsSync(process.env.AGENTEAM_BASH)) return process.env.AGENTEAM_BASH;
   const candidates = [];
   const exec = spawnSync("git", ["--exec-path"], { encoding: "utf8", shell: true, windowsHide: true }).stdout?.trim();
   // …\Git\mingw64\libexec\git-core → …\Git\bin\bash.exe

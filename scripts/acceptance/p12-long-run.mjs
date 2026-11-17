@@ -3,7 +3,7 @@
 // The research employee gets a fake experiment that runs for EXPERIMENT_SECONDS (default 240) in
 // the background and then writes result.json. Expected:
 //  - the employee starts it, registers a probe with watch_job and ENDS its turn (no busy waiting)
-//  - the plugin's probe sees the end and wakes the employee ("⏱ 看守已结束" comment, wakeReason agentself_watch)
+//  - the plugin's probe sees the end and wakes the employee ("⏱ 看守已结束" comment, wakeReason agenteam_watch)
 //  - a later run reads the result and finishes the task with the number in it
 // Model cost: two short employee turns. ~8–15 min.
 // Usage: node scripts/acceptance/p12-long-run.mjs [--seconds 240]
@@ -72,7 +72,7 @@ const runs = (await runsOf(issue.id)).sort((a, b) => a.createdAt.localeCompare(b
 const cs = await comments(issue.id);
 // the plugin's wake comment reads "⏱ 看守已结束…" (watch.ts wakeComment)
 const wake = cs.find((c) => /⏱ 看守已?结束/.test(c.body ?? ""));
-// and the run it caused carries wakeReason agentself_watch
+// and the run it caused carries wakeReason agenteam_watch
 const wakeReasons = [];
 for (const r of runs) {
   const d = await api("GET", `/heartbeat-runs/${r.runId ?? r.id}`).catch(() => null);
@@ -83,7 +83,7 @@ results.experimentFinishedAt = finishedAt;
 // the first turn ended while the experiment was still running (no busy waiting)
 results.firstTurnEndedEarly = !!(finishedAt && runs[0] && (runs[0].finishedAt ?? runs[0].updatedAt) < finishedAt);
 results.watchComment = !!wake;
-results.watchWoke = wakeReasons.includes("agentself_watch");
+results.watchWoke = wakeReasons.includes("agenteam_watch");
 results.runAfterWake = results.watchWoke || !!(wake && runs.some((r) => r.createdAt >= wake.createdAt));
 results.wakeReasons = wakeReasons;
 results.reportedNumber = cs.some((c) => (c.body ?? "").includes(ACC));

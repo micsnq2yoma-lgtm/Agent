@@ -1,4 +1,4 @@
-// Shared types for Agentself: cards, messages, department packs, office snapshots.
+// Shared types for AgenTeam: cards, messages, department packs, office snapshots.
 
 /** Three attention tiers (PLAN 4.3). */
 export type Tier = "high" | "medium" | "low";
@@ -62,7 +62,7 @@ export type AdapterType = "claude_local" | "codex_local";
 
 /** Department pack format (PLAN 7.4). Saved in packs/departments/*.json. */
 export interface DepartmentPack {
-  schema: "agentself.department/1";
+  schema: "agenteam.department/1";
   name: string;
   icon: string;
   description: string;

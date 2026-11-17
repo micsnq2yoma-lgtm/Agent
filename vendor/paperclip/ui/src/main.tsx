@@ -31,7 +31,7 @@ import { startDomTranslation } from "./i18n/dom-translate";
 
 initPluginBridge(React, ReactDOM);
 
-// Agentself: Chinese admin UI (opt out with localStorage "paperclip.locale" = "en").
+// AgenTeam: Chinese admin UI (opt out with localStorage "paperclip.locale" = "en").
 startDomTranslation();
 
 // React 19.2 emits an unbounded stream of performance.measure() entries for its

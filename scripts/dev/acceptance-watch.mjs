@@ -18,7 +18,8 @@
 // owner / member / collaborator are verified, and only a 验收请求 posted by one of them after the
 // 待验收 label was last added (by someone with write access) reaches the agent. The agent gets no
 // GitHub access of its own: it writes its result to a file and this script posts it.
-// Logs: ~/.agentself/logs/acceptance-watch.log; history: ~/.agentself/acceptance-watch.json.
+// Logs: ~/.agenteam/logs/acceptance-watch.log; history: ~/.agenteam/acceptance-watch.json.
+import { resolveHome } from "../lib/legacy.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -74,6 +75,15 @@ export function repoFromRemote(url) {
   const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url ?? "").trim());
   return m ? `${m[1]}/${m[2]}` : null;
 }
+/** The repository's current owner/name (GitHub redirects the old name of a renamed one); the given name if that can't be asked. */
+export function canonicalRepo(repo, ask = (r) => ghJson("api", `repos/${r}`)?.full_name) {
+  try {
+    const name = ask(repo);
+    return typeof name === "string" && name.includes("/") ? name : repo;
+  } catch {
+    return repo;
+  }
+}
 /** The prompt handed to the maintainer agent. */
 export function buildPrompt({ machine, repo, pr, sha, request, resultFile }) {
   return [
@@ -98,7 +108,7 @@ export function buildPrompt({ machine, repo, pr, sha, request, resultFile }) {
 
 /* ---------------- machine side ---------------- */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const home = resolveHome();
 const historyFile = path.join(home, "acceptance-watch.json");
 const lockFile = path.join(home, "run", "acceptance-watch.lock");
 const logFile = path.join(home, "logs", "acceptance-watch.log");
@@ -115,7 +125,8 @@ function log(msg) {
   fs.appendFileSync(logFile, line + "\n");
 }
 function run(cmd, argv, { cwd = root, input } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, input, encoding: "utf8", shell: win, windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+  // git and gh are real executables: no shell, or "&" in an API URL splits the command on Windows.
+  const r = spawnSync(cmd, argv, { cwd, input, encoding: "utf8", shell: win && cmd !== "git" && cmd !== "gh", windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status ?? r.error?.message}）：${(r.stderr || r.stdout || "").trim().split(/\r?\n/).slice(-3).join(" / ")}`);
   return (r.stdout ?? "").trim();
 }
@@ -235,9 +246,9 @@ function runAgent(prompt) {
 /** Back up, switch this install to `sha`, build what changed, start, health check. */
 async function deploy(sha, prev, { backupFirst }) {
   const { backup, installAndBuild, startDetached, waitHealthy } = await import("../update.mjs");
-  const { stopAgentself } = await import("../stop.mjs");
+  const { stopAgenteam } = await import("../stop.mjs");
   if (backupFirst) log(`backup: ${backup().dir}`);
-  await stopAgentself(log);
+  await stopAgenteam(log);
   git("checkout", "--quiet", "--detach", sha);
   installAndBuild(prev, sha);
   startDetached();
@@ -246,13 +257,13 @@ async function deploy(sha, prev, { backupFirst }) {
 /** Put the install back on the branch / commit it was on before the round. */
 async function restore(prevRef, prevSha) {
   const { installAndBuild, startDetached, waitHealthy } = await import("../update.mjs");
-  const { stopAgentself } = await import("../stop.mjs");
+  const { stopAgenteam } = await import("../stop.mjs");
   const now = git("rev-parse", "HEAD");
-  await stopAgentself(log);
+  await stopAgenteam(log);
   git("checkout", "--quiet", prevRef === "HEAD" ? prevSha : prevRef);
   installAndBuild(now, prevSha);
   startDetached();
-  log((await waitHealthy()) ? `restored ${prevRef} (${prevSha.slice(0, 7)})` : `restored ${prevRef}, but it did not come up healthy: check ~/.agentself/logs`);
+  log((await waitHealthy()) ? `restored ${prevRef} (${prevSha.slice(0, 7)})` : `restored ${prevRef}, but it did not come up healthy: check ~/.agenteam/logs`);
 }
 
 const resultDir = path.join(root, ".agenteam-acceptance");
@@ -353,8 +364,10 @@ async function main() {
   }
   if (process.argv.includes("--install")) return install(machine);
 
-  const repo = argValue("--repo") || repoFromRemote(git("remote", "get-url", "origin"));
-  if (!repo) throw new Error("认不出 GitHub 仓库：用 --repo owner/name 指定");
+  const given = argValue("--repo") || repoFromRemote(git("remote", "get-url", "origin"));
+  if (!given) throw new Error("认不出 GitHub 仓库：用 --repo owner/name 指定");
+  // A repository renamed on GitHub keeps answering to its old name; PRs report the new one.
+  const repo = canonicalRepo(given);
   if (!takeLock()) {
     log("another pass is still running; skipping");
     return;

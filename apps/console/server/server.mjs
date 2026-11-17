@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Agentself local service (P8): hosts the Agentself-only endpoints under /agentself/api
+// AgenTeam local service (P8): hosts the AgenTeam-only endpoints under /agenteam/api
 // (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
 // Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
-// /agentself/api/* here, so it listens on loopback only and serves no UI.
+// /agenteam/api/* here, so it listens on loopback only and serves no UI.
+// first: AGENTSELF_* from before the rename count before any module below reads the environment
+import "../../../scripts/lib/legacy.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
@@ -21,15 +23,17 @@ import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testSe
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
+import { legacyHome, migrateHome, rewriteLegacyPaths, resolveHome } from "../../../scripts/lib/legacy.mjs";
 import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(here, "..", "..", "..");
 const PAPERCLIP = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
-const PORT = Number(process.env.AGENTSELF_PORT ?? 3200);
-const HOST = process.env.AGENTSELF_HOST ?? "127.0.0.1";
-const HOME = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const PORT = Number(process.env.AGENTEAM_PORT ?? 3200);
+const HOST = process.env.AGENTEAM_HOST ?? "127.0.0.1";
+migrateHome();
+const HOME = resolveHome();
 const STORE = path.join(HOME, "console.json");
 
 /* ---------------- store ---------------- */
@@ -41,8 +45,6 @@ const DEFAULT_SETTINGS = {
   externalDefault: "ask",
   globalBudgetCents: 0,
   feishu: { enabled: false, appId: "", secretRef: "", allowUserIds: [], pushTiers: ["high"] },
-  // nightly self-update (scripts/update.mjs): at `hour` local time, only when nobody is working
-  autoUpdate: { enabled: false, hour: 4 },
 };
 function loadStore() {
   try {
@@ -87,15 +89,40 @@ async function renameLegacyCompany(company) {
   }
 }
 
+/** Agents created before the rename carry metadata.agentself; it moves to metadata.agenteam once. */
+async function migrateAgentMetadata(agents) {
+  const oldHome = legacyHome();
+  for (const a of agents) {
+    const patch = {};
+    const old = a.metadata?.agentself;
+    if (old) {
+      const { agentself: _drop, ...rest } = a.metadata;
+      patch.metadata = { ...rest, agenteam: rest.agenteam ?? old };
+    }
+    // the working folder (and any other path) still under ~/.agentself moved with the data folder
+    const cfg = oldHome && a.adapterConfig ? rewriteLegacyPaths(a.adapterConfig, oldHome, HOME) : null;
+    if (cfg) Object.assign(patch, { adapterConfig: cfg, replaceAdapterConfig: true });
+    if (!Object.keys(patch).length) continue;
+    try {
+      await pc("PATCH", `/agents/${a.id}`, patch);
+    } catch {
+      /* use the new shape now; the next load retries the write */
+    }
+    if (patch.metadata) a.metadata = patch.metadata;
+    if (patch.adapterConfig) a.adapterConfig = patch.adapterConfig;
+  }
+}
+
 export async function loadContext() {
   const companies = arr(await pc("GET", "/companies")).filter((c) => c.status !== "archived");
   const company = companies.find((c) => c.name === store.settings.companyName) ?? companies.find((c) => c.name === "Agentself") ?? companies[0] ?? null;
   if (company?.name === "Agentself") await renameLegacyCompany(company);
   if (!company) return { company: null, departments: [], agents: [], projects: [] };
   const [agents, projects] = await Promise.all([pc("GET", `/companies/${company.id}/agents`), pc("GET", `/companies/${company.id}/projects`)]);
+  await migrateAgentMetadata(arr(agents));
   const deptMap = new Map();
   for (const a of arr(agents)) {
-    const m = a.metadata?.agentself;
+    const m = a.metadata?.agenteam;
     // terminated agents (a removed team whose history kept its rows) no longer make a team
     if (!m?.department || a.status === "terminated") continue;
     const d = deptMap.get(m.department) ?? { key: m.department, name: m.departmentName ?? m.department, projectId: m.projectId ?? null, leadAgentId: null, members: [] };
@@ -117,12 +144,12 @@ function externalNote(mode) {
   return mode === "direct" ? "\n\n—— 对外动作：可以直接做（用户已授权）。" : "\n\n—— 对外动作：先问我（发邮件、发布、推代码、花钱前先问）。";
 }
 
-/** Leads = agents created by Agentself with isLead; their team description helps the router. */
+/** Leads = agents created by AgenTeam with isLead; their team description helps the router. */
 export function leadsOf(ctx) {
   return ctx.agents
-    .filter((a) => a.metadata?.agentself?.isLead && a.status !== "terminated")
+    .filter((a) => a.metadata?.agenteam?.isLead && a.status !== "terminated")
     .map((a) => {
-      const dept = ctx.departments.find((d) => d.key === a.metadata.agentself.department);
+      const dept = ctx.departments.find((d) => d.key === a.metadata.agenteam.department);
       // What the team can actually do lives on its employees; the lead's own capabilities are about
       // managing. Without them the router cannot tell whose domain "write a script…" is (PR #4 p14).
       const crew = ctx.agents
@@ -131,7 +158,7 @@ export function leadsOf(ctx) {
       return {
         id: a.id,
         name: a.name,
-        team: dept?.name ?? a.metadata.agentself.departmentName ?? "",
+        team: dept?.name ?? a.metadata.agenteam.departmentName ?? "",
         description: [a.capabilities, dept?.description, crew.length ? `员工：${crew.join("，")}` : ""].filter(Boolean).join("；"),
         projectId: dept?.projectId ?? null,
       };
@@ -147,7 +174,7 @@ async function createTask(ctx, lead, { title, text, external, routerNote }) {
     assigneeAgentId: lead.id,
     status: "todo",
   });
-  return { route: "task", leadId: lead.id, assigneeAgentId: lead.id, assigneeName: lead.name, department: ctx.agents.find((a) => a.id === lead.id)?.metadata?.agentself?.department ?? null, issue };
+  return { route: "task", leadId: lead.id, assigneeAgentId: lead.id, assigneeName: lead.name, department: ctx.agents.find((a) => a.id === lead.id)?.metadata?.agenteam?.department ?? null, issue };
 }
 
 function addAnswer(companyId, text, question, extra = {}) {
@@ -178,7 +205,7 @@ async function frontdesk(body) {
   if (to.kind === "lead" || to.kind === "agent" || to.kind === "department") {
     const lead =
       to.kind === "department"
-        ? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agentself?.department === to.id)
+        ? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agenteam?.department === to.id)
         : leads.find((l) => l.id === to.id);
     if (!lead) throw Object.assign(new Error("找不到这位主管"), { status: 400 });
     return createTask(ctx, lead, { text, external, routerNote: "用户手动指定" });
@@ -220,7 +247,7 @@ async function frontdesk(body) {
   };
 }
 
-/** One line per routing decision in ~/.agentself/logs/router.log, to see why something went "unclear". */
+/** One line per routing decision in ~/.agenteam/logs/router.log, to see why something went "unclear". */
 function logRoute(text, raw, r) {
   try {
     const dir = path.join(HOME, "logs");
@@ -240,7 +267,7 @@ function subscriptionStatus() {
   };
   const codex = v("codex");
   // a broken ~/.codex/config.toml stops every Codex run; say so where Codex is chosen
-  return { claude: v(process.env.AGENTSELF_CLAUDE_BIN ?? "claude"), codex, codexProblems: codex ? codexConfigProblems() : [] };
+  return { claude: v(process.env.AGENTEAM_CLAUDE_BIN ?? "claude"), codex, codexProblems: codex ? codexConfigProblems() : [] };
 }
 /** Save a provider; an API key goes into Paperclip's secret store (created once, rotated after). */
 async function putProvider(id, body) {
@@ -251,7 +278,7 @@ async function putProvider(id, body) {
   if (key) {
     if (!ctx.company) throw Object.assign(new Error("先新建一个团队，再填 API key"), { status: 409 });
     if (secretId) await pc("POST", `/secrets/${secretId}/rotate`, { value: key });
-    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `AgenTeam：${body.name ?? cur?.name ?? id} 的 API key` })).id;
+    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agenteam-${id}-api-key`, value: key, description: `AgenTeam：${body.name ?? cur?.name ?? id} 的 API key` })).id;
   }
   const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, prices: body.prices, contextLengths: body.contextLengths, pricingUrl: body.pricingUrl, ...(secretId ? { secretId } : {}) });
   // agents on this provider pick up a new endpoint / model on their next sync
@@ -280,7 +307,7 @@ async function storeMailSecret(companyId, id, password, secretId) {
     return secretId;
   }
   const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
-  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agentself-mail-${slug}`, value: password, description: `AgenTeam：邮箱 ${id} 的授权码` })).id;
+  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agenteam-mail-${slug}`, value: password, description: `AgenTeam：邮箱 ${id} 的授权码` })).id;
 }
 /** Move app passwords still in mail.json (older versions, or saved before the first team) into the store. */
 async function migrateMailPasswords() {
@@ -321,7 +348,7 @@ async function testProvider(id, body) {
 /** The team-layer plugin's verifierModel (per company plugin config): read, or set when `body` is given. */
 async function verifierSetting(body) {
   const ctx = await loadContext();
-  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer");
+  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agenteam.team-layer");
   if (!plugin || !ctx.company) return { verifierModel: "sonnet", available: false };
   const cur = (await pc("GET", `/plugins/${plugin.id}/config?companyId=${ctx.company.id}`).catch(() => null))?.configJson ?? {};
   if (body?.verifierModel) {
@@ -335,7 +362,7 @@ async function verifierSetting(body) {
 
 /* ---------------- team-layer notices (notify_user, memory job) for Feishu ---------------- */
 async function teamLayerPluginId() {
-  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer")?.id ?? null;
+  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agenteam.team-layer")?.id ?? null;
 }
 async function teamLayerNotices(companyId) {
   const id = await teamLayerPluginId();
@@ -387,8 +414,8 @@ async function putMcpServer(id, body) {
     }
     return (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name, value, description: `AgenTeam 工具服务 ${id}` })).id;
   };
-  for (const [k, v] of wantSecrets) secretIds[k] = await store(`agentself-mcp-${id}-${k.toLowerCase()}`, String(v).trim(), cur?.secretEnv?.[k]);
-  if (String(body.token ?? "").trim()) tokenSecretId = await store(`agentself-mcp-${id}-token`, String(body.token).trim(), cur?.tokenSecretId);
+  for (const [k, v] of wantSecrets) secretIds[k] = await store(`agenteam-mcp-${id}-${k.toLowerCase()}`, String(v).trim(), cur?.secretEnv?.[k]);
+  if (String(body.token ?? "").trim()) tokenSecretId = await store(`agenteam-mcp-${id}-token`, String(body.token).trim(), cur?.tokenSecretId);
   const saved = saveServer({ ...body, id }, { secretIds, tokenSecretId });
   void syncAllAgents(() => {}).catch(() => {});
   return saved;
@@ -437,27 +464,8 @@ function launchUpdate() {
     spawn(process.execPath, [UPDATE_SCRIPT], { cwd: REPO_ROOT, detached: true, stdio: "ignore" }).unref();
   }
 }
-let lastAutoUpdateDay = null;
-async function autoUpdateTick() {
-  const a = store.settings.autoUpdate ?? {};
-  const now = new Date();
-  const day = now.toDateString();
-  if (!a.enabled || now.getHours() !== Number(a.hour ?? 4) || lastAutoUpdateDay === day) return;
-  try {
-    const c = await checkUpdate();
-    if (!c.behind) return void (lastAutoUpdateDay = day);
-    const busy = await busyAgents();
-    if (busy.length) return console.log(`auto-update waits: ${busy.join("、")} still working`);
-    lastAutoUpdateDay = day;
-    console.log(`auto-update: ${c.current} → ${c.latest}`);
-    launchUpdate();
-  } catch (e) {
-    console.error(`auto-update check failed: ${e instanceof Error ? e.message : e}`);
-  }
-}
-
 /* ---------------- agent runtime sync ---------------- */
-/** Rewrite every Agentself agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
+/** Rewrite every AgenTeam agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
 export async function syncAllAgents(log = console.log) {
   // passwords saved before the first team (or by older versions) move into the store first, so the
   // agents synced below get them as bindings
@@ -465,7 +473,7 @@ export async function syncAllAgents(log = console.log) {
   if (moved) log(`moved ${moved} mailbox password(s) into the secret store`);
   const ctx = await loadContext();
   let n = 0;
-  for (const a of ctx.agents.filter((x) => x.metadata?.agentself && x.status !== "terminated")) {
+  for (const a of ctx.agents.filter((x) => x.metadata?.agenteam && x.status !== "terminated")) {
     try {
       if (await syncAgentRuntime(a, { api: pc, log })) n++;
     } catch (e) {
@@ -480,7 +488,7 @@ const MAX_PENDING_HIRES_PER_LEAD = 3;
 
 async function proposeHire(body) {
   const ctx = await loadContext();
-  const lead = ctx.agents.find((a) => a.id === body.leadAgentId && a.metadata?.agentself?.isLead);
+  const lead = ctx.agents.find((a) => a.id === body.leadAgentId && a.metadata?.agenteam?.isLead);
   if (!lead) throw Object.assign(new Error("leadAgentId 必须是一位主管（用 $PAPERCLIP_AGENT_ID）"), { status: 400 });
   const name = String(body.name ?? "").trim().slice(0, 40);
   const capabilities = String(body.capabilities ?? body.focus ?? "").trim().slice(0, 300);
@@ -492,7 +500,7 @@ async function proposeHire(body) {
     companyId: ctx.company.id,
     leadAgentId: lead.id,
     leadName: lead.name,
-    team: lead.metadata.agentself.departmentName ?? "",
+    team: lead.metadata.agenteam.departmentName ?? "",
     issueId: body.issueId ?? null,
     name,
     capabilities,
@@ -550,8 +558,8 @@ function send(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
-async function handleAgentself(req, res, url) {
-  const p = url.pathname.replace(/^\/agentself\/api/, "");
+async function handleAgenteam(req, res, url) {
+  const p = url.pathname.replace(/^\/agenteam\/api/, "");
   if (req.method === "GET" && p === "/context") {
     const ctx = await loadContext();
     return send(res, 200, { ...ctx, settings: store.settings, paperclipUrl: PAPERCLIP });
@@ -561,7 +569,7 @@ async function handleAgentself(req, res, url) {
     const body = await readJson(req);
     const ctx = await loadContext();
     const leads = leadsOf(ctx);
-    const lead = leads.find((l) => l.id === body.agentId) ?? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agentself?.department === body.department);
+    const lead = leads.find((l) => l.id === body.agentId) ?? leads.find((l) => ctx.agents.find((a) => a.id === l.id)?.metadata?.agenteam?.department === body.department);
     if (!lead) return send(res, 400, { error: "找不到这位主管" });
     return send(res, 200, await createTask(ctx, lead, { title: body.title, text: String(body.description ?? body.title ?? ""), external: body.external, routerNote: "用户在网页上选定" }));
   }
@@ -668,7 +676,7 @@ async function handleAgentself(req, res, url) {
     }
   }
 
-  /* skins (PLAN 7.2): shared skins live in ~/.agentself/skins/<id>.json */
+  /* skins (PLAN 7.2): shared skins live in ~/.agenteam/skins/<id>.json */
   const SKIN_DIR = path.join(HOME, "skins");
   if (req.method === "GET" && p === "/skins") {
     if (!fs.existsSync(SKIN_DIR)) return send(res, 200, []);
@@ -829,7 +837,7 @@ function restartIm() {
     pc,
     loadContext,
     frontdesk,
-    createChannel: async (opts) => (await import("@agentself/im-feishu")).createFeishuChannel(opts),
+    createChannel: async (opts) => (await import("@agenteam/im-feishu")).createFeishuChannel(opts),
     notices: teamLayerNotices,
     handlers: {
       hire: (id, action) => resolveHire(id, action, {}),
@@ -842,7 +850,7 @@ export function createServer() {
   return http.createServer(async (req, res) => {
     const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
     try {
-      if (url.pathname.startsWith("/agentself/api/")) return await handleAgentself(req, res, url);
+      if (url.pathname.startsWith("/agenteam/api/")) return await handleAgenteam(req, res, url);
       return send(res, 404, { error: `工作台已并入 Paperclip：请打开 ${PAPERCLIP}` });
     } catch (e) {
       console.error(e);
@@ -853,9 +861,8 @@ export function createServer() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createServer().listen(PORT, HOST, () => {
-    console.log(`AgenTeam local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
+    console.log(`AgenTeam local service http://${HOST}:${PORT}/agenteam/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
-    setInterval(() => void autoUpdateTick(), 10 * 60_000);
     // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.
     const trySync = (left) =>
       syncAllAgents()
@@ -865,7 +872,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
           if (left > 0) {
             console.error(`agent runtime sync failed (${why}); retrying in 15 s, ${left} tries left`);
             setTimeout(() => trySync(left - 1), 15_000);
-          } else console.error(`agent runtime sync gave up (${why}); run POST /agentself/api/agents/sync once Paperclip is up`);
+          } else console.error(`agent runtime sync gave up (${why}); run POST /agenteam/api/agents/sync once Paperclip is up`);
         });
     trySync(20);
   });

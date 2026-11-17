@@ -1,4 +1,4 @@
-// Agentself: the Rust runner daemon (paperclip-runnerd) is not shipped for Windows
+// AgenTeam: the Rust runner daemon (paperclip-runnerd) is not shipped for Windows
 // upstream either (published builds only carry darwin/linux binaries). On Windows,
 // skip it when cargo is unavailable instead of failing the whole build.
 import { spawnSync } from "node:child_process";

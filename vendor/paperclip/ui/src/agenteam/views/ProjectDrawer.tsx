@@ -288,7 +288,7 @@ export function ProjectDrawer({ ctx, issueId, onClose, toast, cards = [] }: { ct
                             {[tr.nextRunAt ? `下次 ${when(tr.nextRunAt)}` : null, tr.lastFiredAt ? `上次 ${when(tr.lastFiredAt)}` : null].filter(Boolean).join(" · ") || "这一次由它生成"}
                           </div>
                         </div>
-                        <Link to="/agentself/routines" onClick={onClose}>
+                        <Link to="/agenteam/routines" onClick={onClose}>
                           管理
                         </Link>
                       </div>

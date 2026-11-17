@@ -12,7 +12,7 @@
 
 [快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md) · [路线](docs/v0.6-direction.md)
 
-[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/Agentself?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/Agentself/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/Agentself/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/Agentself/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
+[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/AgenTeam?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/AgenTeam/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/AgenTeam/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/AgenTeam/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
 <img src="docs/assets/pixel-office-1440x900.png" width="860" alt="AgenTeam 像素办公室">
 
@@ -51,50 +51,41 @@ Windows 11，Node 24.11+，pnpm 9.15+，Git。先装好并登录：
 - Codex（可选）：`npm i -g @openai/codex`，`codex login`
 
 ```powershell
-git clone https://github.com/micsnq2yoma-lgtm/Agentself.git
-cd Agentself
+git clone https://github.com/micsnq2yoma-lgtm/AgenTeam.git
+cd AgenTeam
 node scripts\install.mjs
 ```
 
-脚本会检查环境、安装依赖并构建、做 Paperclip 首次配置、启动、安装团队层插件、设置开机自启（十几分钟）。装完打开 <http://127.0.0.1:3100>，在侧栏“主管”旁边点 **+** 新建第一位主管和员工。
+脚本会检查环境、安装依赖并构建、做首次配置、启动、安装团队层插件、设置开机自启（十几分钟）。装完打开 <http://127.0.0.1:3100>，在侧栏“主管”旁边点 **+** 新建第一位主管和员工。
 
 多台电脑各装一套，互不依赖：各自登录订阅、配置 API key，数据存在各自本机。
 
 ## 更新
 
-设置 → 通用 → 版本与更新，可检查、立即更新或每天自动更新（没有员工在干活时才更新）。命令行：
+设置 → 通用 → 版本与更新，点“检查并更新”：有新版本就在后台更新，页面会显示进度，完成后点“刷新页面”（有员工在干活时会先问你要不要打断）。没有定时自动更新，什么时候更新由你按按钮决定。命令行：
 
 ```powershell
 node scripts\update.mjs --check   # 有没有新版本
 node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量构建 → 启动 → 健康检查
 ```
 
-新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agentself/backups/`（留 5 份）。每个 PR 和 main 都在 GitHub Actions 跑单测和完整构建（Linux + Windows）。
+新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agenteam/backups/`（留 5 份）。每个 PR 和 main 都在 GitHub Actions 跑单测和完整构建（Linux + Windows）。
 
 ## 架构
 
-```
-              ┌────────────── 对外只有 :3100 ──────────────┐
-   你 / 飞书 ─▶│  Paperclip（任务、运行、界面，vendor/paperclip）│
-              │   ├─ team-layer 插件：验收 / 核查 / 盯守 / 记忆整理 │
-              │   └─ /agentself/api ─▶ 本地服务 :3200（仅本机）   │
-              └──────────────────────────────────────────────┘
-                     路由 · 设置 · 团队 MCP · 邮箱 · 论文库 · 飞书
-                              │
-                 员工：本机 Claude Code / Codex / API 模型
-```
+<p align="center"><img src="docs/assets/architecture-zh.png" width="900" alt="AgenTeam 架构"></p>
 
 | 目录 | 内容 |
 | --- | --- |
 | `apps/console/` | 本地服务：路由、IM、设置、记忆、团队向导、招人审批，以及主管 / 员工用的团队 MCP |
-| `plugins/team-layer/` | Paperclip 插件：返工与跳数上限、卡片、结构化验收、独立核查、盯守、记忆整理 |
+| `plugins/team-layer/` | 团队层插件：返工与跳数上限、卡片、结构化验收、独立核查、盯守、记忆整理 |
 | `plugins/im-feishu/` | 飞书通道 |
-| `vendor/paperclip/ui/src/agentself/` | 工作台等页面，挂在 Paperclip 界面里 |
+| `vendor/paperclip/ui/src/agenteam/` | 工作台、主管页、设置等 AgenTeam 界面 |
 | `packages/` | `shared` 类型 · `skins` 皮肤 · `pixel-office` 像素员工与办公室渲染 |
 | `skills/` `packs/` | 主管 / 员工 / 记忆技能包；新建团队的空白模板 |
 | `scripts/` | 启动、安装、更新、验收脚本、中文化工具 |
 
-代码里的目录、接口路径、环境变量和数据目录仍叫 `agentself`（`~/.agentself`、`/agentself/api`、`AGENTSELF_*`），改名不影响已有安装。
+**从 Agentself 改名而来。** 目录、接口路径、环境变量和数据目录都已统一为 `agenteam`（`~/.agenteam`、`/agenteam/api`、`AGENTEAM_*`）。已有安装更新后首次启动时自动迁移：`~/.agentself` 改名为 `~/.agenteam`，旧的 `AGENTSELF_*` 环境变量仍然认，员工的元数据和工作目录里的 `.agentself` 也会自动转过来，不丢数据。团队层插件的内部标识也改成了 `agenteam.team-layer`，由一条数据库迁移原地改名，插件里的提醒、盯守等状态保留。旧版导出的团队文件（`agentself.department/1`）仍可导入。
 
 ## 文档
 
@@ -106,18 +97,16 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/Agentself&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/Agentself&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/AgenTeam&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/AgenTeam&Date)
 
 ## 致谢
 
 AgenTeam 站在这些项目的肩膀上。完整的第三方许可见 `NOTICE` 和 `packages/pixel-office/THIRD_PARTY_LICENSES`。
 
-| 项目 | 我们用了什么 | 方式 |
-| --- | --- | --- |
-| [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI） | 整个底座：任务、运行、界面、插件系统 | 源码内置于 `vendor/paperclip` 并有修改，见 [docs/paperclip-changes.md](docs/paperclip-changes.md) |
-| [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT） | 卡片协议（ask / notice / resolve / later）、跳数上限、事件规则、全局档案与双入口 | 设计遵循，自行实现 |
-| LobeHub | 验收作为一等数据：任务书、逐条证据、逐条判定；记忆“提议 → 审核 → 写入” | 只借鉴思路 |
-| MyAgents（AGPL） | 产品思路 | 只借鉴思路，未打开或复制其代码 |
+- [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI）
+- [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT）
+- LobeHub
+- MyAgents（AGPL）
 
 ## 许可
 

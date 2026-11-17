@@ -15,7 +15,7 @@ export function gitCommit(memDir: string, message: string): string | null {
   if (!fs.existsSync(path.join(memDir, ".git"))) {
     git(["init", "-q"]);
     git(["config", "user.name", "AgenTeam Memory"]);
-    git(["config", "user.email", "memory@agentself.local"]);
+    git(["config", "user.email", "memory@agenteam.local"]);
     git(["config", "core.autocrlf", "false"]);
   }
   git(["add", "-A"]);
@@ -179,7 +179,7 @@ export function runClaudeJson(
   prompt: string,
   model = "haiku",
   timeoutMs = 180_000,
-  bin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude",
+  bin = process.env.AGENTEAM_CLAUDE_BIN ?? "claude",
   extraArgs: string[] = [],
 ): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -213,9 +213,9 @@ export function runClaudeJson(
  */
 export function runCodexText(
   prompt: string,
-  { model = "", timeoutMs = 300_000, bin = process.env.AGENTSELF_CODEX_BIN ?? "codex" }: { model?: string; timeoutMs?: number; bin?: string } = {},
+  { model = "", timeoutMs = 300_000, bin = process.env.AGENTEAM_CODEX_BIN ?? "codex" }: { model?: string; timeoutMs?: number; bin?: string } = {},
 ): Promise<string> {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-codex-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-codex-"));
   const outFile = path.join(dir, "last-message.txt");
   const args = ["exec", "--skip-git-repo-check", "--sandbox", "read-only", "--color", "never", "--output-last-message", outFile, ...(model ? ["--model", model] : []), "-"];
   return new Promise<string>((resolve, reject) => {

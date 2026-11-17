@@ -1,6 +1,6 @@
 // Pixel office (PLAN 7.1). Input: an OfficeSnapshot. Output: a canvas drawing + label positions.
 // Model-specific employees share the same integer-cell artwork as UI portraits.
-import type { OfficeAnim, OfficeSnapshot } from "@agentself/shared";
+import type { OfficeAnim, OfficeSnapshot } from "@agenteam/shared";
 import { characterDataUrl, characterFrame, characterSvg, FRAME_MS, SPRITE_HEIGHT, SPRITE_WIDTH } from "./characters.js";
 export * from "./characters.js";
 

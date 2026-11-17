@@ -92,8 +92,8 @@ export function sourceOptions(m: ModelsInfo | null, { lead = false } = {}): Sour
   for (const p of m?.providers ?? []) out.push({ value: `api:${p.id}`, label: `${p.name} API${p.hasKey ? "" : "（还没填 key）"}`, disabled: !p.hasKey });
   return out;
 }
-export function sourceOfAgent(a: { adapterType?: string; metadata?: { agentself?: { source?: string } } } | undefined): string {
-  return a?.metadata?.agentself?.source ?? (a?.adapterType === "codex_local" ? "codex" : "claude");
+export function sourceOfAgent(a: { adapterType?: string; metadata?: { agenteam?: { source?: string } } } | undefined): string {
+  return a?.metadata?.agenteam?.source ?? (a?.adapterType === "codex_local" ? "codex" : "claude");
 }
 export function sourceLabel(source: string, m: ModelsInfo | null): string {
   if (source === "codex") return "Codex 订阅";

@@ -136,8 +136,8 @@ export async function startIm(deps) {
   stopIm();
   const f = deps.settings.feishu ?? {};
   if (!f.enabled) return setImStatus("未启用");
-  const secret = process.env[f.secretRef || "AGENTSELF_FEISHU_APP_SECRET"];
-  if (!f.appId || !secret) return setImStatus("未配置：需要 App ID 和环境变量 AGENTSELF_FEISHU_APP_SECRET");
+  const secret = process.env[f.secretRef || "AGENTEAM_FEISHU_APP_SECRET"];
+  if (!f.appId || !secret) return setImStatus("未配置：需要 App ID 和环境变量 AGENTEAM_FEISHU_APP_SECRET");
   if (!f.allowUserIds?.length) return setImStatus("未配置：白名单为空");
   let channel;
   try {
@@ -208,7 +208,7 @@ export async function startIm(deps) {
         s.state = "handled";
         deps.saveStore();
       }
-      return { toast: "已处理", card: s ? (await import("@agentself/im-feishu")).buildCard(s.card, { label }) : undefined };
+      return { toast: "已处理", card: s ? (await import("@agenteam/im-feishu")).buildCard(s.card, { label }) : undefined };
     },
   });
   await tick();

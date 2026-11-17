@@ -3,6 +3,7 @@
 // reaches a lead (picked by the router), the lead understands it, picks an employee, verifies the result
 // and reports. Leads never do the work: their Claude Code runs with management tools only (see LEAD_TOOLS).
 import fs from "node:fs";
+import { migrateRuntimeDir } from "./legacy.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -18,13 +19,13 @@ import { MAIL_ENV_PREFIX, mailEnv } from "../../apps/console/server/mail.mjs";
 const mcpEnvFor = (agent) => ({ ...serverEnvFor(agent), ...mailEnv() });
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-export const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+export const agenteamHome = () => process.env.AGENTEAM_HOME ?? path.join(os.homedir(), ".agenteam");
 
-// Overridable for Anthropic-compatible providers (e.g. DeepSeek): set AGENTSELF_LEAD_MODEL to the provider's
+// Overridable for Anthropic-compatible providers (e.g. DeepSeek): set AGENTEAM_LEAD_MODEL to the provider's
 // model id, or to an alias such as "opus" that Claude Code maps through ANTHROPIC_DEFAULT_OPUS_MODEL.
-export const DEFAULT_LEAD_MODEL = process.env.AGENTSELF_LEAD_MODEL || "claude-opus-5-5";
+export const DEFAULT_LEAD_MODEL = process.env.AGENTEAM_LEAD_MODEL || "claude-opus-5-5";
 
-const SKILL_DIRS = { "agentself-lead": "lead", "agentself-employee": "employee", "agentself-memory": "memory" };
+const SKILL_DIRS = { "agenteam-lead": "lead", "agenteam-employee": "employee", "agenteam-memory": "memory" };
 // Skills reach agents through their instructions file (see writeAgentRuntime): Paperclip-mounted
 // skills did not load on the CLI engine ("Unknown skill"), so nothing depends on them any more.
 const LEAD_SKILLS = [];
@@ -32,7 +33,7 @@ const EMPLOYEE_SKILLS = [];
 
 /**
  * Super-Agent's lesson: "the lead does not do the work" must be enforced by the architecture, not by a
- * prompt. A lead's Claude Code gets only what managing needs: the Agentself team MCP server (every
+ * prompt. A lead's Claude Code gets only what managing needs: the AgenTeam team MCP server (every
  * Paperclip action a lead takes), reading files and the web, and editing its own memory. No shell of any
  * kind (Bash or Windows PowerShell), no general file writes, no subagents. Without
  * --dangerously-skip-permissions, anything outside the allow list is denied in non-interactive runs,
@@ -45,7 +46,7 @@ const EMPLOYEE_SKILLS = [];
  * only work on the CLI engine (the ACP engine ignores them), so every Claude agent runs on CLI.
  */
 export const LEAD_TOOLS = {
-  allowed: ["mcp__agentself", "Read", "Grep", "Glob", "WebSearch", "WebFetch"],
+  allowed: ["mcp__agenteam", "Read", "Grep", "Glob", "WebSearch", "WebFetch"],
   disallowed: ["Bash", "PowerShell", "Task", "Agent", "NotebookEdit"],
 };
 
@@ -59,12 +60,12 @@ export function absPathRule(tool, dir) {
   return `${tool}(/${p.replace(/\/+$/, "")}/**)`;
 }
 
-const runtimeDir = (cwd) => path.join(cwd, ".agentself");
+const runtimeDir = (cwd) => path.join(cwd, ".agenteam");
 export { instructionsPath };
 const mcpConfigPath = (cwd) => path.join(runtimeDir(cwd), "mcp.json");
 
 /** What the team MCP server needs from the run (Codex forwards only listed variables to MCP servers). */
-export const TEAM_MCP_ENV = ["PAPERCLIP_API_URL", "PAPERCLIP_API_KEY", "PAPERCLIP_AGENT_ID", "PAPERCLIP_COMPANY_ID", "PAPERCLIP_RUN_ID", "PAPERCLIP_TASK_ID", "AGENTSELF_HOME"];
+export const TEAM_MCP_ENV = ["PAPERCLIP_API_URL", "PAPERCLIP_API_KEY", "PAPERCLIP_AGENT_ID", "PAPERCLIP_COMPANY_ID", "PAPERCLIP_RUN_ID", "PAPERCLIP_TASK_ID", "AGENTEAM_HOME"];
 
 /**
  * Codex has no --mcp-config: MCP servers come from config.toml, which `-c` overrides per run. The
@@ -79,10 +80,10 @@ export function codexMcpArgs({ role = "employee", nodePath = process.execPath } 
   const r = role === "lead" ? "lead" : "employee";
   const node = /\s/.test(nodePath) ? "node" : nodePath;
   return [
-    "-c", `mcp_servers.agentself.command=${tomlStr(node)}`,
-    "-c", `mcp_servers.agentself.args=${tomlArr([TEAM_MCP_SERVER, `--role=${r}`])}`,
-    "-c", `mcp_servers.agentself.env_vars=${tomlArr([...TEAM_MCP_ENV, ...Object.keys(mailEnv())])}`,
-    "-c", "mcp_servers.agentself.startup_timeout_sec=20",
+    "-c", `mcp_servers.agenteam.command=${tomlStr(node)}`,
+    "-c", `mcp_servers.agenteam.args=${tomlArr([TEAM_MCP_SERVER, `--role=${r}`])}`,
+    "-c", `mcp_servers.agenteam.env_vars=${tomlArr([...TEAM_MCP_ENV, ...Object.keys(mailEnv())])}`,
+    "-c", "mcp_servers.agenteam.startup_timeout_sec=20",
   ];
 }
 
@@ -113,7 +114,7 @@ export function agentAdapterConfig({ role, adapterType = "claude_local", cwd, mo
   if (adapterType === "codex_local")
     // CLI engine (extraArgs and instructions apply only there); no Codex sandbox: on Windows it fails
     // to start shells (error 1223, PR #4 p13), and employees already work in their own directory.
-    return { ...base, engine: "cli", dangerouslyBypassApprovalsAndSandbox: true, extraArgs: [...codexMcpArgs({ role: "employee", nodePath }), ...codexMcpEntries(agent ?? { metadata: { agentself: { isLead: false } } })] };
+    return { ...base, engine: "cli", dangerouslyBypassApprovalsAndSandbox: true, extraArgs: [...codexMcpArgs({ role: "employee", nodePath }), ...codexMcpEntries(agent ?? { metadata: { agenteam: { isLead: false } } })] };
   return base;
 }
 
@@ -137,43 +138,44 @@ function withEnv(config, env) {
 /**
  * Write the agent's runtime files into its own home directory (rewritten on every sync, so skill and
  * tool updates reach existing agents):
- *  - .agentself/instructions.md: skill + profile and memory contents (adapter instructionsFilePath;
+ *  - .agenteam/instructions.md: skill + profile and memory contents (adapter instructionsFilePath;
  *    regenerated whenever memory or the profile changes, see scripts/lib/instructions.mjs)
- *  - .agentself/mcp.json: the team MCP server for Claude agents
+ *  - .agenteam/mcp.json: the team MCP server for Claude agents
  * and clean up what older versions left in the directory: the identity block in CLAUDE.md / AGENTS.md,
  * and for leads a .claude/settings.local.json that widened or (later) narrowed permissions for whoever
  * runs there. The replaced settings file is kept as .bak.
  */
-export function writeAgentRuntime(cwd, { role, adapterType = "claude_local", home = agentselfHome(), nodePath = process.execPath, agent = null }) {
+export function writeAgentRuntime(cwd, { role, adapterType = "claude_local", home = agenteamHome(), nodePath = process.execPath, agent = null }) {
+  migrateRuntimeDir(cwd);
   fs.mkdirSync(runtimeDir(cwd), { recursive: true });
   // Skill + the *contents* of the global profile and of the agent's memory (P4: paths alone get skipped).
   writeInstructions({ role, cwd, home, adapterType, repoRoot });
   if (adapterType === "claude_local") {
     // the team server, plus the tool servers installed for this employee (capabilities → 工具服务)
-    const extra = role === "lead" ? {} : claudeMcpEntries(agent ?? { metadata: { agentself: { isLead: false } } });
-    fs.writeFileSync(mcpConfigPath(cwd), JSON.stringify({ mcpServers: { ...extra, agentself: { command: nodePath, args: [TEAM_MCP_SERVER, `--role=${role === "lead" ? "lead" : "employee"}`] } } }, null, 2));
+    const extra = role === "lead" ? {} : claudeMcpEntries(agent ?? { metadata: { agenteam: { isLead: false } } });
+    fs.writeFileSync(mcpConfigPath(cwd), JSON.stringify({ mcpServers: { ...extra, agenteam: { command: nodePath, args: [TEAM_MCP_SERVER, `--role=${role === "lead" ? "lead" : "employee"}`] } } }, null, 2));
   }
   removeMemoryEntry(cwd);
   for (const stale of ["lead-skill.md"]) fs.rmSync(path.join(runtimeDir(cwd), stale), { force: true });
   if (role === "lead") {
     const local = path.join(cwd, ".claude", "settings.local.json");
-    const neutral = JSON.stringify({ _agentself: "managed by Agentself: permissions live in the agent's own config, not in this directory" }, null, 2);
+    const neutral = JSON.stringify({ _agenteam: "managed by AgenTeam: permissions live in the agent's own config, not in this directory" }, null, 2);
     if (fs.existsSync(local)) {
       const old = fs.readFileSync(local, "utf8");
-      if (!old.includes('"_agentself"')) fs.writeFileSync(`${local}.bak`, old);
+      if (!old.includes('"_agenteam"')) fs.writeFileSync(`${local}.bak`, old);
       fs.writeFileSync(local, neutral);
     }
   }
 }
 
-/** Bring an existing Agentself agent (lead or employee) up to date: runtime files and adapter config. */
-export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir = path.join(agentselfHome(), "workspaces"), log = console.log } = {}) {
-  const meta = agent.metadata?.agentself;
+/** Bring an existing AgenTeam agent (lead or employee) up to date: runtime files and adapter config. */
+export async function syncAgentRuntime(agent, { api = defaultApi, workspacesDir = path.join(agenteamHome(), "workspaces"), log = console.log } = {}) {
+  const meta = agent.metadata?.agenteam;
   const cwd = agent.adapterConfig?.cwd;
   if (!meta || !cwd) return false;
   const role = meta.isLead ? "lead" : "employee";
   fs.mkdirSync(cwd, { recursive: true });
-  const home = agentselfHome();
+  const home = agenteamHome();
   ensureProfile(home);
   writeAgentRuntime(cwd, { role, adapterType: agent.adapterType, home, agent });
   // API models: provider settings (endpoint, model, key) may have changed since the agent was made
@@ -200,7 +202,7 @@ export const syncLeadRuntime = syncAgentRuntime;
 
 export function validatePack(pack) {
   const errs = [];
-  if (!pack || pack.schema !== "agentself.department/1") errs.push("schema 必须是 agentself.department/1");
+  if (!pack || !["agenteam.department/1", "agentself.department/1"].includes(pack.schema)) errs.push("schema 必须是 agenteam.department/1");
   if (!pack?.name) errs.push("缺少团队名称");
   if (!pack?.lead) errs.push("每个团队要有一名主管");
   else {
@@ -231,7 +233,7 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
   if (errs.length) throw Object.assign(new Error(errs.join("；")), { status: 400 });
   const lead = { key: "lead", role: "pm", adapterType: "claude_local", ...pack.lead };
   const deptKey = key ?? pack.key ?? slugKey(pack.name);
-  const home = agentselfHome();
+  const home = agenteamHome();
   const workspacesDir = path.join(home, "workspaces");
   ensureProfile(home);
   const company = await ensureCompany(companyName);
@@ -245,7 +247,7 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
     if (!fs.existsSync(file)) continue;
     const markdown = fs.readFileSync(file, "utf8");
     let skill = existingSkills.find((s) => s.slug === name || s.name === name);
-    if (!skill) skill = await api("POST", `/companies/${company.id}/skills`, { name, slug: name, markdown, idempotencyKey: `agentself:${name}` });
+    if (!skill) skill = await api("POST", `/companies/${company.id}/skills`, { name, slug: name, markdown, idempotencyKey: `agenteam:${name}` });
     else if (skill.markdown !== undefined && skill.markdown !== markdown) {
       // keep the company skill in sync with skills/<dir>/SKILL.md
       await api("PATCH", `/companies/${company.id}/skills/${skill.id}`, { markdown }).catch((e) => log(`skill ${name} update skipped: ${String(e).slice(0, 120)}`));
@@ -280,10 +282,10 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
     const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
     const run = resolveSource(source, home, { model: member.sourceModel ?? null });
     writeAgentRuntime(cwd, { role, adapterType: run.adapterType, home });
-    const fresh = { metadata: { agentself: { isLead } } }; // tool servers for "all" employees apply from the start
+    const fresh = { metadata: { agenteam: { isLead } } }; // tool servers for "all" employees apply from the start
     const adapterConfig = withEnv(agentAdapterConfig({ role, adapterType: run.adapterType, cwd, model: run.model ?? member.model, workspacesDir, agent: fresh }), { ...run.env, ...mcpEnvFor(fresh) });
-    const metadata = { agentself: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id, source } };
-    let agent = agents.find((a) => a.metadata?.agentself?.department === deptKey && a.metadata?.agentself?.memberKey === member.key);
+    const metadata = { agenteam: { department: deptKey, departmentName: pack.name, isLead, memberKey: member.key, projectId: project.id, source } };
+    let agent = agents.find((a) => a.metadata?.agenteam?.department === deptKey && a.metadata?.agenteam?.memberKey === member.key);
     if (!agent) {
       agent = await api("POST", `/companies/${company.id}/agents`, {
         name: member.name,
@@ -349,7 +351,7 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
  * plugin about the company.
  */
 export async function registerWithTeamLayer(companyId, { api = defaultApi, log = console.log } = {}) {
-  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
   if (!plugin) return log("team-layer plugin not installed; skipped registration");
   const existing = await api("GET", `/plugins/${plugin.id}/config?companyId=${companyId}`).catch(() => null);
   if (!existing?.configJson) await api("POST", `/plugins/${plugin.id}/config`, { companyId, configJson: {} });
@@ -379,11 +381,11 @@ export function readTemplate(key) {
  */
 export async function addEmployee(leadAgentId, member, { api = defaultApi, log = console.log } = {}) {
   const lead = await api("GET", `/agents/${leadAgentId}`);
-  const m = lead?.metadata?.agentself;
+  const m = lead?.metadata?.agenteam;
   if (!m?.isLead) throw Object.assign(new Error("只能加到主管的团队里"), { status: 400 });
   const name = String(member.name ?? "").trim();
   if (!name) throw Object.assign(new Error("新员工要有名字"), { status: 400 });
-  const home = agentselfHome();
+  const home = agenteamHome();
   const source = member.source ?? (member.adapterType === "codex_local" ? "codex" : "claude");
   const run = resolveSource(source, home, { model: member.sourceModel ?? null });
   const adapterType = run.adapterType;
@@ -410,11 +412,11 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
     reportsTo: lead.id,
     capabilities: member.capabilities ?? null,
     adapterType,
-    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), withEnv(agentAdapterConfig({ role: "employee", adapterType, cwd, model: run.model ?? member.model, workspacesDir: path.join(home, "workspaces") }), { ...run.env, ...mcpEnvFor({ metadata: { agentself: { isLead: false } } }) })),
+    adapterConfig: (writeAgentRuntime(cwd, { role: "employee", adapterType, home }), withEnv(agentAdapterConfig({ role: "employee", adapterType, cwd, model: run.model ?? member.model, workspacesDir: path.join(home, "workspaces") }), { ...run.env, ...mcpEnvFor({ metadata: { agenteam: { isLead: false } } }) })),
     budgetMonthlyCents: member.budgetMonthlyCents ?? 0,
     permissions: { canCreateAgents: false },
     desiredSkills,
-    metadata: { agentself: { department: m.department, departmentName: m.departmentName, isLead: false, memberKey, projectId: m.projectId, source } },
+    metadata: { agenteam: { department: m.department, departmentName: m.departmentName, isLead: false, memberKey, projectId: m.projectId, source } },
   });
   log(`agent ${name} (${source}) ${agent.id} under ${lead.name}`);
   return agent;
@@ -427,11 +429,11 @@ export async function addEmployee(leadAgentId, member, { api = defaultApi, log =
  */
 export async function setAgentSource(agentId, source, { api = defaultApi, log = console.log } = {}) {
   const agent = await api("GET", `/agents/${agentId}`);
-  const meta = agent?.metadata?.agentself;
+  const meta = agent?.metadata?.agenteam;
   const cwd = agent?.adapterConfig?.cwd;
   if (!meta || !cwd) throw Object.assign(new Error("只能改 AgenTeam 建的主管和员工"), { status: 400 });
   const role = meta.isLead ? "lead" : "employee";
-  const home = agentselfHome();
+  const home = agenteamHome();
   // a model picked for the old source does not carry over to another provider
   const keepModel = sourceOf(agent) === source ? (meta.model ?? null) : null;
   const run = resolveSource(source, home, { model: keepModel });
@@ -446,7 +448,7 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
   if (Object.keys(env).length) adapterConfig.env = env;
   // replaceAdapterConfig: Paperclip merges adapter configs by default, which would keep the old
   // adapter's flags (e.g. Claude --mcp-config on a Codex agent)
-  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterType: run.adapterType, adapterConfig, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, source, model: keepModel } } });
+  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterType: run.adapterType, adapterConfig, replaceAdapterConfig: true, metadata: { ...agent.metadata, agenteam: { ...meta, source, model: keepModel } } });
   log(`${role} ${agent.name}: source ${sourceOf(agent)} → ${source}`);
   return updated;
 }
@@ -457,13 +459,13 @@ export async function setAgentSource(agentId, source, { api = defaultApi, log = 
  */
 export async function setAgentModel(agentId, model, { api = defaultApi, log = console.log } = {}) {
   const agent = await api("GET", `/agents/${agentId}`);
-  const meta = agent?.metadata?.agentself;
+  const meta = agent?.metadata?.agenteam;
   if (!meta || !agent.adapterConfig?.cwd) throw Object.assign(new Error("只能改 AgenTeam 建的主管和员工"), { status: 400 });
   const m = String(model ?? "").trim();
   if (m && !/^[\w.:/@-]{1,120}$/.test(m)) throw Object.assign(new Error("模型名不对"), { status: 400 });
   const source = sourceOf(agent);
   const role = meta.isLead ? "lead" : "employee";
-  const home = agentselfHome();
+  const home = agenteamHome();
   const run = resolveSource(source, home, { model: m || null });
   const cur = agent.adapterConfig ?? {};
   const next = { ...cur };
@@ -472,7 +474,7 @@ export async function setAgentModel(agentId, model, { api = defaultApi, log = co
   else delete next.model;
   const env = agentEnv(cur.env, run, agent);
   if (Object.keys(env).length) next.env = env;
-  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterConfig: next, replaceAdapterConfig: true, metadata: { ...agent.metadata, agentself: { ...meta, model: m || null } } });
+  const updated = await api("PATCH", `/agents/${agent.id}`, { adapterConfig: next, replaceAdapterConfig: true, metadata: { ...agent.metadata, agenteam: { ...meta, model: m || null } } });
   log(`${role} ${agent.name}: model → ${next.model ?? "(默认)"}`);
   return updated;
 }

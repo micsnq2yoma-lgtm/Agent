@@ -152,7 +152,7 @@ describe("delegation guards (PR #4 p13)", () => {
   });
   it("Codex employees take delegated work once their team tools are configured", () => {
     expect(codexBlock({ name: "实验员", adapterType: "codex_local", adapterConfig: {} }, false)).toMatch(/还没装上团队工具/);
-    expect(codexBlock({ name: "实验员", adapterType: "codex_local", adapterConfig: { extraArgs: ["-c", "mcp_servers.agentself.command='node'"] } }, false)).toBeNull();
+    expect(codexBlock({ name: "实验员", adapterType: "codex_local", adapterConfig: { extraArgs: ["-c", "mcp_servers.agenteam.command='node'"] } }, false)).toBeNull();
     expect(codexBlock({ name: "实验员", adapterType: "codex_local" }, true)).toBeNull();
     expect(codexBlock({ name: "科研员", adapterType: "claude_local" }, false)).toBeNull();
   });

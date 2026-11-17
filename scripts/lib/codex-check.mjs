@@ -1,5 +1,5 @@
 // Known problems in a machine's own Codex setup that make every Codex run fail before it starts, with
-// a plain explanation. Agentself never edits ~/.codex/config.toml (it is the user's own); it only says
+// a plain explanation. AgenTeam never edits ~/.codex/config.toml (it is the user's own); it only says
 // what to change.
 import fs from "node:fs";
 import os from "node:os";

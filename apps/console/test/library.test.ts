@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const home = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-lib-"));
-process.env.AGENTSELF_HOME = home;
+const home = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-lib-"));
+process.env.AGENTEAM_HOME = home;
 // @ts-expect-error plain JS module
 const lib = await import("../../../scripts/lib/library.mjs");
 const pdf = fs.readFileSync(path.join(__dirname, "fixtures", "sample-paper.pdf"));

@@ -20,19 +20,19 @@ importers:
 
   apps/console:
     dependencies:
-      '@agentself/im-feishu':
+      '@agenteam/im-feishu':
         specifier: workspace:*
         version: link:../../plugins/im-feishu
-      '@agentself/shared':
+      '@agenteam/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@agentself/skins':
+      '@agenteam/skins':
         specifier: workspace:*
         version: link:../../packages/skins
 
   packages/pixel-office:
     dependencies:
-      '@agentself/shared':
+      '@agenteam/shared':
         specifier: workspace:*
         version: link:../shared
 
@@ -48,7 +48,7 @@ importers:
 
   plugins/team-layer:
     dependencies:
-      '@agentself/shared':
+      '@agenteam/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@paperclipai/plugin-sdk':

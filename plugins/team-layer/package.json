@@ -1,5 +1,5 @@
 {
-  "name": "@agentself/team-layer",
+  "name": "@agenteam/team-layer",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
   "paperclipPlugin": { "manifest": "./dist/manifest.js", "worker": "./dist/worker.js", "ui": "./dist/ui/" },
   "scripts": { "build": "node build.mjs" },
   "dependencies": {
-    "@agentself/shared": "workspace:*",
+    "@agenteam/shared": "workspace:*",
     "@paperclipai/plugin-sdk": "2026.1106.0",
     "@paperclipai/shared": "2026.1106.0"
   },

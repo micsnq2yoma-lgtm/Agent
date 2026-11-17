@@ -2,7 +2,7 @@
 const toolSchema = (properties: Record<string, unknown>, required: string[]) => ({ type: "object", properties, required });
 
 export default {
-  id: "agentself.team-layer",
+  id: "agenteam.team-layer",
   apiVersion: 1,
   version: "0.1.0",
   displayName: "AgenTeam 团队层",

@@ -20,7 +20,7 @@ await as("PUT", "/mcp/servers/p21-echo", spec);
 await as("POST", "/agents/sync");
 const mine = await api("GET", `/agents/${employee.id}`);
 results.envBound = mine.adapterConfig?.env?.P21_SECRET?.type === "secret_ref";
-const other = ctx.agents.find((a) => a.metadata?.agentself && !a.metadata.agentself.isLead && a.id !== employee.id && a.status !== "terminated");
+const other = ctx.agents.find((a) => a.metadata?.agenteam && !a.metadata.agenteam.isLead && a.id !== employee.id && a.status !== "terminated");
 if (other) results.otherHasNoServer = !(await api("GET", `/agents/${other.id}`)).adapterConfig?.env?.P21_SECRET;
 
 const issue = await api("POST", `/companies/${companyId}/issues`, {

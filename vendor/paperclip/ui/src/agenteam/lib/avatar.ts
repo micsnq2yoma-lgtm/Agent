@@ -1,6 +1,6 @@
 // Model identity and status are shared by all employee portrait consumers.
-import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agentself/shared";
-import { characterDataUrl, pixelActionFor } from "@agentself/pixel-office";
+import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agenteam/shared";
+import { characterDataUrl, pixelActionFor } from "@agenteam/pixel-office";
 
 export interface EmployeeIdentity {
   id?: string;

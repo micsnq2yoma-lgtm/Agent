@@ -8,7 +8,7 @@
 import { api, list } from "../lib/paperclip.mjs";
 
 const yes = process.argv.includes("--yes");
-const reason = "Agentself budget-unstick：运行被中途取消，用量回执一直没有到；按已采集的用量（没有则 0）记为估算";
+const reason = "AgenTeam budget-unstick：运行被中途取消，用量回执一直没有到；按已采集的用量（没有则 0）记为估算";
 const companies = list(await api("GET", "/companies")).filter((c) => c.status !== "archived");
 for (const c of companies) {
   const health = await api("GET", `/companies/${c.id}/accounting/health`);

@@ -44,7 +44,7 @@ export function TabBar({ base, tabs, active, testId }: { base: string; tabs: Tab
   );
 }
 
-/** Paperclip page embedded in an Agentself page (its own styles, our frame). */
+/** Paperclip page embedded in an AgenTeam page (its own styles, our frame). */
 export function Embedded({ children }: { children: ReactNode }) {
   return (
     <div className="embedded-paperclip" data-embedded-paperclip="">
@@ -209,7 +209,7 @@ export function DepartmentPage(props: {
           </div>
         </div>
       </div>
-      <TabBar base={`/agentself/departments/${dept.key}`} tabs={tabs} active={active} testId="department-tabs" />
+      <TabBar base={`/agenteam/departments/${dept.key}`} tabs={tabs} active={active} testId="department-tabs" />
       {active === "overview" && (
         <div className="two-col">
           <div>
@@ -299,7 +299,7 @@ export function DepartmentPage(props: {
               {hires.length > 0 && (
                 <div className="warn">
                   <span style={{ flex: 1 }}>有 {hires.length} 个新建{t("employee")}的提议等你批准</span>
-                  <Link to="/agentself" className="btn xs">
+                  <Link to="/agenteam" className="btn xs">
                     去工作台处理
                   </Link>
                 </div>
@@ -368,7 +368,7 @@ export function CapabilitiesHub({ ctx }: { ctx: Context }) {
   return (
     <div className="page wide">
       <h1 className="page-title">能力与工具</h1>
-      <TabBar base="/agentself/capabilities" tabs={tabs} active={active} testId="capabilities-tabs" />
+      <TabBar base="/agenteam/capabilities" tabs={tabs} active={active} testId="capabilities-tabs" />
       {active === "tools" && <ToolServers ctx={ctx} />}
       {active === "skills" && (
         <Embedded>
@@ -397,7 +397,7 @@ export function UsageHub({ ctx }: { ctx: Context }) {
   return (
     <div className="page wide">
       <h1 className="page-title">用量与预算</h1>
-      <TabBar base="/agentself/usage" tabs={tabs} active={active} testId="usage-tabs" />
+      <TabBar base="/agenteam/usage" tabs={tabs} active={active} testId="usage-tabs" />
       {active === "usage" && <Usage ctx={ctx} embedded />}
       {active === "budgets" && (
         <Embedded>
@@ -426,7 +426,7 @@ export function RecordsHub() {
   return (
     <div className="page wide">
       <h1 className="page-title">记录</h1>
-      <TabBar base="/agentself/records" tabs={tabs} active={active} testId="records-tabs" />
+      <TabBar base="/agenteam/records" tabs={tabs} active={active} testId="records-tabs" />
       {active === "activity" && (
         <Embedded>
           <CompanyActivity />
@@ -443,7 +443,7 @@ export function RecordsHub() {
         </Embedded>
       )}
       {active === "approvals" && (
-        // Approvals reads "all" from the last path segment: /agentself/records/approvals/all
+        // Approvals reads "all" from the last path segment: /agenteam/records/approvals/all
         <Embedded>
           <Approvals />
         </Embedded>
@@ -488,7 +488,7 @@ export function EmployeePage({ ctx, toast, detail }: { ctx: Context | null; toas
   const known = ctx?.agents.some((a) => a.id === agentId);
   return (
     <>
-      <div className="agentself" data-testid="employee-page">
+      <div className="agenteam" data-testid="employee-page">
         <div className="employee-head">
           {ctx && agentId && known && <EmployeeHeader ctx={ctx} agentId={agentId} size={36} />}
           <div className="tabbar" role="tablist">

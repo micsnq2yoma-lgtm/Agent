@@ -2,7 +2,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, expect, it } from "vitest";
-import { registerAgentAdapters } from "@/agentself/lib/avatar";
+import { registerAgentAdapters } from "@/agenteam/lib/avatar";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentCharacter } from "./AgentCharacter";
 

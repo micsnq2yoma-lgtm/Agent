@@ -4,7 +4,7 @@
 //   "api:<id>"      any other model over its API: Claude Code pointed at the provider's
 //                   Anthropic-compatible endpoint (ANTHROPIC_BASE_URL + key), so the agent keeps the
 //                   same tools, MCP servers and instructions as a Claude agent
-// Provider settings live in ~/.agentself/providers.json; API keys are Paperclip company secrets
+// Provider settings live in ~/.agenteam/providers.json; API keys are Paperclip company secrets
 // (only their ids are stored here) and reach the run as a secret_ref env binding.
 import fs from "node:fs";
 import path from "node:path";
@@ -85,7 +85,7 @@ export function removeProvider(home, id) {
 
 /** The agent's source as stored in its metadata; older agents follow their adapter. */
 export function sourceOf(agent) {
-  const s = agent?.metadata?.agentself?.source;
+  const s = agent?.metadata?.agenteam?.source;
   if (typeof s === "string" && s) return s;
   return agent?.adapterType === "codex_local" ? "codex" : "claude";
 }

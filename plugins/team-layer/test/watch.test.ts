@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+// @ts-expect-error plain JS module
+import { rewriteLegacyPaths } from "../../../scripts/lib/legacy.mjs";
 import { afterCheck, classifyProbe, dueWatches, newWatch, wakeComment, watchesFor } from "../src/watch.js";
 
 const t0 = Date.parse("2026-11-15T10:00:00Z");
@@ -54,5 +56,12 @@ describe("watchesFor (project drawer)", () => {
     expect(v.watches.map((w) => w.id)).toEqual(["wb", "wa"]);
     expect(v.watches[1].command).toHaveLength(300);
     expect(v.reminders).toEqual([{ issueId: "lead", agentId: "L", dueAt: "2026-11-15T12:00:00Z", note: "看看进度" }]);
+  });
+  it("a watch registered before the rename follows the data folder: its folder and command, nothing else", () => {
+    const w = newWatch({ issueId: "i", command: "node /h/.agentself/workspaces/x/check.mjs" }, { ...ctx, cwd: "/h/.agentself/workspaces/x" });
+    const moved = rewriteLegacyPaths(w, "/h/.agentself", "/h/.agenteam");
+    expect(moved).toMatchObject({ cwd: "/h/.agenteam/workspaces/x", command: "node /h/.agenteam/workspaces/x/check.mjs", id: w.id, issueId: "i" });
+    expect(rewriteLegacyPaths(moved, "/h/.agentself", "/h/.agenteam")).toBeNull();
+    expect(rewriteLegacyPaths(newWatch({ issueId: "i", command: "x" }, { ...ctx, cwd: "/srv/w" }), "/h/.agentself", "/h/.agenteam")).toBeNull();
   });
 });

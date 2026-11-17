@@ -1,9 +1,9 @@
-// Agentself views as routes of the Paperclip UI (P8).
-// <AgentselfRoot> wraps the company layout: it loads the Agentself context + feed once and
-// provides them to the sidebar and every Agentself page, and hosts the drawers and toast so
+// AgenTeam views as routes of the Paperclip UI (P8).
+// <AgenteamRoot> wraps the company layout: it loads the AgenTeam context + feed once and
+// provides them to the sidebar and every AgenTeam page, and hosts the drawers and toast so
 // they work from any page. Pages are registered in routes.tsx.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { registerSkin, type Skin } from "@agentself/skins";
+import { registerSkin, type Skin } from "@agenteam/skins";
 import { useNavigate, useParams } from "@/lib/router";
 import { as, usePoll, type Context } from "./lib/api";
 import { act, loadFeed, type Feed } from "./lib/feed";
@@ -23,9 +23,9 @@ import { Skeleton } from "./components/Skeleton";
 import "./fonts-cjk.css";
 import "./styles.css";
 
-export const AS_BASE = "/agentself";
+export const AS_BASE = "/agenteam";
 
-interface AgentselfState {
+interface AgenteamState {
   ctx: Context | null;
   ctxError: string | null;
   reloadCtx: () => void;
@@ -43,22 +43,22 @@ interface AgentselfState {
   projectCount: number;
 }
 
-const StateCtx = createContext<AgentselfState | null>(null);
-export function useAgentself(): AgentselfState {
+const StateCtx = createContext<AgenteamState | null>(null);
+export function useAgenteam(): AgenteamState {
   const v = useContext(StateCtx);
-  if (!v) throw new Error("useAgentself outside <AgentselfRoot>");
+  if (!v) throw new Error("useAgenteam outside <AgenteamRoot>");
   return v;
 }
-export function useAgentselfOptional(): AgentselfState | null {
+export function useAgenteamOptional(): AgenteamState | null {
   return useContext(StateCtx);
 }
 
 const EMPTY_FEED_DEPS: unknown[] = [];
 
-export function AgentselfRoot({ children }: { children: ReactNode }) {
+export function AgenteamRoot({ children }: { children: ReactNode }) {
   const [ctx, ctxError, reloadCtx] = usePoll<Context>(
     async () => {
-      // shared skins from ~/.agentself/skins must be registered before the provider reads them;
+      // shared skins from ~/.agenteam/skins must be registered before the provider reads them;
       // both requests go out together
       const [skinList, c] = await Promise.all([as.get<Skin[]>("/skins").catch(() => [] as Skin[]), as.get<Context>("/context")]);
       for (const s of skinList) registerSkin(s);
@@ -115,7 +115,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
   // browser notification for new high-tier cards
   useEffect(() => {
     if (!feed || typeof Notification === "undefined") return;
-    const key = "agentself.notified";
+    const key = "agenteam.notified";
     let seen: string[] = [];
     try {
       seen = JSON.parse(sessionStorage.getItem(key) ?? "[]");
@@ -133,7 +133,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
     }
   }, [feed, t]);
 
-  const value = useMemo<AgentselfState>(() => {
+  const value = useMemo<AgenteamState>(() => {
     // keyed by team key, with the same membership rules as the lead page
     const pendingByDept: Record<string, number> = {};
     if (ctx && feed) for (const d of ctx.departments) pendingByDept[d.key] = cardsOfLead(ctx, feed.issues, feed.cards, d).length;
@@ -160,17 +160,17 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
     <StateCtx.Provider value={value}>
       {children}
       {ctx?.company && project && (
-        <div className="agentself">
+        <div className="agenteam">
           <ProjectDrawer ctx={ctx} issueId={project} onClose={() => setProject(null)} toast={toast} cards={feed?.cards ?? []} />
         </div>
       )}
       {ctx?.company && employee && (
-        <div className="agentself">
+        <div className="agenteam">
           <EmployeeDrawer ctx={ctx} agentId={employee} onClose={() => setEmployee(null)} toast={toast} />
         </div>
       )}
       {toastMsg && (
-        <div className="agentself">
+        <div className="agenteam">
           <div className="toast">{toastMsg}</div>
         </div>
       )}
@@ -182,7 +182,7 @@ function FeedLayer({ ctx, ctxError, reloadCtx, children }: { ctx: Context | null
 
 function readView(): "work" | "team" {
   try {
-    return localStorage.getItem("agentself.view") === "team" ? "team" : "work";
+    return localStorage.getItem("agenteam.view") === "team" ? "team" : "work";
   } catch {
     return "work";
   }
@@ -196,7 +196,7 @@ export { Skeleton };
  * pending count lives only on the sidebar's 工作台 item.
  */
 function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | null; children: (ctx: Context) => ReactNode; crumbs?: ReactNode[]; center?: ReactNode; actions?: ReactNode }) {
-  const s = useAgentself();
+  const s = useAgenteam();
   const navigate = useNavigate();
   const { t } = useSkin();
   let body: ReactNode;
@@ -229,7 +229,7 @@ function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | 
     );
   else body = children(ctx);
   return (
-    <div className="agentself as-page">
+    <div className="agenteam as-page">
       <div className="topbar">
         <nav className="crumbs" aria-label="位置">
           {(crumbs ?? []).map((c, i, all) => (
@@ -250,7 +250,7 @@ function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | 
 
 /** 像素团队顶部统计条 (P10): 运行中 / 阻塞 / 等你拍板 / 本月花费 */
 function TeamStats({ ctx }: { ctx: Context }) {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   const running = ctx.agents.filter((a) => a.status === "running").length;
   const blocked = (s.feed?.issues ?? []).filter((i) => i.status === "blocked").length;
@@ -286,14 +286,14 @@ function WorkbenchCrumb({ ctx }: { ctx: Context | null }) {
 
 /** 工作台 / 像素团队 */
 export function WorkbenchPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   const navigate = useNavigate();
   const [view, setViewState] = useState<"work" | "team">(readView);
   const setView = (v: "work" | "team") => {
     setViewState(v);
     try {
-      localStorage.setItem("agentself.view", v);
+      localStorage.setItem("agenteam.view", v);
     } catch {
       /* ignore */
     }
@@ -338,7 +338,7 @@ export function WorkbenchPage() {
 }
 
 export function DepartmentRoutePage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   const { departmentKey } = useParams<{ departmentKey: string }>();
   const dept = s.ctx?.departments.find((d) => d.key === departmentKey);
@@ -350,42 +350,42 @@ export function DepartmentRoutePage() {
   );
 }
 export function ProjectsPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   return <PageFrame ctx={s.ctx} crumbs={[t("project")]}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
 }
 export function LibraryPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["论文库"]}>{() => <LibraryView toast={s.toast} />}</PageFrame>;
 }
 export function RoutinesPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   return <PageFrame ctx={s.ctx} crumbs={["管理", t("routine")]}>{(ctx) => <Routines ctx={ctx} />}</PageFrame>;
 }
 export function CapabilitiesPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["管理", "能力与工具"]}>{(ctx) => <CapabilitiesHub ctx={ctx} />}</PageFrame>;
 }
 export function UsagePage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["管理", "用量与预算"]}>{(ctx) => <UsageHub ctx={ctx} />}</PageFrame>;
 }
 export function RecordsPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["管理", "记录"]}>{() => <RecordsHub />}</PageFrame>;
 }
 export function OrgRoutePage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["管理", "组织图"]}>{() => <OrgPage />}</PageFrame>;
 }
 /** Paperclip's employee detail wrapped with the 档案 / 记忆 tabs (mounted by ui/src/App.tsx). */
 export function EmployeeRoute({ detail }: { detail: ReactNode }) {
-  const s = useAgentselfOptional();
+  const s = useAgenteamOptional();
   return <EmployeePage ctx={s?.ctx ?? null} toast={s?.toast ?? (() => {})} detail={detail} />;
 }
 export function SettingsRoutePage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const [tab, setTab] = useSettingsTab();
   return (
     <PageFrame ctx={s.ctx} crumbs={["设置", settingsTabLabel(tab)]}>
@@ -394,11 +394,11 @@ export function SettingsRoutePage() {
   );
 }
 export function ArchivedPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   return <PageFrame ctx={s.ctx} crumbs={["管理", "已归档"]}>{(ctx) => <Archived ctx={ctx} onChange={s.reloadCtx} />}</PageFrame>;
 }
 export function NewDepartmentPage() {
-  const s = useAgentself();
+  const s = useAgenteam();
   const { t } = useSkin();
   const navigate = useNavigate();
   return (
@@ -410,7 +410,7 @@ export function NewDepartmentPage() {
             s.reloadCtx();
             s.toast(`${t("department")}已创建`);
             try {
-              localStorage.setItem("agentself.view", "team");
+              localStorage.setItem("agenteam.view", "team");
             } catch {
               /* ignore */
             }

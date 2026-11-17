@@ -15,7 +15,7 @@ let teamLayerId: string | null = null;
 async function teamLayer(): Promise<string | null> {
   if (teamLayerId) return teamLayerId;
   const plugins = list<{ id: string; pluginKey: string }>(await pc.get("/plugins").catch(() => []));
-  teamLayerId = plugins.find((p) => p.pluginKey === "agentself.team-layer")?.id ?? null;
+  teamLayerId = plugins.find((p) => p.pluginKey === "agenteam.team-layer")?.id ?? null;
   return teamLayerId;
 }
 async function loadNotices(companyId: string): Promise<Notice[]> {
