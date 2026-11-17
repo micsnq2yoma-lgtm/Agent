@@ -8,9 +8,11 @@
 
 你说一句话就可以离开。一支由你命名的 AI 团队替你从头做到尾，带着证据交付。
 
+**中文** · [English](README.en.md)
+
 [快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md) · [路线](docs/v0.6-direction.md)
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
+[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/Agentself?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/Agentself/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/Agentself/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/Agentself/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
 <img src="docs/assets/pixel-office-1440x900.png" width="860" alt="AgenTeam 像素办公室">
 
@@ -101,6 +103,10 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 - [界面设计规范](docs/handoff/design/DESIGN.md) · [像素员工](docs/pixel-employees.md)
 - [对 Paperclip 源码的改动](docs/paperclip-changes.md)
 - [历史方案与各阶段报告](docs/history/)
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/Agentself&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/Agentself&Date)
 
 ## 许可
 
