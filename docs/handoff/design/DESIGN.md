@@ -455,7 +455,7 @@ card-sub   = 谁 · 编号（交付卡加 "3/3 通过"）
 
 ## 6. 文案
 
-- **工作台：** 字标下方只放英文一行「Put your attention on what truly matters.」，去掉中文理念和问候语。
+- **工作台：** 字标下方只放英文一行「Focus your attention on valuable things.」，去掉中文理念和问候语。
 - **输入框占位：** 交给团队一件事，说完就可以离开。
 - **待你处理的空状态：** 没有要你处理的事，团队在干活。
 - **Paperclip 页面残留英文：** 继续走 `scripts/i18n` 翻译。Assign Task → 派任务；Enabled for N agents → 已为 N 名员工启用；Search installed skills… → 搜索已安装技能。

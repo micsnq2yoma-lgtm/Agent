@@ -2,7 +2,7 @@
 
 # AgenTeam
 
-把注意力放在真正有价值的事情上 · Put your attention on what truly matters.
+把注意力放在真正有价值的事情上 · Focus your attention on valuable things.
 
 AgenTeam（原名 Agentself）是一支自动化 AI 团队：你说一句话就可以离开。路由把它交给最合适的主管；主管理解你的意图、写好验收标准，大事先给你计划，再派一名员工（本机已登录的 Claude Code / Codex）从头做到尾；员工逐条附证据交付，主管验收后给你一页结论。主管和员工都由你命名，没有预设。基座是 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，源码内置于 `vendor/paperclip`）。
 
