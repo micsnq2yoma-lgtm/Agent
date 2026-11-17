@@ -7,6 +7,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
+import { pnpmCommand } from "./lib/pnpm.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const paperclip = path.join(root, "vendor", "paperclip");
@@ -19,7 +20,8 @@ if (process.platform === "win32" && !gitBash()) {
 const env = pnpmEnv();
 function run(args, cwd) {
   console.log(`> pnpm ${args.join(" ")}  (${path.relative(root, cwd) || "."})`);
-  const r = spawnSync("pnpm", args, { cwd, env, stdio: "inherit", shell: process.platform === "win32" });
+  const spec = pnpmCommand(args, env);
+  const r = spawnSync(spec.command, spec.args, { cwd, env: spec.env, stdio: "inherit", shell: spec.shell, windowsHide: true });
   if (r.status !== 0) process.exit(r.status ?? 1);
 }
 if (argv.has("--install")) run(["install", "--frozen-lockfile"], paperclip);

@@ -16,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
+import { pnpmCommand } from "./lib/pnpm.mjs";
 import { resolveHome } from "./lib/legacy.mjs";
 import { mergeUpdateState } from "./lib/update-state.mjs";
 import { stopAgenteam } from "./stop.mjs";
@@ -46,14 +47,15 @@ function state(patch) {
 // git and gh are real executables: run them without a shell, so arguments with spaces or "&" stay whole.
 const NO_SHELL = new Set(["git", "gh"]);
 function sh(cmd, argv, cwd = root, { quiet = false } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, encoding: "utf8", shell: process.platform === "win32" && !NO_SHELL.has(cmd), windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: pnpmEnv() });
+  const spec = cmd === "pnpm" ? pnpmCommand(argv, pnpmEnv()) : { command: cmd, args: argv, shell: process.platform === "win32" && !NO_SHELL.has(cmd), env: pnpmEnv() };
+  const r = spawnSync(spec.command, spec.args, { cwd, encoding: "utf8", shell: spec.shell, windowsHide: true, maxBuffer: 64 * 1024 * 1024, env: spec.env });
   if (!quiet && r.stdout?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stdout);
   if (r.stderr?.trim()) fs.appendFileSync(path.join(home, "logs", "update.log"), r.stderr);
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status}）：${(r.stderr || r.stdout || "").trim().split(/\r?\n/).slice(-3).join(" / ")}`);
   return (r.stdout ?? "").trim();
 }
 const git = (...a) => sh("git", a, root, { quiet: true });
-const pnpm = process.env.AGENTEAM_PNPM ?? "pnpm";
+const pnpm = "pnpm";
 async function healthy(url) {
   try {
     return (await fetch(url, { signal: AbortSignal.timeout(3000) })).ok;

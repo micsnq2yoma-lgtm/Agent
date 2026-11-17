@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
+import { ensurePnpm, pnpmCommand } from "./lib/pnpm.mjs";
 import { codexConfigProblems } from "./lib/codex-check.mjs";
 import { stopAgenteam } from "./stop.mjs";
 
@@ -23,7 +24,8 @@ const step = (s) => console.log(`\n▶ ${s}`);
 const warn = (s) => console.log(`⚠ ${s}`);
 
 function run(cmd, argv, cwd = root, { capture = false } = {}) {
-  const r = spawnSync(cmd, argv, { cwd, stdio: capture ? "pipe" : "inherit", encoding: "utf8", shell: win, windowsHide: true, env: pnpmEnv() });
+  const spec = cmd === "pnpm" ? pnpmCommand(argv, pnpmEnv()) : { command: cmd, args: argv, shell: win, env: pnpmEnv() };
+  const r = spawnSync(spec.command, spec.args, { cwd, stdio: capture ? "pipe" : "inherit", encoding: "utf8", shell: spec.shell, windowsHide: true, env: spec.env });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")} 失败（${r.status}）${capture ? `：${(r.stderr || r.stdout || "").trim().slice(-300)}` : ""}`);
   return (r.stdout ?? "").trim();
 }
@@ -50,13 +52,17 @@ step("检查环境");
 const [maj, min] = process.versions.node.split(".").map(Number);
 if (maj < 24 || (maj === 24 && min < 11)) throw new Error(`需要 Node 24.11 以上，现在是 ${process.versions.node}`);
 ok(`Node ${process.versions.node}`);
-const pnpmV = version("pnpm", "-v");
-if (!pnpmV) throw new Error("没有 pnpm：先运行 corepack enable，再 corepack prepare pnpm@9.15.9 --activate");
-ok(`pnpm ${pnpmV}`);
+try {
+  const pnpm = ensurePnpm();
+  ok(`pnpm ${pnpm.version}`);
+} catch (error) {
+  console.error(`✘ ${error.message}`);
+  process.exit(1);
+}
 ok(`git ${version("git")?.replace(/^git version /, "") ?? "?"}`);
 if (win) {
   const bash = gitBash();
-  if (!bash) throw new Error("没找到 Git Bash（Paperclip 的安装脚本要用）：装 Git for Windows，或者设置环境变量 AGENTEAM_BASH 指向 bash.exe");
+  if (!bash) throw new Error("没找到 Git Bash（AgenTeam 的底层构建脚本要用）：装 Git for Windows，或者设置环境变量 AGENTEAM_BASH 指向 bash.exe");
   ok(`Git Bash ${bash}`);
 }
 const claudeV = version("claude");
@@ -74,19 +80,20 @@ run("pnpm", ["build"], root);
 ok("构建完成");
 
 // 3. Paperclip first-run config (non-interactive defaults: local, embedded database)
-step("Paperclip 首次配置");
+step("AgenTeam 初始化配置");
 const configPath = path.join(os.homedir(), ".paperclip", "instances", "default", "config.json");
-if (fs.existsSync(configPath)) ok(`已有配置 ${configPath}`);
+if (fs.existsSync(configPath)) ok(`复用已有底层引擎配置：${configPath}（Paperclip 是 AgenTeam 使用的引擎）`);
 else {
   // `onboard --yes` writes the default config and then starts Paperclip in the foreground; let it
   // come up once (that also creates the database), then stop it and hand over to the supervisor.
-  const child = spawn("pnpm", ["paperclipai", "onboard", "--yes", "--no-install-service"], { cwd: vendor, stdio: "inherit", shell: win, windowsHide: true, env: pnpmEnv() });
+  const spec = pnpmCommand(["paperclipai", "onboard", "--yes", "--no-install-service"], pnpmEnv());
+  const child = spawn(spec.command, spec.args, { cwd: vendor, stdio: "inherit", shell: spec.shell, windowsHide: true, env: spec.env });
   const end = Date.now() + 10 * 60_000;
   while (Date.now() < end && !(fs.existsSync(configPath) && (await healthy("http://127.0.0.1:3100/api/health")))) {
     if (child.exitCode !== null) break;
     await new Promise((r) => setTimeout(r, 3000));
   }
-  if (!fs.existsSync(configPath)) throw new Error("Paperclip 首次配置没有完成，请手动运行：cd vendor/paperclip; pnpm paperclipai onboard");
+  if (!fs.existsSync(configPath)) throw new Error("AgenTeam 底层引擎初始化没有完成，请重新运行 node scripts/install.mjs；详细原因见上方日志。");
   await stopAgenteam(() => {});
   if (child.exitCode === null) child.kill();
   ok("已生成配置");
@@ -99,8 +106,8 @@ else {
   spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: "ignore", windowsHide: true }).unref();
   const end = Date.now() + 5 * 60_000;
   while (Date.now() < end && !(await healthy("http://127.0.0.1:3100/api/health"))) await new Promise((r) => setTimeout(r, 3000));
-  if (!(await healthy("http://127.0.0.1:3100/api/health"))) throw new Error("Paperclip 5 分钟内没起来，看 ~/.agenteam/logs/paperclip.log");
-  ok("Paperclip 和本地服务已启动");
+  if (!(await healthy("http://127.0.0.1:3100/api/health"))) throw new Error("AgenTeam 底层服务 5 分钟内没起来，看 ~/.agenteam/logs/paperclip.log");
+  ok("AgenTeam 服务已启动");
 }
 
 // 5. team-layer plugin

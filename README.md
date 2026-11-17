@@ -45,7 +45,7 @@
 
 ## 快速开始
 
-Windows 11，Node 24.11+，pnpm 9.15+，Git。先装好并登录：
+Windows 11，Node 24.11+（含 npm），Git。pnpm 由安装脚本自动检测；缺少项目指定版本时，自动安装到 AgenTeam 数据目录下的 `tools/pnpm/`，无需管理员权限、Corepack 或手动配置 PATH。构建、启动和更新也会自动使用这份 pnpm。先装好并登录：
 
 - Claude Code：`npm i -g @anthropic-ai/claude-code`，运行 `claude` 登录（主管、路由、核查员都用它）
 - Codex（可选）：`npm i -g @openai/codex`，`codex login`
@@ -61,6 +61,8 @@ node scripts\install.mjs
 **以后一键启动**：双击桌面上的 **AgenTeam** 图标，没在运行就先启动，就绪后自动在浏览器里打开。想补建或重建快捷方式：`powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1`（桌面和开始菜单各一个，加 `-Remove` 删除）。macOS / Linux 用 `node scripts/launch.mjs`。
 
 多台电脑各装一套，互不依赖：各自登录订阅、配置 API key，数据存在各自本机。
+
+默认情况下，AgenTeam 的设置、服务商配置和日志位于 `~/.agenteam`；底层 Paperclip 引擎的配置和数据库位于 `~/.paperclip`。安装时提示“复用已有底层引擎配置”表示检测到了配置文件，会沿用它；构建日志中的 Paperclip 名称也指这个底层引擎，不是产品改名遗漏。不要为统一名称而手动重命名数据目录。
 
 ## 更新
 
