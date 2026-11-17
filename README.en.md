@@ -4,7 +4,7 @@
 
 # AgenTeam
 
-**Focus your attention on valuable things.**
+**Focus Your Attention on Valuable Things.**
 
 Say one sentence and walk away. A team of AI agents you named does the whole job and hands it back with evidence.
 

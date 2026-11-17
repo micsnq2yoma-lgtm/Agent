@@ -4,7 +4,7 @@
 
 # AgenTeam
 
-**把注意力放在真正有价值的事情上 · Focus your attention on valuable things.**
+**把注意力放在真正有价值的事情上 · Focus Your Attention on Valuable Things.**
 
 你说一句话就可以离开。一支由你命名的 AI 团队替你从头做到尾，带着证据交付。
 
