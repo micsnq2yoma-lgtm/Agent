@@ -103,12 +103,10 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 
 AgenTeam 站在这些项目的肩膀上。完整的第三方许可见 `NOTICE` 和 `packages/pixel-office/THIRD_PARTY_LICENSES`。
 
-| 项目 | 我们用了什么 | 方式 |
-| --- | --- | --- |
-| [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI） | 整个底座：任务、运行、界面、插件系统 | 源码内置于 `vendor/paperclip` 并有修改，见 [docs/paperclip-changes.md](docs/paperclip-changes.md) |
-| [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT） | 卡片协议（ask / notice / resolve / later）、跳数上限、事件规则、全局档案与双入口 | 设计遵循，自行实现 |
-| LobeHub | 验收作为一等数据：任务书、逐条证据、逐条判定；记忆“提议 → 审核 → 写入” | 只借鉴思路 |
-| MyAgents（AGPL） | 产品思路 | 只借鉴思路，未打开或复制其代码 |
+- [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI）
+- [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT）
+- LobeHub
+- MyAgents（AGPL）
 
 ## 许可
 

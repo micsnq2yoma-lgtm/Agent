@@ -101,12 +101,10 @@ A version that fails to start is rolled back automatically. The database is not 
 
 AgenTeam stands on the shoulders of these projects. Full third-party licenses are in `NOTICE` and `packages/pixel-office/THIRD_PARTY_LICENSES`.
 
-| Project | What we took | How |
-| --- | --- | --- |
-| [Paperclip](https://github.com/paperclipai/paperclip) (MIT, © Paperclip AI) | The whole foundation: tasks, runs, UI, plugin system | Source vendored in `vendor/paperclip` with modifications; see [docs/paperclip-changes.md](docs/paperclip-changes.md) |
-| [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop) (MIT) | Card protocol (ask / notice / resolve / later), hop limit, event rules, global profile and two entry points | Design followed, own implementation |
-| LobeHub | Acceptance as first-class data: brief, per-criterion evidence, per-criterion verdict; memory “propose → review → write” | Ideas only |
-| MyAgents (AGPL) | Product ideas | Ideas only; its code was not opened or copied |
+- [Paperclip](https://github.com/paperclipai/paperclip) (MIT, © Paperclip AI)
+- [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop) (MIT)
+- LobeHub
+- MyAgents (AGPL)
 
 ## License
 
