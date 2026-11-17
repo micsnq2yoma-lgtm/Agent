@@ -2,17 +2,25 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { estimateYuan, listProviders, mergeEnv, normalizePrices, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
+import { estimateYuan, listProviders, mergeEnv, normalizeContextLengths, normalizePrices, parseModelContextLengths, resolveSource, saveProvider, sourceOf } from "../../../scripts/lib/providers.mjs";
+import { contextLengthOf, contextLengthText } from "../../../vendor/paperclip/ui/src/agentself/lib/model-context";
+import type { ModelsInfo } from "../../../vendor/paperclip/ui/src/agentself/lib/models";
 // @ts-expect-error plain JS module
 import { agentAdapterConfig, codexMcpArgs, validatePack } from "../../../scripts/lib/department.mjs";
 // @ts-expect-error plain JS module
 import { tomlStr } from "../../../scripts/lib/mcp-servers.mjs";
 
 const home = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-models-"));
+const previousHome = process.env.AGENTSELF_HOME;
 // everything that reads ~/.agentself (mailboxes, tool servers) reads this empty home, not the machine's
 process.env.AGENTSELF_HOME = home;
+afterAll(() => {
+  if (previousHome === undefined) delete process.env.AGENTSELF_HOME;
+  else process.env.AGENTSELF_HOME = previousHome;
+  fs.rmSync(home, { recursive: true, force: true });
+});
 
 describe("API providers", () => {
   it("presets list without keys until one is saved; the key itself is never stored here", () => {
@@ -147,5 +155,68 @@ describe("model prices (yuan per million tokens)", () => {
     const p = listProviders(home).find((x: { id: string }) => x.id === "deepseek");
     expect(p.prices).toEqual({ "deepseek-chat": { input: 2, output: 3 } });
     expect(p.pricingUrl).toMatch(/^https:\/\//);
+  });
+});
+
+describe("optional model context lengths (tokens)", () => {
+  it("accepts only positive safe integers and leaves unspecified models unknown", () => {
+    expect(normalizeContextLengths({ " model-a ": "4096", "model-b": 8192, empty: "", whitespace: " ", zero: 0, negative: -1, fraction: 1.5, huge: Number.MAX_SAFE_INTEGER + 1, infinity: Infinity, invalid: "128k", boolean: true, array: [2048], object: {}, missing: null })).toEqual({
+      "model-a": 4096,
+      "model-b": 8192,
+    });
+    expect(normalizeContextLengths(null)).toEqual({});
+    expect(normalizeContextLengths([4096])).toEqual({});
+    expect(listProviders(fs.mkdtempSync(path.join(home, "empty-")))).toSatisfy((providers: Array<{ contextLengths?: unknown }>) => providers.every((p) => p.contextLengths === undefined));
+  });
+  it("reads explicit context fields across model-list shapes without treating input/output limits as context", () => {
+    expect(parseModelContextLengths({ data: [
+      { id: " a ", context_length: 4096 },
+      { id: "b", context_window: "8192" },
+      { id: "c", contextLength: 2048 },
+      { id: "d", contextWindow: 16384 },
+      { id: "e", max_context_length: 32768 },
+      { id: "f", context_window_tokens: 65536 },
+      { id: "output-only", max_output_tokens: 1024 },
+      { id: "input-only", max_input_tokens: 1024 },
+      { id: "bad", context_length: -1 },
+      { context_length: 1024 },
+      "name-with-128k",
+    ] })).toEqual({ a: 4096, b: 8192, c: 2048, d: 16384, e: 32768, f: 65536 });
+    expect(parseModelContextLengths({ models: [{ name: "model-a", context_window: 2048 }, "model-b"] })).toEqual({ "model-a": 2048 });
+    expect(parseModelContextLengths([{ model: "model-c", context_length: 4096 }])).toEqual({ "model-c": 4096 });
+  });
+  it("fetching models carries returned context metadata and preserves manually entered values when omitted", async () => {
+    saveProvider(home, "context-test", { baseUrl: "https://models.example/anthropic", model: "reported", smallModel: "manual", contextLengths: { reported: 4096, manual: 2048 }, prices: { reported: { input: 2 } } });
+    const result = await fetchModels(home, "context-test", {
+      apiKey: "synthetic-test-value",
+      fetchImpl: async () => ({ ok: true, json: async () => ({ data: [{ id: "reported", context_length: 8192 }, { id: "manual" }, { id: "unknown" }] }) }),
+    });
+    expect(result.models).toEqual(["manual", "reported", "unknown"]);
+    expect(result.contextLengths).toEqual({ reported: 8192 });
+    expect(listProviders(home).find((p: { id: string }) => p.id === "context-test")).toMatchObject({ contextLengths: { reported: 8192, manual: 2048 }, prices: { reported: { input: 2 } } });
+    saveProvider(home, "context-test", { contextLengths: { reported: "", manual: "16384" } });
+    const saved = listProviders(home).find((p: { id: string }) => p.id === "context-test");
+    expect(saved.contextLengths).toEqual({ manual: 16384 });
+    expect(saved.prices).toEqual({ reported: { input: 2 } });
+    expect(fs.readFileSync(path.join(home, "providers.json"), "utf8")).not.toContain("synthetic-test-value");
+  });
+  it("the employee picker uses the chosen provider/model, including defaults and unknown lengths", () => {
+    const models: ModelsInfo = {
+      providers: [
+        { id: "first", name: "First", baseUrl: "", model: "main", smallModel: "light", hasKey: true, preset: false, contextLengths: { main: 8192, light: 4096, manual: 2048 } },
+        { id: "second", name: "Second", baseUrl: "", model: "main", smallModel: "main", hasKey: true, preset: false, contextLengths: { main: 16384 } },
+      ],
+      subscriptions: { claude: null, codex: null },
+    };
+    expect(contextLengthOf(models, "api:first", "light")).toBe(4096);
+    expect(contextLengthOf(models, "api:first", "")).toBe(8192);
+    expect(contextLengthOf(models, "api:second", "main")).toBe(16384);
+    expect(contextLengthOf(models, "api:first", "unknown")).toBeNull();
+    expect(contextLengthOf(models, "claude", "main")).toBeNull();
+    expect(contextLengthOf(null, "api:first", "main")).toBeNull();
+    expect(contextLengthOf(models, "api:first", "manual")).toBe(2048);
+    expect(contextLengthText(8192)).toBe("上下文 8,192 token");
+    expect(contextLengthText(null)).toBe("上下文未提供");
+    expect(contextLengthText(-1)).toBe("上下文未提供");
   });
 });

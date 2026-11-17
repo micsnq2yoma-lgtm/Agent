@@ -68,6 +68,7 @@ export function saveProvider(home, id, patch) {
   const next = { ...cur };
   for (const k of ["name", "baseUrl", "model", "smallModel", "secretId", "modelsUrl", "models", "modelsFetchedAt"]) if (patch[k] !== undefined) next[k] = typeof patch[k] === "string" ? patch[k].trim() : patch[k];
   if (patch.prices !== undefined) next.prices = normalizePrices(patch.prices);
+  if (patch.contextLengths !== undefined) next.contextLengths = normalizeContextLengths(patch.contextLengths);
   if (patch.pricingUrl !== undefined && !preset) next.pricingUrl = String(patch.pricingUrl).trim();
   if (!preset && !next.baseUrl) throw Object.assign(new Error("自定义服务商要填 Anthropic 兼容接口地址"), { status: 400 });
   if (next.baseUrl && !/^https?:\/\//.test(next.baseUrl)) throw Object.assign(new Error("接口地址要以 http(s):// 开头"), { status: 400 });
@@ -133,10 +134,43 @@ export function mergeEnv(cur, next) {
   return { ...out, ...next };
 }
 
+const modelItems = (json) => (Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : []);
+const modelId = (m) => {
+  const id = typeof m === "string" ? m : (m?.id ?? m?.name ?? m?.model);
+  return typeof id === "string" ? id.trim() : "";
+};
+
 /** Model ids from an OpenAI-style `{ data: [{ id }] }` or Anthropic-style list. Pure. */
 export function parseModelList(json) {
-  const items = Array.isArray(json?.data) ? json.data : Array.isArray(json?.models) ? json.models : Array.isArray(json) ? json : [];
-  return [...new Set(items.map((m) => (typeof m === "string" ? m : (m?.id ?? m?.name ?? m?.model))).filter((x) => typeof x === "string" && x.trim()))].sort();
+  return [...new Set(modelItems(json).map(modelId).filter(Boolean))].sort();
+}
+
+const contextLength = (value) => {
+  if (typeof value !== "number" && typeof value !== "string") return undefined;
+  if (typeof value === "string" && !value.trim()) return undefined;
+  const n = Number(value);
+  return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+};
+
+/** Optional context length in tokens, keyed by model id; never inferred from a model name. */
+export function normalizeContextLengths(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  return Object.fromEntries(Object.entries(raw)
+    .map(([model, value]) => [model.trim(), contextLength(value)])
+    .filter(([model, value]) => model && value !== undefined));
+}
+
+/** Read only explicit context-window fields; output or input limits are not total context lengths. */
+export function parseModelContextLengths(json) {
+  const entries = [];
+  for (const model of modelItems(json)) {
+    const id = modelId(model);
+    if (!id || !model || typeof model !== "object") continue;
+    const length = [model.context_length, model.context_window, model.contextLength, model.contextWindow, model.max_context_length, model.context_window_tokens]
+      .map(contextLength).find((value) => value !== undefined);
+    if (length !== undefined) entries.push([id, length]);
+  }
+  return Object.fromEntries(entries);
 }
 
 /**
@@ -157,13 +191,17 @@ export async function fetchModels(home, id, { apiKey, baseUrl, fetchImpl = fetch
         lastErr = `${new URL(url).host} 返回 ${r.status}`;
         continue;
       }
-      const models = parseModelList(await r.json());
+      const json = await r.json();
+      const models = parseModelList(json);
       if (!models.length) {
         lastErr = `${new URL(url).host} 没有返回模型`;
         continue;
       }
-      saveProvider(home, id, { models, modelsFetchedAt: new Date().toISOString() });
-      return { models, from: url };
+      const fetchedContextLengths = parseModelContextLengths(json);
+      // Omitted metadata must not erase a length the user has already filled in.
+      const contextLengths = { ...normalizeContextLengths(listProviders(home).find((x) => x.id === id)?.contextLengths), ...fetchedContextLengths };
+      saveProvider(home, id, { models, contextLengths, modelsFetchedAt: new Date().toISOString() });
+      return { models, contextLengths: fetchedContextLengths, from: url };
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
     }

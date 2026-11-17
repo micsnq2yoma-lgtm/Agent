@@ -2,6 +2,7 @@
 // API model through a provider's Anthropic-compatible endpoint.
 import { useEffect, useState } from "react";
 import { as } from "./api";
+export { contextLengthOf, contextLengthText } from "./model-context";
 
 export interface Provider {
   id: string;
@@ -17,6 +18,8 @@ export interface Provider {
   modelsFetchedAt?: string;
   /** yuan per million tokens, per model (filled in by the user from pricingUrl) */
   prices?: Record<string, Price>;
+  /** Optional total context length in tokens, from /models or entered by the user. */
+  contextLengths?: Record<string, number>;
   pricingUrl?: string;
 }
 export interface Price {
@@ -55,7 +58,7 @@ export const formatYuan = (n: number) => `¥${n < 0.01 && n > 0 ? "<0.01" : n.to
 export function modelChoices(source: string, m: ModelsInfo | null): string[] {
   if (source.startsWith("api:")) {
     const p = m?.providers.find((x) => x.id === source.slice(4));
-    return [...new Set([p?.model, p?.smallModel, ...(p?.models ?? [])].filter((x): x is string => !!x))];
+    return [...new Set([p?.model, p?.smallModel, ...(p?.models ?? []), ...Object.keys(p?.contextLengths ?? {}), ...Object.keys(p?.prices ?? {})].filter((x): x is string => !!x))];
   }
   return m?.subscriptionModels?.[source === "codex" ? "codex" : "claude"] ?? [];
 }

@@ -6,7 +6,7 @@ import { useSkin } from "../lib/skin";
 import { AGENT_STATUS, Robot, eyeOf, modelName } from "../components/Brand";
 import { Link } from "@/lib/router";
 import { SourceSelect } from "../components/SourceSelect";
-import { modelChoices, priceOf, priceText, sourceLabel, sourceOfAgent, useModels } from "../lib/models";
+import { contextLengthOf, contextLengthText, modelChoices, priceOf, priceText, sourceLabel, sourceOfAgent, useModels } from "../lib/models";
 
 interface MemoryFile {
   path: string;
@@ -265,7 +265,7 @@ function ModelPicker({ agent, onChanged, toast }: { agent: Agent; onChanged: () 
     }
   }
   return (
-    <span style={{ display: "inline-flex", gap: 6, alignItems: "center" }}>
+    <span style={{ display: "inline-flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
       <input className="input mono" style={{ width: 190 }} list={listId} value={v} placeholder={source === "codex" ? "Codex 默认" : source.startsWith("api:") ? "服务商默认" : "Claude 默认"} onChange={(e) => setV(e.target.value)} aria-label="模型" />
       <datalist id={listId}>
         {modelChoices(source, models).map((x) => (
@@ -276,8 +276,14 @@ function ModelPicker({ agent, onChanged, toast }: { agent: Agent; onChanged: () 
         应用
       </button>
       {source.startsWith("api:") && (
-        <span className="sub" data-testid="model-price">
-          {priceText(priceOf(models, source, v || models?.providers.find((x) => `api:${x.id}` === source)?.model)) || "还没填价格"}
+        <span>
+          <span className="sub" data-testid="model-context">
+            {contextLengthText(contextLengthOf(models, source, v))}
+          </span>
+          <br />
+          <span className="sub" data-testid="model-price">
+            {priceText(priceOf(models, source, v || models?.providers.find((x) => `api:${x.id}` === source)?.model)) || "还没填价格"}
+          </span>
         </span>
       )}
     </span>
