@@ -8,6 +8,8 @@
 // PAPERCLIP_RUN_ID. Zero dependencies: newline-delimited JSON-RPC 2.0 on stdin/stdout, logs on stderr.
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
+import { listAccounts, newMail, readMail, recentMail, saveDraft } from "./mail.mjs";
+import { addPaper, getPaper, readFulltext, searchLibrary, setFulltext, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 
 const env = (k) => process.env[k] ?? "";
 const PLUGIN = "agentself.team-layer";
@@ -104,11 +106,14 @@ export async function settleReport(issueId, doc) {
 const me = () => env("PAPERCLIP_AGENT_ID");
 /* ---------- delegation guards (PR #4 p13: rules enforced in code, not only in the skill) ---------- */
 
-/** Codex employees have no team MCP tools (no submit_evidence / comments), so work given to them
- * cannot come back. Until that exists, delegation to them is refused unless explicitly allowed. */
+/** Codex employees get the team MCP tools through `-c mcp_servers.agentself.*` in their adapter
+ * config (scripts/lib/department.mjs codexMcpArgs). One that has not been synced since cannot report
+ * back, so delegation to it is refused until the next sync (restart the local service). */
 export function codexBlock(employee, allow = process.env.AGENTSELF_ALLOW_CODEX === "1") {
   if (allow || employee?.adapterType !== "codex_local") return null;
-  return `「${employee.name}」是 Codex 员工：目前没有团队工具，交不了证据、也回不了话。请派给 Claude 员工；没有合适的就用 propose_hire 提议一名 Claude 员工。`;
+  const args = employee.adapterConfig?.extraArgs ?? [];
+  if (args.some((a) => String(a).includes("mcp_servers.agentself"))) return null;
+  return `「${employee.name}」是 Codex 员工，但还没装上团队工具（交不了证据、也回不了话）。重启 AgenTeam 本地服务会自动补上；在那之前请派给 Claude 员工。`;
 }
 
 /** Words that usually mean an ask-first action (profile/askfirst.md): destroying data or results,
@@ -138,6 +143,82 @@ const S = (properties, required = []) => ({ type: "object", properties, required
 const str = (description) => ({ type: "string", description });
 
 export const TOOLS = {
+  /* ---- paper library (settings → 论文库; a folder the user chose) ---- */
+  library_search: {
+    roles: ["employee", "lead"],
+    description: "在论文库里检索（标题、作者、摘要、笔记、全文，中文英文都可以），返回最相关的论文和命中的段落。查新论文之前先查一下是不是已经收过、读过。",
+    inputSchema: S({ query: str("要找什么"), limit: { type: "integer", minimum: 1, maximum: 30 }, tag: str("只看某个标签"), status: { type: "string", enum: ["unread", "reading", "read", "skipped"] } }, ["query"]),
+    run: async (a) => searchLibrary(a.query, { limit: a.limit ?? 10, tag: a.tag ?? null, status: a.status ?? null }),
+  },
+  library_get: {
+    roles: ["employee", "lead"],
+    description: "一篇论文的信息、摘要、笔记，以及 PDF 在本机的路径（需要看图表时可以直接读 PDF）。",
+    inputSchema: S({ id: str("论文 id（检索结果里的 id）") }, ["id"]),
+    run: async (a) => getPaper(a.id),
+  },
+  library_read: {
+    roles: ["employee", "lead"],
+    description: "分段读论文全文（每次最多 2 万字，用 offset 往后读）。",
+    inputSchema: S({ id: str("论文 id"), offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1000, maximum: 20000 } }, ["id"]),
+    run: async (a) => readFulltext(a.id, { offset: a.offset ?? 0, limit: a.limit ?? 12000 }),
+  },
+  library_add: {
+    roles: ["employee"],
+    description: "把论文收进论文库：arXiv 编号或链接、DOI、PDF 链接或本机 PDF 路径。会自动取元数据、下载 PDF、抽全文；已经收过的直接返回原来那篇。",
+    inputSchema: S({ ref: str("arXiv 编号 / 链接、DOI、PDF 链接或本机路径"), tags: { type: "array", items: { type: "string" } } }, ["ref"]),
+    run: async (a) => addPaper({ ref: a.ref, tags: a.tags ?? [], by: "员工" }),
+  },
+  library_note: {
+    roles: ["employee"],
+    description: "给论文追加一条笔记（带日期）：读后的要点、和用户课题的关系、能不能用。用户在论文库里能看到。",
+    inputSchema: S({ id: str("论文 id"), text: str("笔记（Markdown）") }, ["id", "text"]),
+    run: async (a) => ({ notes: writeNotes(a.id, a.text, { by: "员工" }) }),
+  },
+  library_update: {
+    roles: ["employee"],
+    description: "改论文的阅读状态或标签（unread 未读 / reading 在读 / read 已读 / skipped 不看）。",
+    inputSchema: S({ id: str("论文 id"), status: { type: "string", enum: ["unread", "reading", "read", "skipped"] }, tags: { type: "array", items: { type: "string" } } }, ["id"]),
+    run: async (a) => updatePaper(a.id, { ...(a.status ? { status: a.status } : {}), ...(a.tags ? { tags: a.tags } : {}) }),
+  },
+  library_set_fulltext: {
+    roles: ["employee"],
+    description: "PDF 抽不出文字时（论文信息里 fulltext.status = needs_agent），自己读完 PDF 后把正文写回来，以后就能检索。",
+    inputSchema: S({ id: str("论文 id"), text: str("论文正文") }, ["id", "text"]),
+    run: async (a) => setFulltext(a.id, a.text, "agent"),
+  },
+
+  /* ---- mailboxes (settings → 邮箱; IMAP, read-only outside: drafts are saved, never sent) ---- */
+  mail_new: {
+    roles: ["employee"],
+    description: "看邮箱里自上次检查以来的新邮件（第一次是最近一天），只返回发件人、主题、时间和 uid，不会标为已读。检查一次就会往前推进，不会重复返回同一封。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), max: { type: "integer", minimum: 1, maximum: 100 } }),
+    run: async (a) => newMail({ account: a.account, max: a.max ?? 30 }),
+  },
+  mail_recent: {
+    roles: ["employee"],
+    description: "最近几天的邮件列表（不推进'新邮件'的进度），可按发件人或主题里的文字筛选、只看未读。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), days: { type: "integer", minimum: 1, maximum: 60 }, query: str("发件人或主题里包含的文字"), unreadOnly: { type: "boolean" } }),
+    run: async (a) => recentMail({ account: a.account, days: a.days ?? 3, query: a.query ?? "", unreadOnly: !!a.unreadOnly }),
+  },
+  mail_read: {
+    roles: ["employee"],
+    description: "读一封邮件的全文（附件只列名字），不会标为已读。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), uid: { type: "integer" } }, ["uid"]),
+    run: async (a) => readMail({ account: a.account, uid: a.uid }),
+  },
+  mail_draft: {
+    roles: ["employee"],
+    description: "写一封回复或新邮件，存进邮箱的草稿箱，由用户自己检查后发送。不会发送（发送邮件是先问清单里的对外动作）。回复时给 replyToUid，主题可以不填。",
+    inputSchema: S({ account: str("邮箱地址（不填用第一个）"), to: str("收件人"), cc: str("抄送"), subject: str("主题"), body: str("正文（纯文本）"), replyToUid: { type: "integer" } }, ["to", "body"]),
+    run: async (a) => saveDraft({ account: a.account, to: a.to, cc: a.cc ?? "", subject: a.subject ?? "", body: a.body, replyToUid: a.replyToUid ?? null }),
+  },
+  mail_accounts: {
+    roles: ["employee", "lead"],
+    description: "列出配置好的邮箱（不含密码）。",
+    inputSchema: S({}),
+    run: async () => listAccounts(),
+  },
+
   team_overview: {
     roles: ["lead"],
     description: "看你的员工（reportsTo 是你）和其他主管。选人、转交前先看这个。",

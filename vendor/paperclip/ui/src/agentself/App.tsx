@@ -17,6 +17,7 @@ import { Team } from "./views/Team";
 import { ProjectDrawer } from "./views/ProjectDrawer";
 import { EmployeeDrawer } from "./views/EmployeeDrawer";
 import { Archived, NewDepartment, Projects, Routines, SettingsPage, settingsTabLabel, useSettingsTab } from "./views/Pages";
+import { LibraryView } from "./views/Library";
 import { ChevronRight } from "lucide-react";
 import { Skeleton } from "./components/Skeleton";
 import "./styles.css";
@@ -202,7 +203,7 @@ function PageFrame({ ctx, children, crumbs, center, actions }: { ctx: Context | 
     body = (
       <div className="page">
         <div className="empty">
-          <b>连不上 Agentself 本地服务</b>
+          <b>连不上 AgenTeam 本地服务</b>
           <span>{s.ctxError}。请确认用 `node scripts/start.mjs` 启动，它会同时拉起本地服务。</span>
         </div>
       </div>
@@ -351,6 +352,10 @@ export function ProjectsPage() {
   const s = useAgentself();
   const { t } = useSkin();
   return <PageFrame ctx={s.ctx} crumbs={[t("project")]}>{(ctx) => <Projects ctx={ctx} issues={s.feed?.issues ?? []} openProject={s.openProject} />}</PageFrame>;
+}
+export function LibraryPage() {
+  const s = useAgentself();
+  return <PageFrame ctx={s.ctx} crumbs={["论文库"]}>{() => <LibraryView toast={s.toast} />}</PageFrame>;
 }
 export function RoutinesPage() {
   const s = useAgentself();

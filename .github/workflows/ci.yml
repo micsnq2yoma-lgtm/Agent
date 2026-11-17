@@ -1,0 +1,64 @@
+# Automatic checks on every PR and on main (release: each machine updates from main).
+# - tests: the Agentself unit tests (vitest), on Linux and on Windows (all three machines run Windows)
+# - build: Paperclip (server, UI) and the Agentself plugins, the same build scripts/update.mjs runs
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [main]
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - name: Syntax of the plain-JS scripts
+        shell: bash
+        run: |
+          for f in scripts/*.mjs scripts/lib/*.mjs scripts/dev/*.mjs scripts/acceptance/*.mjs scripts/acceptance/lib/*.mjs apps/console/server/*.mjs; do
+            node --check "$f" || exit 1
+          done
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            vendor/paperclip/pnpm-lock.yaml
+      - name: AgenTeam plugins and packages
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Paperclip (server, packages, UI)
+        working-directory: vendor/paperclip
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+          PUPPETEER_SKIP_DOWNLOAD: "1"
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build

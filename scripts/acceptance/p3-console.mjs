@@ -53,7 +53,8 @@ for (const d of leftovers.departments.filter((d) => d.name === TEAM)) await remo
   await page.getByPlaceholder("团队名称，由你来定").fill(TEAM);
   await page.getByRole("button", { name: "下一步" }).click();
   await page.getByPlaceholder("主管的名字").fill("验收主管");
-  await page.getByRole("button", { name: /员工（Claude）/ }).click();
+  // the "+ 员工" button (the model source is a picker on the row now; Claude subscription by default)
+  await page.getByRole("button", { name: "员工", exact: true }).click();
   for (let i = 0; i < 3; i++) await page.getByRole("button", { name: "下一步" }).click();
   await page.getByRole("button", { name: "创建" }).click();
   await page.waitForTimeout(8000);

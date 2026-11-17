@@ -82,11 +82,11 @@ export async function loadFeed(ctx: Context): Promise<Feed> {
 
 /* ---------------- actions ---------------- */
 
-export async function act(card: Card, optionId: string, extra?: { comment?: string; name?: string }) {
+export async function act(card: Card, optionId: string, extra?: { comment?: string; name?: string; source?: string }) {
   const s = card.source;
   switch (s.kind) {
     case "hire":
-      return as.post(`/hire-requests/${s.hireId}/${optionId === "approve" ? "approve" : "reject"}`, optionId === "approve" ? { name: extra?.name || s.name } : { reason: extra?.comment ?? "" });
+      return as.post(`/hire-requests/${s.hireId}/${optionId === "approve" ? "approve" : "reject"}`, optionId === "approve" ? { name: extra?.name || s.name, ...(extra?.source ? { source: extra.source } : {}) } : { reason: extra?.comment ?? "" });
     case "interaction":
       if (optionId === "__accept") return pc.post(`/issues/${s.issueId}/interactions/${s.interactionId}/accept`, {});
       if (optionId === "__reject" || optionId === "rework")

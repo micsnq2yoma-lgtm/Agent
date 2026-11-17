@@ -19,7 +19,7 @@ if (!plugin) plugin = await api("POST", "/plugins/install", { packageName: path.
 results.plugin = plugin.status;
 
 // 2. import the pack
-const out = await createDepartment(pack, { key: "research", companyName: "Agentself", log });
+const out = await createDepartment(pack, { key: "research", companyName: "AgenTeam", log });
 results.imported = out;
 const agents = list(await api("GET", `/companies/${out.companyId}/agents`)).filter((a) => a.metadata?.agentself?.department === "research");
 results.agents = agents.map((a) => `${a.name}:${a.adapterType}:${a.status}`);

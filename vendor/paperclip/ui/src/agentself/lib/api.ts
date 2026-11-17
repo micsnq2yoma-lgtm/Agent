@@ -25,6 +25,7 @@ export const as = {
   get: <T,>(p: string) => req<T>("GET", `/agentself/api${p}`),
   post: <T,>(p: string, b?: unknown) => req<T>("POST", `/agentself/api${p}`, b ?? {}),
   put: <T,>(p: string, b: unknown) => req<T>("PUT", `/agentself/api${p}`, b),
+  del: <T,>(p: string) => req<T>("DELETE", `/agentself/api${p}`),
 };
 
 export const list = <T,>(x: unknown): T[] => (Array.isArray(x) ? (x as T[]) : (((x as { items?: T[] })?.items ?? []) as T[]));
@@ -98,7 +99,7 @@ export interface Agent {
   capabilities?: string | null;
   budgetMonthlyCents?: number;
   spentMonthlyCents?: number;
-  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string } };
+  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean; projectId?: string; memberKey?: string; source?: string } };
 }
 export interface Department {
   key: string;
@@ -118,7 +119,8 @@ export interface Settings {
   skin: string;
   externalDefault: "ask" | "direct";
   globalBudgetCents: number;
-  feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[] };
+  feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[]; pushNotices?: boolean };
+  autoUpdate?: { enabled: boolean; hour: number };
 }
 export interface Context {
   company: Company | null;

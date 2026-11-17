@@ -3,6 +3,7 @@
 // (front desk, Feishu, office snapshot, settings, memory, department wizard, skins).
 // Browsers never call it directly: the Paperclip server (:3100) reverse-proxies
 // /agentself/api/* here, so it listens on loopback only and serves no UI.
+import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
@@ -11,7 +12,12 @@ import { fileURLToPath } from "node:url";
 import { buildPrompt, DEFAULT_ROUTER_MODEL, parseRoute, runClaude } from "./frontdesk.mjs";
 import { buildOfficeSnapshot } from "./office.mjs";
 import { imStatus, startIm } from "./im.mjs";
-import { addEmployee, createDepartment, listTemplates, readTemplate, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
+import { listAccounts, MAIL_PRESETS, plainPasswordAccounts, presetFor, readAccounts, removeAccount, saveAccount, testAccount } from "./mail.mjs";
+import { addPaper, defaultRoot, getPaper, libraryRoot, libraryStats, listPapers, pdfPath, removePaper, searchLibrary, setLibraryRoot, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
+import { addEmployee, createDepartment, listTemplates, readTemplate, setAgentModel, setAgentSource, syncAgentRuntime } from "../../../scripts/lib/department.mjs";
+import { fetchModels, listProviders, removeProvider, saveProvider, sourceLabel, sourceOf, SUBSCRIPTION_MODELS } from "../../../scripts/lib/providers.mjs";
+import { codexConfigProblems } from "../../../scripts/lib/codex-check.mjs";
+import { listServers, MCP_CATALOG, readServers, removeServer, saveServer, testServer } from "../../../scripts/lib/mcp-servers.mjs";
 import { commitMemory, listMemory, resolveMemoryPath } from "../../../scripts/lib/memory.mjs";
 import { refreshAllInstructions, refreshInstructions } from "../../../scripts/lib/instructions.mjs";
 import { appendDecision, ensureProfile, listProposals, PROFILE_FILES, readProfile, resolveProposal, writeProfile } from "../../../scripts/lib/profile.mjs";
@@ -19,6 +25,7 @@ import { exportDepartment as exportDept } from "../../../scripts/lib/share.mjs";
 import { BUILTIN_SKINS, validateSkin } from "../../../packages/skins/src/index.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = path.resolve(here, "..", "..", "..");
 const PAPERCLIP = process.env.PAPERCLIP_API_URL ?? "http://127.0.0.1:3100";
 const PORT = Number(process.env.AGENTSELF_PORT ?? 3200);
 const HOST = process.env.AGENTSELF_HOST ?? "127.0.0.1";
@@ -27,13 +34,15 @@ const STORE = path.join(HOME, "console.json");
 
 /* ---------------- store ---------------- */
 const DEFAULT_SETTINGS = {
-  companyName: "Agentself",
+  companyName: "AgenTeam",
   frontdeskModel: DEFAULT_ROUTER_MODEL, // the router model (key kept for existing settings files)
   askWhenUnclear: true,
   skin: "office",
   externalDefault: "ask",
   globalBudgetCents: 0,
   feishu: { enabled: false, appId: "", secretRef: "", allowUserIds: [], pushTiers: ["high"] },
+  // nightly self-update (scripts/update.mjs): at `hour` local time, only when nobody is working
+  autoUpdate: { enabled: false, hour: 4 },
 };
 function loadStore() {
   try {
@@ -64,9 +73,24 @@ async function pc(method, p, body) {
 }
 const arr = (x) => (Array.isArray(x) ? x : (x?.items ?? []));
 
+/** The product was renamed Agentself → AgenTeam: the company created under the old name follows once. */
+async function renameLegacyCompany(company) {
+  try {
+    await pc("PATCH", `/companies/${company.id}`, { name: "AgenTeam" });
+    company.name = "AgenTeam";
+    if (store.settings.companyName === "Agentself") {
+      store.settings.companyName = "AgenTeam";
+      saveStore();
+    }
+  } catch {
+    /* keep working under the old name */
+  }
+}
+
 export async function loadContext() {
   const companies = arr(await pc("GET", "/companies")).filter((c) => c.status !== "archived");
-  const company = companies.find((c) => c.name === store.settings.companyName) ?? companies[0] ?? null;
+  const company = companies.find((c) => c.name === store.settings.companyName) ?? companies.find((c) => c.name === "Agentself") ?? companies[0] ?? null;
+  if (company?.name === "Agentself") await renameLegacyCompany(company);
   if (!company) return { company: null, departments: [], agents: [], projects: [] };
   const [agents, projects] = await Promise.all([pc("GET", `/companies/${company.id}/agents`), pc("GET", `/companies/${company.id}/projects`)]);
   const deptMap = new Map();
@@ -207,9 +231,228 @@ function logRoute(text, raw, r) {
   }
 }
 
+/* ---------------- models: subscriptions and API providers ---------------- */
+/** Which subscription CLIs this machine has (version only; login state is the CLI's business). */
+function subscriptionStatus() {
+  const v = (cmd) => {
+    const r = spawnSync(cmd, ["--version"], { encoding: "utf8", shell: process.platform === "win32", windowsHide: true, timeout: 10_000 });
+    return r.status === 0 ? (r.stdout || r.stderr).trim().split(/\r?\n/)[0] : null;
+  };
+  const codex = v("codex");
+  // a broken ~/.codex/config.toml stops every Codex run; say so where Codex is chosen
+  return { claude: v(process.env.AGENTSELF_CLAUDE_BIN ?? "claude"), codex, codexProblems: codex ? codexConfigProblems() : [] };
+}
+/** Save a provider; an API key goes into Paperclip's secret store (created once, rotated after). */
+async function putProvider(id, body) {
+  const ctx = await loadContext();
+  const cur = listProviders(HOME).find((x) => x.id === id);
+  let secretId = cur?.secretId ?? null;
+  const key = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+  if (key) {
+    if (!ctx.company) throw Object.assign(new Error("先新建一个团队，再填 API key"), { status: 409 });
+    if (secretId) await pc("POST", `/secrets/${secretId}/rotate`, { value: key });
+    else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `AgenTeam：${body.name ?? cur?.name ?? id} 的 API key` })).id;
+  }
+  const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, ...(secretId ? { secretId } : {}) });
+  // agents on this provider pick up a new endpoint / model on their next sync
+  if (key || body.baseUrl || body.model || body.smallModel) void syncAllAgents(() => {}).catch(() => {});
+  return saved;
+}
+/**
+ * Save a mailbox. The app password goes into Paperclip's secret store (created once, rotated after);
+ * mail.json keeps the secretId and agents get the password as an env binding on their next sync.
+ * Before any team exists there is no store yet: the password waits in mail.json and moves later.
+ */
+async function putMail(body) {
+  const ctx = await loadContext();
+  const password = typeof body.password === "string" ? body.password.trim() : "";
+  const id = String(body.id ?? "").trim() || String(body.address ?? "").trim().toLowerCase();
+  const cur = readAccounts().find((a) => a.id === id);
+  let secretId = cur?.secretId ?? null;
+  if (password && ctx.company) secretId = await storeMailSecret(ctx.company.id, id, password, secretId);
+  const saved = saveAccount({ ...body, id, ...(secretId ? { password: undefined } : {}) }, { secretId });
+  void syncAllAgents(() => {}).catch(() => {});
+  return saved;
+}
+async function storeMailSecret(companyId, id, password, secretId) {
+  if (secretId) {
+    await pc("POST", `/secrets/${secretId}/rotate`, { value: password });
+    return secretId;
+  }
+  const slug = id.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
+  return (await pc("POST", `/companies/${companyId}/secrets`, { name: `agentself-mail-${slug}`, value: password, description: `AgenTeam：邮箱 ${id} 的授权码` })).id;
+}
+/** Move app passwords still in mail.json (older versions, or saved before the first team) into the store. */
+async function migrateMailPasswords() {
+  const plain = plainPasswordAccounts();
+  if (!plain.length) return 0;
+  const ctx = await loadContext();
+  if (!ctx.company) return 0;
+  for (const a of plain) saveAccount({ ...a, password: undefined }, { secretId: await storeMailSecret(ctx.company.id, a.id, a.password, a.secretId ?? null) });
+  return plain.length;
+}
+
+/** One tiny request to the provider's Anthropic-compatible endpoint with the key just typed (not stored). */
+async function testProvider(id, body) {
+  const p = listProviders(HOME).find((x) => x.id === id);
+  const baseUrl = String(body.baseUrl ?? p?.baseUrl ?? "").replace(/\/$/, "");
+  const model = body.model ?? p?.model;
+  const key = String(body.apiKey ?? "").trim();
+  if (!baseUrl || !model) throw Object.assign(new Error("缺少接口地址或模型名"), { status: 400 });
+  if (!key) throw Object.assign(new Error("测试要在这里填一次 API key（已保存的 key 在 Paperclip 密钥库里，读不出来）"), { status: 400 });
+  const t0 = Date.now();
+  const r = await fetch(`${baseUrl}/v1/messages`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-api-key": key, authorization: `Bearer ${key}`, "anthropic-version": "2023-06-01" },
+    body: JSON.stringify({ model, max_tokens: 16, messages: [{ role: "user", content: "回复 ok" }] }),
+    signal: AbortSignal.timeout(30_000),
+  }).catch((e) => ({ ok: false, status: 0, text: async () => e.message }));
+  const text = await r.text();
+  if (!r.ok) return { ok: false, status: r.status, error: text.slice(0, 300) };
+  let reply = "";
+  try {
+    reply = (JSON.parse(text).content ?? []).map((c) => c.text ?? "").join("").trim();
+  } catch {
+    /* not JSON */
+  }
+  return { ok: true, ms: Date.now() - t0, reply: reply.slice(0, 80) };
+}
+
+/** The team-layer plugin's verifierModel (per company plugin config): read, or set when `body` is given. */
+async function verifierSetting(body) {
+  const ctx = await loadContext();
+  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer");
+  if (!plugin || !ctx.company) return { verifierModel: "sonnet", available: false };
+  const cur = (await pc("GET", `/plugins/${plugin.id}/config?companyId=${ctx.company.id}`).catch(() => null))?.configJson ?? {};
+  if (body?.verifierModel) {
+    const v = String(body.verifierModel).trim();
+    if (!/^(codex(:[\w.-]+)?|[\w.-]+)$/.test(v)) throw Object.assign(new Error("核查员模型格式不对"), { status: 400 });
+    await pc("POST", `/plugins/${plugin.id}/config`, { companyId: ctx.company.id, configJson: { ...cur, verifierModel: v } });
+    return { verifierModel: v, available: true };
+  }
+  return { verifierModel: cur.verifierModel ?? "sonnet", available: true };
+}
+
+/* ---------------- team-layer notices (notify_user, memory job) for Feishu ---------------- */
+async function teamLayerPluginId() {
+  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer")?.id ?? null;
+}
+async function teamLayerNotices(companyId) {
+  const id = await teamLayerPluginId();
+  if (!id) return [];
+  const r = await pc("POST", `/plugins/${id}/data/notices`, { companyId, params: { companyId } });
+  return Array.isArray(r?.data) ? r.data : [];
+}
+async function dismissTeamLayerNotice(noticeId) {
+  const ctx = await loadContext();
+  const id = await teamLayerPluginId();
+  if (!id || !ctx.company) throw new Error("没有团队层插件");
+  return pc("POST", `/plugins/${id}/actions/notice-dismiss`, { companyId: ctx.company.id, params: { companyId: ctx.company.id, id: noticeId } });
+}
+
+/* ---------------- tool servers (MCP) ---------------- */
+/** Form → spec for a test run (secret values as typed; nothing stored). */
+function mcpSpec(body) {
+  return {
+    transport: body.transport ?? "stdio",
+    command: body.command,
+    args: body.args ?? [],
+    env: { ...(body.env ?? {}), ...(body.secrets ?? {}) },
+    url: body.url,
+    token: body.token,
+  };
+}
+/** Install / change a server: secret values become Paperclip secrets, then every agent is re-synced. */
+async function putMcpServer(id, body) {
+  const ctx = await loadContext();
+  const cur = readServers().find((x) => x.id === id);
+  const secretIds = {};
+  const wantSecrets = Object.entries(body.secrets ?? {}).filter(([, v]) => String(v ?? "").trim());
+  let tokenSecretId;
+  if ((wantSecrets.length || body.token) && !ctx.company) throw Object.assign(new Error("先新建一个团队，再填密钥"), { status: 409 });
+  const store = async (name, value, existing) => {
+    if (existing) {
+      await pc("POST", `/secrets/${existing}/rotate`, { value });
+      return existing;
+    }
+    return (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name, value, description: `AgenTeam 工具服务 ${id}` })).id;
+  };
+  for (const [k, v] of wantSecrets) secretIds[k] = await store(`agentself-mcp-${id}-${k.toLowerCase()}`, String(v).trim(), cur?.secretEnv?.[k]);
+  if (String(body.token ?? "").trim()) tokenSecretId = await store(`agentself-mcp-${id}-token`, String(body.token).trim(), cur?.tokenSecretId);
+  const saved = saveServer({ ...body, id }, { secretIds, tokenSecretId });
+  void syncAllAgents(() => {}).catch(() => {});
+  return saved;
+}
+
+/* ---------------- self-update (release: one install per machine) ---------------- */
+const UPDATE_SCRIPT = path.join(REPO_ROOT, "scripts", "update.mjs");
+const updateStateFile = path.join(HOME, "run", "update.json");
+function readUpdateState() {
+  try {
+    return JSON.parse(fs.readFileSync(updateStateFile, "utf8"));
+  } catch {
+    return {};
+  }
+}
+/** `node scripts/update.mjs --check` (git fetch + compare); resolves with its JSON. */
+function checkUpdate() {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [UPDATE_SCRIPT, "--check"], { cwd: REPO_ROOT, windowsHide: true });
+    let out = "";
+    let err = "";
+    child.stdout.on("data", (d) => (out += d));
+    child.stderr.on("data", (d) => (err += d));
+    child.on("close", (code) => {
+      try {
+        resolve(JSON.parse(out.slice(out.indexOf("{"))));
+      } catch {
+        reject(new Error(`检查更新失败（${code}）：${(err || out).trim().slice(-300)}`));
+      }
+    });
+  });
+}
+/** Who is working right now (an update restarts everything, so wait for them). */
+async function busyAgents() {
+  const ctx = await loadContext();
+  return ctx.agents.filter((a) => a.status === "running").map((a) => a.name);
+}
+/**
+ * Start the update outside this process tree: the update stops the supervisor and everything
+ * under it (this service included), so it must not be one of its children.
+ */
+function launchUpdate() {
+  if (process.platform === "win32") {
+    spawn("cmd.exe", ["/d", "/c", "start", '""', "/b", `"${process.execPath}"`, `"${UPDATE_SCRIPT}"`], { cwd: REPO_ROOT, detached: true, stdio: "ignore", windowsHide: true, windowsVerbatimArguments: true }).unref();
+  } else {
+    spawn(process.execPath, [UPDATE_SCRIPT], { cwd: REPO_ROOT, detached: true, stdio: "ignore" }).unref();
+  }
+}
+let lastAutoUpdateDay = null;
+async function autoUpdateTick() {
+  const a = store.settings.autoUpdate ?? {};
+  const now = new Date();
+  const day = now.toDateString();
+  if (!a.enabled || now.getHours() !== Number(a.hour ?? 4) || lastAutoUpdateDay === day) return;
+  try {
+    const c = await checkUpdate();
+    if (!c.behind) return void (lastAutoUpdateDay = day);
+    const busy = await busyAgents();
+    if (busy.length) return console.log(`auto-update waits: ${busy.join("、")} still working`);
+    lastAutoUpdateDay = day;
+    console.log(`auto-update: ${c.current} → ${c.latest}`);
+    launchUpdate();
+  } catch (e) {
+    console.error(`auto-update check failed: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 /* ---------------- agent runtime sync ---------------- */
 /** Rewrite every Agentself agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
 export async function syncAllAgents(log = console.log) {
+  // passwords saved before the first team (or by older versions) move into the store first, so the
+  // agents synced below get them as bindings
+  const moved = await migrateMailPasswords().catch((e) => (log(`mailbox password move failed: ${e instanceof Error ? e.message : e}`), 0));
+  if (moved) log(`moved ${moved} mailbox password(s) into the secret store`);
   const ctx = await loadContext();
   let n = 0;
   for (const a of ctx.agents.filter((x) => x.metadata?.agentself && x.status !== "terminated")) {
@@ -266,13 +509,15 @@ async function resolveHire(id, action, body) {
         name: String(body.name ?? h.name).trim() || h.name,
         capabilities: String(body.capabilities ?? h.capabilities),
         adapterType: body.adapterType ?? h.adapterType,
+        // the user can pick the model source on the approval card (Claude / Codex / an API model)
+        source: body.source ?? h.source ?? undefined,
         model: body.model ?? h.model ?? undefined,
       },
       { api: pc, log: () => {} },
     );
     h.status = "approved";
     h.agentId = agent.id;
-    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户同意了新建员工：「${agent.name}」（${agent.id}，${agent.adapterType === "codex_local" ? "Codex" : "Claude"}），负责：${agent.capabilities ?? ""}。现在可以派活给他。` }).catch(() => {});
+    if (h.issueId) await pc("POST", `/issues/${h.issueId}/comments`, { body: `用户同意了新建员工：「${agent.name}」（${agent.id}，${sourceLabel(sourceOf(agent), HOME)}），负责：${agent.capabilities ?? ""}。现在可以派活给他。` }).catch(() => {});
   } else {
     h.status = "rejected";
     h.rejectReason = String(body.reason ?? "").slice(0, 300);
@@ -439,6 +684,127 @@ async function handleAgentself(req, res, url) {
 
   /* IM (PLAN 6) */
   if (req.method === "GET" && p === "/feishu/status") return send(res, 200, { status: imStatus() });
+  /* models: Claude / Codex subscriptions, everything else over an API (per machine) */
+  if (req.method === "GET" && p === "/providers") return send(res, 200, { providers: listProviders(HOME), subscriptions: subscriptionStatus(), subscriptionModels: SUBSCRIPTION_MODELS });
+  const pmm = p.match(/^\/providers\/([\w-]+)\/models$/);
+  if (pmm && req.method === "POST") {
+    const body = await readJson(req);
+    return send(res, 200, await fetchModels(HOME, pmm[1], { apiKey: body.apiKey, baseUrl: body.baseUrl }));
+  }
+  const amm = p.match(/^\/agents\/([\w-]+)\/model$/);
+  if (amm && req.method === "POST") {
+    const body = await readJson(req);
+    const agent = await setAgentModel(amm[1], body.model, { api: pc, log: () => {} });
+    return send(res, 200, { id: agent.id, model: agent.adapterConfig?.model ?? null });
+  }
+  const pvm = p.match(/^\/providers\/([\w-]+)$/);
+  if (pvm && req.method === "PUT") return send(res, 200, await putProvider(pvm[1], await readJson(req)));
+  if (pvm && req.method === "DELETE") {
+    removeProvider(HOME, pvm[1]);
+    return send(res, 200, { ok: true });
+  }
+  const pvt = p.match(/^\/providers\/([\w-]+)\/test$/);
+  if (pvt && req.method === "POST") return send(res, 200, await testProvider(pvt[1], await readJson(req)));
+  const srcm = p.match(/^\/agents\/([\w-]+)\/source$/);
+  if (srcm && req.method === "POST") {
+    const body = await readJson(req);
+    const agent = await setAgentSource(srcm[1], String(body.source ?? ""), { api: pc, log: () => {} });
+    return send(res, 200, { id: agent.id, source: sourceOf(agent), label: sourceLabel(sourceOf(agent), HOME) });
+  }
+  /* tool servers (MCP) for employees */
+  if (req.method === "GET" && p === "/mcp/catalog") return send(res, 200, { catalog: MCP_CATALOG, installed: listServers() });
+  if (req.method === "POST" && p === "/mcp/test") return send(res, 200, await testServer(mcpSpec(await readJson(req))));
+  const mcm = p.match(/^\/mcp\/servers\/([\w-]+)$/);
+  if (mcm && req.method === "PUT") return send(res, 200, await putMcpServer(mcm[1], await readJson(req)));
+  if (mcm && req.method === "DELETE") {
+    removeServer(mcm[1]);
+    void syncAllAgents(() => {}).catch(() => {});
+    return send(res, 200, { ok: true });
+  }
+  /* paper library (a folder the user chooses) */
+  if (p === "/library/settings" && req.method === "GET") return send(res, 200, { ...libraryStats(), defaultRoot: defaultRoot() });
+  if (p === "/library/settings" && req.method === "PUT") {
+    const body = await readJson(req);
+    const r = setLibraryRoot(body.root, { move: !!body.move });
+    return send(res, 200, { ...r, ...libraryStats() });
+  }
+  if (p === "/library/papers" && req.method === "GET") {
+    const q = url.searchParams.get("q") ?? "";
+    const filters = { tag: url.searchParams.get("tag") || null, status: url.searchParams.get("status") || null, limit: Number(url.searchParams.get("limit") ?? 200) };
+    if (q.trim()) return send(res, 200, { results: searchLibrary(q, filters) });
+    let all = listPapers();
+    if (filters.tag) all = all.filter((x) => (x.tags ?? []).includes(filters.tag));
+    if (filters.status) all = all.filter((x) => x.status === filters.status);
+    return send(res, 200, { results: all.slice(0, filters.limit) });
+  }
+  if (p === "/library/papers" && req.method === "POST") {
+    const body = await readJson(req);
+    return send(res, 200, await addPaper({ ref: String(body.ref ?? "").trim(), tags: body.tags ?? [], by: "用户" }));
+  }
+  if (p === "/library/upload" && req.method === "POST") {
+    const chunks = [];
+    let size = 0;
+    for await (const c of req) {
+      size += c.length;
+      if (size > 200 * 1024 * 1024) return send(res, 413, { error: "PDF 超过 200 MB" });
+      chunks.push(c);
+    }
+    const name = url.searchParams.get("name") ?? "paper.pdf";
+    const tags = (url.searchParams.get("tags") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+    return send(res, 200, await addPaper({ file: { name, data: Buffer.concat(chunks) }, tags, by: "用户" }));
+  }
+  const lpm = p.match(/^\/library\/papers\/([\w.-]+)(?:\/(notes|pdf))?$/);
+  if (lpm) {
+    const [, id, sub] = lpm;
+    if (!sub && req.method === "GET") return send(res, 200, getPaper(id));
+    if (!sub && req.method === "PUT") return send(res, 200, updatePaper(id, await readJson(req)));
+    if (!sub && req.method === "DELETE") {
+      removePaper(id);
+      return send(res, 200, { ok: true });
+    }
+    if (sub === "notes" && req.method === "PUT") {
+      const body = await readJson(req);
+      return send(res, 200, { notes: writeNotes(id, String(body.text ?? ""), { mode: body.mode === "append" ? "append" : "replace", by: "用户" }) });
+    }
+    if (sub === "pdf" && req.method === "GET") {
+      const f = pdfPath(id);
+      if (!f) return send(res, 404, { error: "这篇没有 PDF" });
+      res.writeHead(200, { "content-type": "application/pdf", "content-disposition": `inline; filename="${id}.pdf"` });
+      return fs.createReadStream(f).pipe(res);
+    }
+  }
+  /* mailboxes (IMAP; read and drafts only) */
+  if (req.method === "GET" && p === "/mail/accounts") return send(res, 200, { accounts: listAccounts(), presets: MAIL_PRESETS.map((x) => ({ host: x.host, note: x.note })) });
+  if (req.method === "GET" && p === "/mail/preset") {
+    const pr = presetFor(url.searchParams.get("address"));
+    return send(res, 200, pr ? { host: pr.host, note: pr.note } : {});
+  }
+  if (req.method === "PUT" && p === "/mail/accounts") return send(res, 200, await putMail(await readJson(req)));
+  const mam = p.match(/^\/mail\/accounts\/(.+)$/);
+  if (mam && req.method === "DELETE") {
+    removeAccount(decodeURIComponent(mam[1]));
+    return send(res, 200, { ok: true });
+  }
+  if (req.method === "POST" && p === "/mail/test") {
+    const body = await readJson(req);
+    try {
+      return send(res, 200, await testAccount(body));
+    } catch (e) {
+      return send(res, 200, { ok: false, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  if (p === "/verifier" && (req.method === "GET" || req.method === "PUT")) return send(res, 200, await verifierSetting(req.method === "PUT" ? await readJson(req) : null));
+  if (req.method === "GET" && p === "/update/status") {
+    const check = url.searchParams.get("check") === "1" ? await checkUpdate() : null;
+    return send(res, 200, { ...readUpdateState(), ...(check ? { lastCheck: check } : {}) });
+  }
+  if (req.method === "POST" && p === "/update/run") {
+    const body = await readJson(req);
+    const busy = await busyAgents();
+    if (busy.length && !body.force) return send(res, 409, { error: `${busy.join("、")} 正在干活，更新会重启整个系统。等他们结束，或勾选"现在就更新"。`, busy });
+    launchUpdate();
+    return send(res, 202, { started: true });
+  }
   return send(res, 404, { error: "not found" });
 }
 
@@ -451,6 +817,11 @@ function restartIm() {
     loadContext,
     frontdesk,
     createChannel: async (opts) => (await import("@agentself/im-feishu")).createFeishuChannel(opts),
+    notices: teamLayerNotices,
+    handlers: {
+      hire: (id, action) => resolveHire(id, action, {}),
+      notice: (id) => dismissTeamLayerNotice(id),
+    },
   }).catch((e) => console.error("IM start failed", e));
 }
 
@@ -469,8 +840,9 @@ export function createServer() {
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   createServer().listen(PORT, HOST, () => {
-    console.log(`Agentself local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
+    console.log(`AgenTeam local service http://${HOST}:${PORT}/agentself/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
+    setInterval(() => void autoUpdateTick(), 10 * 60_000);
     // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.
     const trySync = (left) =>
       syncAllAgents()

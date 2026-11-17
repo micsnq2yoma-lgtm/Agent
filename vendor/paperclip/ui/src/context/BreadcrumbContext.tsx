@@ -69,8 +69,9 @@ export function buildDocumentTitle(breadcrumbs: Breadcrumb[], companyName?: stri
   const pageParts = breadcrumbs.length === 0
     ? []
     : [...breadcrumbs].reverse().map((breadcrumb) => breadcrumb.label);
-  const companyPart = companyName?.trim() ? [companyName.trim()] : [];
-  const parts = [...pageParts, ...companyPart, "Paperclip"];
+  // AgenTeam: the product name ends the title; the default company carries the same name, so skip it
+  const companyPart = companyName?.trim() && !["AgenTeam", "Agentself"].includes(companyName.trim()) ? [companyName.trim()] : [];
+  const parts = [...pageParts, ...companyPart, "AgenTeam"];
   return parts.join(" • ");
 }
 

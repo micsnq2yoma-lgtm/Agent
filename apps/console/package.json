@@ -13,5 +13,5 @@
     "@agentself/im-feishu": "workspace:*"
   },
   "devDependencies": {},
-  "description": "Agentself local service (front desk, Feishu, office snapshot, settings, memory, department wizard). UI lives in vendor/paperclip/ui/src/agentself."
+  "description": "AgenTeam local service (front desk, Feishu, office snapshot, settings, memory, department wizard). UI lives in vendor/paperclip/ui/src/agentself."
 }

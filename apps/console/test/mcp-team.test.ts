@@ -150,8 +150,9 @@ describe("delegation guards (PR #4 p13)", () => {
     expect(await askFirstGate({ id: "t", title: "数质数", description: "数一数 1 到 10000 的质数" }, "写脚本", "none", undefined, { interactions: [] })).toBeNull();
     expect(await askFirstGate(parent, "x", undefined, undefined, { interactions: [] })).toMatch(/none 或 approved/);
   });
-  it("Codex employees cannot take delegated work until they have team tools", () => {
-    expect(codexBlock({ name: "实验员", adapterType: "codex_local" }, false)).toMatch(/Codex 员工/);
+  it("Codex employees take delegated work once their team tools are configured", () => {
+    expect(codexBlock({ name: "实验员", adapterType: "codex_local", adapterConfig: {} }, false)).toMatch(/还没装上团队工具/);
+    expect(codexBlock({ name: "实验员", adapterType: "codex_local", adapterConfig: { extraArgs: ["-c", "mcp_servers.agentself.command='node'"] } }, false)).toBeNull();
     expect(codexBlock({ name: "实验员", adapterType: "codex_local" }, true)).toBeNull();
     expect(codexBlock({ name: "科研员", adapterType: "claude_local" }, false)).toBeNull();
   });

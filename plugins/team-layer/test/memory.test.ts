@@ -107,3 +107,12 @@ describe("memory: files and git", () => {
     expect(r.commit).toBeTruthy();
   });
 });
+
+import { verifierEngine } from "../src/memory-jobs.js";
+describe("verifier engine (Codex subscription or a Claude model)", () => {
+  it("codex / codex:<model> use the Codex CLI; anything else is a Claude model", () => {
+    expect(verifierEngine("codex")).toEqual({ engine: "codex", model: "" });
+    expect(verifierEngine("codex:gpt-6-sol")).toEqual({ engine: "codex", model: "gpt-6-sol" });
+    expect(verifierEngine("sonnet")).toEqual({ engine: "claude", model: "sonnet" });
+  });
+});

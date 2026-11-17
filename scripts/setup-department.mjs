@@ -11,7 +11,7 @@ if (!packPath) {
   console.error("usage: setup-department.mjs <pack.json> [--company <name>]");
   process.exit(2);
 }
-const companyName = args.includes("--company") ? args[args.indexOf("--company") + 1] : "Agentself";
+const companyName = args.includes("--company") ? args[args.indexOf("--company") + 1] : "AgenTeam";
 const pack = JSON.parse(fs.readFileSync(packPath, "utf8"));
 const out = await createDepartment(pack, { key: path.basename(packPath, ".json"), companyName });
 console.log(JSON.stringify(out));

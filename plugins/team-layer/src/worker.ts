@@ -7,7 +7,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import { appendRunLog, consolidate, logLine, runClaudeJson, shouldConsolidate, weeklyArchive } from "./memory-jobs.js";
+import { appendRunLog, consolidate, logLine, runClaudeJson, runCodexText, shouldConsolidate, verifierEngine, weeklyArchive } from "./memory-jobs.js";
 // Shared with the local service; bundled into the worker by esbuild.
 // @ts-expect-error plain JS module without type declarations
 import { refreshInstructions } from "../../../scripts/lib/instructions.mjs";
@@ -638,10 +638,13 @@ const plugin = definePlugin({
         await rememberCompany(ctx, companyId);
         const job: VerifyJob = { companyId, childId, ownerId: found.ownerId, evidenceAt, model: cfg.verifierModel, criteria: found.criteria, raw: null, error: null, attempts: 0 };
         // No host calls from here on: the call's scope ends when we return.
-        void runClaudeJson(prompt, cfg.verifierModel, 300_000, undefined, [
-          "--disallowedTools",
-          "Bash,PowerShell,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit",
-        ])
+        const ve = verifierEngine(cfg.verifierModel);
+        void (ve.engine === "codex"
+          ? runCodexText(prompt, { model: ve.model })
+          : runClaudeJson(prompt, ve.model, 300_000, undefined, [
+              "--disallowedTools",
+              "Bash,PowerShell,Edit,Write,Read,Grep,Glob,WebSearch,WebFetch,Task,Agent,NotebookEdit",
+            ]))
           .then((raw) => writeVerifyJob({ ...job, raw }))
           .catch((e) => writeVerifyJob({ ...job, error: errText(e) }));
         return { content: `已开始独立核查（${cfg.verifierModel}，一般 1–3 分钟）。结束本轮；完成后会在你的任务上留言叫醒你，那时再调用一次 verify 拿逐条结果。`, data: { status: "running" } };

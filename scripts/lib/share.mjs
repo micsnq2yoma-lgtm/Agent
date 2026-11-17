@@ -17,7 +17,7 @@ function readIdentity(cwd) {
 export async function exportDepartment(key, { api = defaultApi, companyId } = {}) {
   if (!key) throw Object.assign(new Error("缺少部门 key"), { status: 400 });
   const companies = list(await api("GET", "/companies")).filter((c) => c.status !== "archived");
-  const company = companyId ? companies.find((c) => c.id === companyId) : companies.find((c) => c.name === "Agentself") ?? companies[0];
+  const company = companyId ? companies.find((c) => c.id === companyId) : companies.find((c) => c.name === "AgenTeam" || c.name === "Agentself") ?? companies[0];
   if (!company) throw Object.assign(new Error("没有 company"), { status: 404 });
   const agents = list(await api("GET", `/companies/${company.id}/agents`)).filter((a) => a.metadata?.agentself?.department === key);
   if (agents.length === 0) throw Object.assign(new Error(`部门 ${key} 不存在`), { status: 404 });

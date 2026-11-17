@@ -5,9 +5,9 @@ export default {
   id: "agentself.team-layer",
   apiVersion: 1,
   version: "0.1.0",
-  displayName: "Agentself 团队层",
+  displayName: "AgenTeam 团队层",
   description: "主管与员工：返工上限、跳数上限、卡片工具、三档消息流、员工记忆",
-  author: "Agentself",
+  author: "AgenTeam",
   categories: ["automation"],
   capabilities: [
     "events.subscribe",
@@ -44,7 +44,7 @@ export default {
       boardUserId: { type: "string", default: "local-board" },
       idleMinutes: { type: "integer", default: 30, minimum: 1 },
       consolidationModel: { type: "string", default: "haiku" },
-      verifierModel: { type: "string", default: "sonnet" },
+      verifierModel: { type: "string", default: "sonnet", description: "独立核查员：Claude 模型别名或 id（sonnet、opus…），或 codex / codex:<模型> 用本机的 Codex 订阅" },
     },
   },
   jobs: [

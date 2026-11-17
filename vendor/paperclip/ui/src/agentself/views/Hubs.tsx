@@ -14,6 +14,7 @@ import { useSkin } from "../lib/skin";
 import { Robot, eyeOf, modelName } from "../components/Brand";
 import { Capabilities, Routines, Usage, WATCH_TEMPLATES } from "./Pages";
 import { EmployeeHeader, EmployeeMemory, EmployeeProfile } from "./EmployeeDrawer";
+import { ToolServers } from "./ToolServers";
 
 const CompanySkills = lazy(() => import("@/pages/CompanySkills").then((m) => ({ default: m.CompanySkills })));
 const Browse = lazy(() => import("@/pages/apps/Browse").then((m) => ({ default: m.Browse })));
@@ -358,6 +359,7 @@ export function DepartmentPage(props: {
 export function CapabilitiesHub({ ctx }: { ctx: Context }) {
   const { tab } = useParams<{ tab?: string }>();
   const tabs: TabDef[] = [
+    { key: "tools", label: "工具服务" },
     { key: "skills", label: "技能" },
     { key: "connectors", label: "连接器" },
     { key: "permissions", label: "权限" },
@@ -367,6 +369,7 @@ export function CapabilitiesHub({ ctx }: { ctx: Context }) {
     <div className="page wide">
       <h1 className="page-title">能力与工具</h1>
       <TabBar base="/agentself/capabilities" tabs={tabs} active={active} testId="capabilities-tabs" />
+      {active === "tools" && <ToolServers ctx={ctx} />}
       {active === "skills" && (
         <Embedded>
           <CompanySkills />

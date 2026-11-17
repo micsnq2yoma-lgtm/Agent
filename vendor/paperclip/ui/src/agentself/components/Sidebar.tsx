@@ -3,7 +3,7 @@
 // 主管 (one row per lead + new), 管理 (collapsed) — and 设置 pinned at the bottom.
 // Paperclip's inbox, dashboard, agent chat, cases, goals and company switcher stay reachable by URL.
 import { useState, type ReactNode } from "react";
-import { ChevronDown, ChevronRight, Folder, House, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
+import { BookOpen, ChevronDown, ChevronRight, Folder, House, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
 import { Link, useLocation, useParams } from "@/lib/router";
 import { useSidebar } from "@/context/SidebarContext";
 import { AS_BASE, useAgentselfOptional } from "../App";
@@ -58,7 +58,7 @@ export function AgentselfSidebar() {
 
   return (
     <div className="agentself" style={{ height: "100%", width: "100%" }} data-agentself-sidebar="">
-      <aside className="sidebar" aria-label="Agentself 导航">
+      <aside className="sidebar" aria-label="AgenTeam 导航">
         <div className="brand">
           <Wordmark />
           <span style={{ flex: 1 }} />
@@ -73,6 +73,7 @@ export function AgentselfSidebar() {
 
         {item(AS_BASE, t("workbench"), { exact: true, count: s?.pending, hot: true, testId: "nav-workbench", icon: <House aria-hidden="true" /> })}
         {item(`${AS_BASE}/projects`, t("project"), { count: s?.projectCount, testId: "nav-projects", icon: <Folder aria-hidden="true" /> })}
+        {item(`${AS_BASE}/library`, "论文库", { testId: "nav-library", icon: <BookOpen aria-hidden="true" /> })}
 
         <div className="nav-section">
           <span>{t("lead")}</span>

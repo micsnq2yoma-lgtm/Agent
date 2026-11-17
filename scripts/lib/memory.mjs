@@ -17,7 +17,7 @@ function git(dir, args) {
 export function ensureGit(dir) {
   if (!fs.existsSync(path.join(dir, ".git"))) {
     git(dir, ["init", "-q"]);
-    git(dir, ["config", "user.name", "Agentself Memory"]);
+    git(dir, ["config", "user.name", "AgenTeam Memory"]);
     git(dir, ["config", "user.email", "memory@agentself.local"]);
     git(dir, ["config", "core.autocrlf", "false"]);
   }

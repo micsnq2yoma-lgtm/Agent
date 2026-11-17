@@ -15,6 +15,17 @@ const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself")
 const logs = path.join(home, "logs");
 fs.mkdirSync(logs, { recursive: true });
 const args = new Set(process.argv.slice(2));
+// scripts/stop.mjs and scripts/update.mjs find this supervisor (and its children) by this file.
+const pidFile = path.join(home, "run", "supervisor.pid");
+fs.mkdirSync(path.dirname(pidFile), { recursive: true });
+fs.writeFileSync(pidFile, String(process.pid));
+process.on("exit", () => {
+  try {
+    if (fs.readFileSync(pidFile, "utf8") === String(process.pid)) fs.rmSync(pidFile, { force: true });
+  } catch {
+    /* already gone */
+  }
+});
 
 function findPnpm() {
   if (process.env.AGENTSELF_PNPM) return process.env.AGENTSELF_PNPM;
