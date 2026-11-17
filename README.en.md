@@ -96,7 +96,7 @@ A version that fails to start is rolled back automatically. The database is not 
 | `skills/` `packs/` | Lead / employee / memory skill packs; blank team templates |
 | `scripts/` | Start, install, update, acceptance scripts, localization tools |
 
-**Renamed from Agentself.** Directories, API paths, env vars and the data directory are all `agenteam` now (`~/.agenteam`, `/agenteam/api`, `AGENTEAM_*`). Existing installs migrate on the first start after updating: `~/.agentself` is renamed to `~/.agenteam`, old `AGENTSELF_*` variables are still honored, and agent metadata and per-agent `.agentself` folders are converted. Nothing is lost. The one thing not renamed is the team-layer plugin's internal id `agentself.team-layer` (renaming it would drop the plugin's reminder and watch state). Team files exported by older versions (`agentself.department/1`) can still be imported.
+**Renamed from Agentself.** Directories, API paths, env vars and the data directory are all `agenteam` now (`~/.agenteam`, `/agenteam/api`, `AGENTEAM_*`). Existing installs migrate on the first start after updating: `~/.agentself` is renamed to `~/.agenteam`, old `AGENTSELF_*` variables are still honored, and agent metadata and per-agent `.agentself` folders are converted. Nothing is lost. The team-layer plugin's internal id is now `agenteam.team-layer` too, renamed in place by a database migration, so its reminder and watch state are kept. Team files exported by older versions (`agentself.department/1`) can still be imported.
 
 ## Docs (Chinese)
 

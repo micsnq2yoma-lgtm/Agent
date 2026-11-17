@@ -107,7 +107,7 @@ else {
 step("安装团队层插件");
 const plugins = await api("GET", "/plugins");
 const list = Array.isArray(plugins) ? plugins : (plugins?.items ?? []);
-if (list.some((p) => p.pluginKey === "agentself.team-layer")) ok("已安装");
+if (list.some((p) => p.pluginKey === "agenteam.team-layer")) ok("已安装");
 else {
   await api("POST", "/plugins/install", { packageName: path.join(root, "plugins", "team-layer"), isLocalPath: true });
   ok("已安装");

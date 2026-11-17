@@ -12,7 +12,7 @@ import { listAccounts, newMail, readMail, recentMail, saveDraft } from "./mail.m
 import { addPaper, getPaper, readFulltext, searchLibrary, setFulltext, updatePaper, writeNotes } from "../../../scripts/lib/library.mjs";
 
 const env = (k) => process.env[k] ?? "";
-const PLUGIN = "agentself.team-layer";
+const PLUGIN = "agenteam.team-layer";
 
 /* ---------------- HTTP helpers ---------------- */
 

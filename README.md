@@ -94,7 +94,7 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 | `skills/` `packs/` | 主管 / 员工 / 记忆技能包；新建团队的空白模板 |
 | `scripts/` | 启动、安装、更新、验收脚本、中文化工具 |
 
-**从 Agentself 改名而来。** 目录、接口路径、环境变量和数据目录都已统一为 `agenteam`（`~/.agenteam`、`/agenteam/api`、`AGENTEAM_*`）。已有安装更新后首次启动时自动迁移：`~/.agentself` 改名为 `~/.agenteam`，旧的 `AGENTSELF_*` 环境变量仍然认，员工的元数据和工作目录里的 `.agentself` 也会自动转过来，不丢数据。唯一没改的是团队层插件的内部标识 `agentself.team-layer`（改了会丢插件里的提醒和盯守状态）。旧版导出的团队文件（`agentself.department/1`）仍可导入。
+**从 Agentself 改名而来。** 目录、接口路径、环境变量和数据目录都已统一为 `agenteam`（`~/.agenteam`、`/agenteam/api`、`AGENTEAM_*`）。已有安装更新后首次启动时自动迁移：`~/.agentself` 改名为 `~/.agenteam`，旧的 `AGENTSELF_*` 环境变量仍然认，员工的元数据和工作目录里的 `.agentself` 也会自动转过来，不丢数据。团队层插件的内部标识也改成了 `agenteam.team-layer`，由一条数据库迁移原地改名，插件里的提醒、盯守等状态保留。旧版导出的团队文件（`agentself.department/1`）仍可导入。
 
 ## 文档
 

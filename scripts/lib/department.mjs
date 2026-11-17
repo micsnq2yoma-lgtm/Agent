@@ -351,7 +351,7 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
  * plugin about the company.
  */
 export async function registerWithTeamLayer(companyId, { api = defaultApi, log = console.log } = {}) {
-  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
   if (!plugin) return log("team-layer plugin not installed; skipped registration");
   const existing = await api("GET", `/plugins/${plugin.id}/config?companyId=${companyId}`).catch(() => null);
   if (!existing?.configJson) await api("POST", `/plugins/${plugin.id}/config`, { companyId, configJson: {} });

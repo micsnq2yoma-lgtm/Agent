@@ -340,7 +340,7 @@ async function testProvider(id, body) {
 /** The team-layer plugin's verifierModel (per company plugin config): read, or set when `body` is given. */
 async function verifierSetting(body) {
   const ctx = await loadContext();
-  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer");
+  const plugin = arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agenteam.team-layer");
   if (!plugin || !ctx.company) return { verifierModel: "sonnet", available: false };
   const cur = (await pc("GET", `/plugins/${plugin.id}/config?companyId=${ctx.company.id}`).catch(() => null))?.configJson ?? {};
   if (body?.verifierModel) {
@@ -354,7 +354,7 @@ async function verifierSetting(body) {
 
 /* ---------------- team-layer notices (notify_user, memory job) for Feishu ---------------- */
 async function teamLayerPluginId() {
-  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agentself.team-layer")?.id ?? null;
+  return arr(await pc("GET", "/plugins")).find((x) => x.pluginKey === "agenteam.team-layer")?.id ?? null;
 }
 async function teamLayerNotices(companyId) {
   const id = await teamLayerPluginId();

@@ -112,13 +112,13 @@ export async function cancelTree(companyId, issueId, { waitMinutes = 20 } = {}) 
 
 /** Notices the team-layer plugin holds (notify_user, memory job). */
 export async function notices(companyId) {
-  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
   if (!plugin) return [];
   const r = await api("POST", `/plugins/${plugin.id}/data/notices`, { companyId, params: { companyId } }).catch(() => null);
   return Array.isArray(r?.data) ? r.data : [];
 }
 export async function dismissNotice(companyId, id) {
-  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+  const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
   return api("POST", `/plugins/${plugin.id}/actions/notice-dismiss`, { companyId, params: { companyId, id } });
 }
 

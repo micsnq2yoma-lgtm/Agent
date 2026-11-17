@@ -14,7 +14,7 @@ const pack = JSON.parse(fs.readFileSync(packFile, "utf8"));
 const results = { target: process.env.PAPERCLIP_API_URL, packMembers: pack.members.map((m) => m.name), packLead: pack.lead?.name ?? null };
 
 // 1. install the team-layer plugin on the fresh instance
-let plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+let plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
 if (!plugin) plugin = await api("POST", "/plugins/install", { packageName: path.join(repoRoot, "plugins", "team-layer"), isLocalPath: true });
 results.plugin = plugin.status;
 

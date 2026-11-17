@@ -15,7 +15,7 @@ const { companyId, projectId } = JSON.parse(fs.readFileSync(path.join(os.homedir
 const agents = list(await api("GET", `/companies/${companyId}/agents`));
 const scholar = agents.find((a) => a.metadata?.agenteam?.memberKey === "scholar");
 const memDir = path.join(scholar.adapterConfig.cwd, "memory");
-const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
+const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
 const results = {};
 const MARK = "【科研部速递】";
 
