@@ -6,7 +6,7 @@
 
 AgenTeam（原名 Agentself）是一支自动化 AI 团队：你说一句话就可以离开。路由把它交给最合适的主管；主管理解你的意图、写好验收标准，大事先给你计划，再派一名员工（本机已登录的 Claude Code / Codex）从头做到尾；员工逐条附证据交付，主管验收后给你一页结论。主管和员工都由你命名，没有预设。基座是 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，源码内置于 `vendor/paperclip`）。
 
-方案：`docs/PLAN.md`（v0.5）；当前方向与需求清单：`docs/v0.6-direction.md`（与 PLAN 冲突时以它为准）；界面设计规范：`docs/handoff/design/DESIGN.md`（v0.6 SETO 风格）。各阶段计划与报告：`docs/phase-*-plan.md` / `docs/phase-*-report.md`（历史记录）。
+方案：`docs/history/PLAN.md`（v0.5）；当前方向与需求清单：`docs/v0.6-direction.md`（与 PLAN 冲突时以它为准）；界面设计规范：`docs/handoff/design/DESIGN.md`（v0.6 SETO 风格）。各阶段计划与报告：`docs/history/phase-*-plan.md` / `docs/history/phase-*-report.md`（历史记录）。
 
 标志：三个智能体连成一支团队，顶上的主管用品牌暖色；字标 AGEN**T**EAM 中 AGENT 和 TEAM 共用的 T 用同一种暖色（`docs/brand/`）。代码里的目录、接口路径、环境变量和数据目录仍叫 `agentself`（`~/.agentself`、`/agentself/api`、`AGENTSELF_*`），改名不影响已有安装的数据。
 

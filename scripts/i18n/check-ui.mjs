@@ -7,7 +7,7 @@ import path from "node:path";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const out = process.argv[2] ?? "spikes/shots/paperclip";
+const out = process.argv[2] ?? ".agenteam-shots/paperclip";
 fs.mkdirSync(out, { recursive: true });
 const base = process.env.PAPERCLIP_UI ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");

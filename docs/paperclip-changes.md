@@ -38,7 +38,7 @@
 ## 待做
 像素员工（2026-11-16）：`AgentAvatar` / `AgentCharacter` / Agentself `Robot` 共用外层 `@agentself/pixel-office` 的模型形象与状态动画；员工注册表支持模型更新和公司切换；Team 展示被动任务气泡。无新增宠物交互、状态采集或执行控制。实现及验证见 [pixel-employees.md](pixel-employees.md) 和 [pixel-employees-verification.md](pixel-employees-verification.md)。
 
-- 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。
+- 后台中文化：已完成（见 docs/history/phase-7-report.md）；上游更新后重跑 scripts/i18n。
 
 ## 运行方式
 - 构建：`node scripts/build.mjs --install`（pnpm 9.15+；Windows 上它负责把 Git Bash 交给 pnpm，直接 `pnpm build` 会报"命令语法不正确"）；只改界面时 `node scripts/build.mjs --ui`（构建失败时上游 sw 插件会掩盖真实错误，先删 `ui/dist` 再看）
