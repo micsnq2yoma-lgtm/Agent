@@ -30,6 +30,7 @@ import { execFile } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { relocatedTeamLayerPath } from "../agenteam/plugin-path.js";
 import { promisify } from "node:util";
 import type { Db } from "@paperclipai/db";
 import { PLUGIN_RPC_ERROR_CODES } from "@paperclipai/plugin-sdk";
@@ -2264,11 +2265,18 @@ export function pluginLoader(
       // ------------------------------------------------------------------
       // 1. Resolve worker entrypoint
       // ------------------------------------------------------------------
-      const packageRoot = resolvePluginPackageRoot(activePlugin, localPluginDir);
+      const relocatedPath = relocatedTeamLayerPath(activePlugin);
+      const packageRoot = relocatedPath ?? resolvePluginPackageRoot(activePlugin, localPluginDir);
       assertPackageActivation?.({ pluginKey, packageRoot, installedPackagePath: activePlugin.packagePath });
       activePlugin = await refreshPluginManifestFromPackage(activePlugin, packageRoot);
       manifest = activePlugin.manifestJson;
       assertPackageActivation?.({ pluginKey, packageRoot, installedPackagePath: activePlugin.packagePath, manifest });
+      if (relocatedPath) {
+        // Update this row in place: company configs, reminders and watches retain their plugin ID.
+        await registry.update(pluginId, { packagePath: relocatedPath });
+        activePlugin = { ...activePlugin, packagePath: relocatedPath };
+        log.info({ pluginId, pluginKey }, "plugin-loader: repaired moved AgenTeam plugin path");
+      }
       const workerEntrypoint = resolveWorkerEntrypoint(activePlugin, localPluginDir);
 
       // ------------------------------------------------------------------

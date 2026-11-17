@@ -506,8 +506,8 @@ export function Home(props: {
 
   return (
     <div className="workbench">
+      <WorkbenchHero />
       <div className="workbench-main">
-        <WorkbenchHero />
         <div className="results-head">
           <div className="filters" role="tablist" aria-label="筛选">
             {filters.map(([f, label, n]) => (

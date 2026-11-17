@@ -1532,7 +1532,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         {step === 0 && (
           <>
             {templates.length > 0 && (
-              <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+              <div className="wizard-template-row">
                 从示例开始：
                 {templates.map((tp) => (
                   <button key={tp.key} className="btn" onClick={() => void fromTemplate(tp.key)}>
@@ -1563,13 +1563,13 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
         )}
         {step === 1 && (
           <>
-            <div className="row" style={{ alignItems: "flex-start" }}>
+            <div className="row wizard-person">
               <Robot id="lead-preview" size={26} />
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <input className="input" style={{ width: 140 }} placeholder={`${t("lead")}的名字`} value={leadName} onChange={(e) => setLeadName(e.target.value)} />
-                  <input className="input" style={{ flex: 1 }} placeholder={`负责什么（路由靠它把事交给这位${t("lead")}）`} value={leadFocus} onChange={(e) => setLeadFocus(e.target.value)} />
-                  <SourceSelect lead value={leadSource} onChange={setLeadSource} label={`${t("lead")}的模型来源`} style={{ width: 170 }} />
+              <div className="wizard-person-body">
+                <div className="wizard-person-fields">
+                  <input className="input" aria-label={`${t("lead")}的名字`} placeholder={`${t("lead")}的名字`} value={leadName} onChange={(e) => setLeadName(e.target.value)} />
+                  <input className="input" aria-label={`${t("lead")}的职责`} placeholder={`负责什么（路由靠它把事交给这位${t("lead")}）`} value={leadFocus} onChange={(e) => setLeadFocus(e.target.value)} />
+                  <SourceSelect lead value={leadSource} onChange={setLeadSource} label={`${t("lead")}的模型来源`} />
                   {leadSource === "claude" && (
                     <select className="input" value={leadModel} onChange={(e) => setLeadModel(e.target.value)} aria-label={`${t("lead")}的模型`}>
                       <option value="claude-opus-5-5">Opus 5.5</option>
@@ -1581,11 +1581,11 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
               </div>
             </div>
             {members.map((m, i) => (
-              <div key={m.key} className="row">
+              <div key={m.key} className="row wizard-member">
                 <Robot id={m.key} eye={eyeOf(m.adapterType)} size={22} />
-                <input className="input" style={{ width: 100 }} value={m.name} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-                <input className="input" style={{ flex: 1 }} value={m.capabilities} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, capabilities: e.target.value } : x)))} />
-                <SourceSelect value={m.source ?? (m.adapterType === "codex_local" ? "codex" : "claude")} onChange={(v) => setSource(i, v)} label={`${m.name}的模型来源`} style={{ width: 170 }} />
+                <input className="input" aria-label={`员工 ${i + 1} 的名字`} value={m.name} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
+                <input className="input" aria-label={`员工 ${i + 1} 的职责`} value={m.capabilities} onChange={(e) => setMembers(members.map((x, j) => (j === i ? { ...x, capabilities: e.target.value } : x)))} />
+                <SourceSelect value={m.source ?? (m.adapterType === "codex_local" ? "codex" : "claude")} onChange={(v) => setSource(i, v)} label={`${m.name}的模型来源`} />
                 <button className="btn ghost" onClick={() => setMembers(members.filter((_, j) => j !== i))}>
                   删除
                 </button>

@@ -210,6 +210,11 @@
 }
 
 :root {
+  --agenteam-logo-accent: var(--as-brand, #e98568);
+  --agenteam-logo-eye: var(--as-surface, #fff);
+  --agenteam-logo-hop: -3px;
+  --agenteam-logo-cycle: 1.5s;
+  --agenteam-logo-stagger: 180ms;
   color-scheme: light;
   --font-paper-mono: "Paper Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --file-tree-indent-base: calc(var(--spacing) * 2);
@@ -4821,4 +4826,17 @@ html:has(.design-proposal-theme) [data-canonical-toolbar] .collection-toolbar-ta
   .artifact-tile:hover [data-artifact-spread="right"] {
     transform: rotate(calc(var(--artifact-base, 0deg) - 5deg));
   }
+}
+
+/* AgenTeam loading: one linked team, three staggered hops. */
+.agenteam-logo { display: block; flex: none; }
+.agenteam-logo-loading .agenteam-logo-head { animation: agenteam-logo-hop var(--agenteam-logo-cycle) ease-in-out infinite; }
+.agenteam-logo-loading .agenteam-logo-head-1 { animation-delay: var(--agenteam-logo-stagger); }
+.agenteam-logo-loading .agenteam-logo-head-2 { animation-delay: calc(var(--agenteam-logo-stagger) * 2); }
+@keyframes agenteam-logo-hop {
+  0%, 14%, 46%, 100% { transform: translateY(0); }
+  28% { transform: translateY(var(--agenteam-logo-hop)); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agenteam-logo-loading .agenteam-logo-head { animation: none; }
 }

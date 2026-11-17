@@ -10,7 +10,7 @@
  * failed retry could not re-mark itself otherwise) and then activates it like
  * any ready plugin. A retry that fails re-records the error through markError.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Db } from "@paperclipai/db";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import os from "node:os";
@@ -36,6 +36,9 @@ vi.mock("../services/plugin-registry.js", () => ({
 
 import { pluginLoader } from "../services/plugin-loader.js";
 import type { PluginRuntimeServices } from "../services/plugin-loader.js";
+import * as bundledPluginPath from "../agenteam/plugin-path.js";
+
+afterEach(() => vi.restoreAllMocks());
 
 function createPluginRecord(overrides: Record<string, unknown> = {}) {
   return {
@@ -151,6 +154,43 @@ describe("pluginLoader.loadAll error retry", () => {
     const result = await loader.loadAll();
 
     expect(result).toEqual({ total: 0, succeeded: 0, failed: 0, results: [] });
+  });
+
+  it("repairs a relocated package on the same plugin ID before starting its worker", async () => {
+    const packageRoot = realpathSync(mkdtempSync(path.join(os.tmpdir(), "agenteam-plugin-move-")));
+    try {
+      const plugin = createPluginRecord({
+        pluginKey: "agenteam.team-layer", packageName: "@agenteam/team-layer", status: "ready",
+        manifestJson: { ...createPluginRecord().manifestJson, id: "agenteam.team-layer", categories: ["ui"], capabilities: ["issues.read"] },
+      });
+      mkdirSync(path.join(packageRoot, "dist"));
+      writeFileSync(path.join(packageRoot, "package.json"), JSON.stringify({ name: plugin.packageName, type: "module", paperclipPlugin: { manifest: "dist/manifest.js" } }));
+      writeFileSync(path.join(packageRoot, "dist/manifest.js"), `export default ${JSON.stringify(plugin.manifestJson)};`);
+      writeFileSync(path.join(packageRoot, "dist/worker.js"), "// Worker start is intercepted by the test.");
+      vi.spyOn(bundledPluginPath, "relocatedTeamLayerPath").mockReturnValue(packageRoot);
+      mockRegistry.getById.mockResolvedValue(plugin);
+      const runtime = createRuntimeServices();
+      const startWorker = vi.fn(async () => { throw new Error("test stops at worker boundary"); });
+      runtime.workerManager.startWorker = startWorker;
+      await createLoader(runtime).loadSingle(plugin.id);
+      expect(mockRegistry.update).toHaveBeenCalledExactlyOnceWith(plugin.id, { packagePath: packageRoot });
+      expect(startWorker).toHaveBeenCalledWith(plugin.id, expect.objectContaining({ entrypointPath: path.join(packageRoot, "dist/worker.js") }));
+      expect(mockRegistry.delete).not.toHaveBeenCalled();
+      expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
+    } finally { rmSync(packageRoot, { recursive: true, force: true }); }
+  });
+
+  it("does not save a relocated path when activation policy rejects it", async () => {
+    const plugin = createPluginRecord({ pluginKey: "agenteam.team-layer", packageName: "@agenteam/team-layer", status: "ready" });
+    vi.spyOn(bundledPluginPath, "relocatedTeamLayerPath").mockReturnValue("/new/package");
+    mockRegistry.getById.mockResolvedValue(plugin);
+    const runtime = createRuntimeServices();
+    runtime.workerManager.startWorker = vi.fn();
+    const loader = pluginLoader({} as Db, { localPluginDir: "/unused", assertPackageActivation: () => { throw new Error("policy denied"); } }, runtime);
+    const result = await loader.loadSingle(plugin.id);
+    expect(result.error).toContain("policy denied");
+    expect(mockRegistry.update).not.toHaveBeenCalled();
+    expect(runtime.workerManager.startWorker).not.toHaveBeenCalled();
   });
 
   it("rejects distribution capability escalation before saving a runtime refresh or starting a worker", async () => {

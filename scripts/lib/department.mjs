@@ -235,9 +235,17 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
   const deptKey = key ?? pack.key ?? slugKey(pack.name);
   const home = agenteamHome();
   const workspacesDir = path.join(home, "workspaces");
-  ensureProfile(home);
   const company = await ensureCompany(companyName);
   log(`company ${company.name} ${company.id}`);
+
+  // Register the company before creating anything belonging to the team. An unavailable
+  // worker used to fail only after the agents existed, inviting a duplicate creation retry.
+  try {
+    await registerWithTeamLayer(company.id, { api, log });
+  } catch (cause) {
+    throw Object.assign(new Error("团队插件尚未就绪，本次未创建主管或员工。请先检查插件启动错误并恢复服务，再重试。", { cause }), { status: 503 });
+  }
+  ensureProfile(home);
 
   // 1. skills (always the lead / employee / memory skills, whatever the pack lists)
   const existingSkills = list(await api("GET", `/companies/${company.id}/skills`));
@@ -337,8 +345,6 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
     }
   }
 
-  await registerWithTeamLayer(company.id, { api, log });
-
   const out = { companyId: company.id, projectId: project.id, leadAgentId: leadAgent.id, department: deptKey, routineIds };
   fs.mkdirSync(home, { recursive: true });
   fs.writeFileSync(path.join(home, `department-${deptKey}.json`), JSON.stringify(out, null, 2));
@@ -352,7 +358,7 @@ export async function createDepartment(pack, { key, companyName = "AgenTeam", ap
  */
 export async function registerWithTeamLayer(companyId, { api = defaultApi, log = console.log } = {}) {
   const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agenteam.team-layer");
-  if (!plugin) return log("team-layer plugin not installed; skipped registration");
+  if (!plugin) throw new Error("团队插件未安装");
   const existing = await api("GET", `/plugins/${plugin.id}/config?companyId=${companyId}`).catch(() => null);
   if (!existing?.configJson) await api("POST", `/plugins/${plugin.id}/config`, { companyId, configJson: {} });
   await api("POST", `/plugins/${plugin.id}/bridge/action`, { key: "register", companyId, params: { companyId } });

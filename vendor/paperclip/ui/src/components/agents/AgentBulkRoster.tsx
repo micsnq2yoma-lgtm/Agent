@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { AgentRemoveButton } from "./AgentRemoveButton";
 
 const AgentBulkSettingsSheet = lazy(() => import("./AgentBulkSettingsSheet").then(m => ({ default: m.AgentBulkSettingsSheet })));
 
@@ -30,6 +31,7 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent 
   const some = selectable.some(a => selected.includes(a.id));
   const hidden = selectedAgents.filter(a => !visible.includes(a)).length;
   const toggleAll = () => setSelected(all ? selected.filter(id => !selectable.some(a => a.id === id)) : [...new Set([...selected, ...selectable.map(a => a.id)])]);
+  const removed = (ids: string[]) => { setSelected(current => current.filter(id => !ids.includes(id))); if (ids.length) setNotice(`已移除 ${ids.length} 名员工，历史记录已保留。`); };
 
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -55,22 +57,22 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent 
           </div>
         </PopoverContent>
       </Popover>
-      <span className="text-xs text-muted-foreground">{visible.length} {visible.length === 1 ? "agent" : "agents"}</span>
+      <span className="text-xs text-muted-foreground">{visible.length} 名员工</span>
     </div>
     {selectedAgents.length > 0 && <div role="region" aria-label="Bulk actions" className="sticky top-0 z-10 flex flex-wrap items-center gap-3 rounded-md border bg-muted p-3">
-      <span className="text-sm font-medium">{selectedAgents.length} selected</span>
+      <span className="text-sm font-medium">已选 {selectedAgents.length} 名员工</span>
       {hidden > 0 && <span className="text-xs text-muted-foreground">{hidden} hidden by filters</span>}
       {groups.length > 1 && <span className="text-xs text-muted-foreground">Choose a harness to edit</span>}
       <div className="flex flex-1 flex-wrap items-center justify-end gap-2">{groups.map(h => <Button key={h} size="sm" variant="outline" onClick={() => setEditing(selectedAgents.filter(a => bulkAgentHarness(a) === h))}>
         <Pencil className="size-3.5" aria-hidden />{groups.length === 1 ? "Edit connection & model" : `Edit ${selectedAgents.filter(a => bulkAgentHarness(a) === h).length} ${getAdapterLabel(h)}`}
-      </Button>)}<Button size="icon-sm" variant="ghost" aria-label="Clear selection" onClick={() => setSelected([])}><X className="size-4" /></Button></div>
+      </Button>)}<AgentRemoveButton companyId={companyId} agents={selectedAgents} onRemoved={removed} /><Button size="icon-sm" variant="ghost" aria-label="Clear selection" onClick={() => setSelected([])}><X className="size-4" /></Button></div>
     </div>}
     {notice && <p role="status" className="flex items-center gap-2 text-sm"><Check className="size-4" aria-hidden />{notice}</p>}
     {accounts.error && <p className="text-xs text-destructive">Connection names couldn’t be loaded. <Button variant="link" size="sm" onClick={() => void accounts.refetch()}>Retry</Button></p>}
     <div className="overflow-x-auto"><table aria-label="Agent roster" className="w-full text-left text-sm">
       <thead className="text-xs text-muted-foreground [&_th]:px-3 [&_th]:py-3 [&_th]:font-normal"><tr>
         <th className="w-10"><Checkbox aria-label="Select all visible editable agents" checked={all ? true : some ? "indeterminate" : false} disabled={!selectable.length} onCheckedChange={toggleAll} /></th>
-        <th>Agent</th><th>Harness</th><th>Connection</th><th>Default model</th>
+        <th>Agent</th><th>Harness</th><th>Connection</th><th>Default model</th><th>操作</th>
       </tr></thead>
       <tbody>{visible.map(agent => <tr key={agent.id} data-state={selected.includes(agent.id) ? "selected" : undefined} className="border-t border-border data-[state=selected]:bg-accent/30 [&_td]:px-3">
         <td title={bulkAgentDisabledReason(agent)}><Checkbox aria-label={`Select ${agent.name}`} checked={selectedAgents.some(a => a.id === agent.id)} disabled={!!bulkAgentDisabledReason(agent)} onCheckedChange={value => setSelected(value ? [...new Set([...selected, agent.id])] : selected.filter(id => id !== agent.id))} /></td>
@@ -78,6 +80,7 @@ export function AgentBulkRoster({ companyId, agents, visibleAgents, renderAgent 
         <td className="whitespace-nowrap text-xs">{getAdapterLabel(bulkAgentHarness(agent))}</td>
         <td className="text-xs">{["http", "process"].includes(agent.adapterType) ? "Managed externally" : bulkConnectionName(agentConnection(agent), accounts.data)}</td>
         <td className="font-mono text-xs">{agentDefaultModel(agent) ?? "Harness default"}</td>
+        <td className="whitespace-nowrap"><AgentRemoveButton companyId={companyId} agents={[agent]} onRemoved={removed} /></td>
       </tr>)}</tbody>
     </table></div>
     {!visible.length && <p className="py-8 text-center text-sm text-muted-foreground">No agents match these filters.</p>}

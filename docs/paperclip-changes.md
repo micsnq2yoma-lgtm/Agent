@@ -38,6 +38,10 @@
 | 2026-11-17 | `ui/src/agenteam/views/Home.tsx`、`components/Brand.tsx`、`styles.css`；`views/Pages.tsx`、`lib/update-status.ts` | 标题、标志和标语放大并随内容区缩放；更新页面只认本轮更新的新终态，外层脚本单独记录检查时间 | 加强工作台视觉层次；避免检查版本或重启期间提前出现刷新按钮 |
 | 2026-11-17 | `ui/src/agenteam/components/WorkbenchHero.tsx`、`views/Home.tsx`、`styles.css` | 工作台标语改为 `Focus Your Attention on Valuable Things.`，强调 Attention 和 Valuable Things.，进入页面时光点从注意力传向价值，仅播放一次；支持减少动态效果、窄屏换行及离开页面时清理 | 落地选定的“光点接力”设计，静态文案始终可读，皮肤颜色沿用现有 token |
 
+界面修正（2026-11-17）：`AgenteamLogo` 共用品牌几何，路由加载状态改为三个智能体依次跳动，支持减少动态效果；工作台标题跨内容区居中，与顶部视图切换共用中心线；新建主管向导使用可收缩网格，统一下拉箭头和标签对齐；员工列表新增单人及批量移除确认，调用现有公司范围内的 `terminate` 接口，保留历史记录，逐项显示失败并仅重试失败项。验证：根目录 Vitest 283 项（直接执行 `pnpm test` 对应入口，避免本机 pnpm 自动安装触碰复用依赖）、加载及员工操作相关测试 12 项、UI 类型检查及生产构建通过。全仓库 token 检查仍有 106 条既有违规，本次改动的组件无命中。Chrome 隔离页面目视检查基本信息、人员表单及宽窄窗口下的工作台；浏览器工具因网址识别失败中止，员工移除完整浏览器交互和动画动态目视仍待补验。
+
+Windows 本地插件搬迁（2026-11-17）：`server/src/agenteam/plugin-path.ts` 和 `services/plugin-loader.ts` 在团队插件原本地路径失效时，从当前服务所在安装目录定位自带包；经过原有清单及激活检查后，只更新原插件记录的 `packagePath`，保留 ID、配置和状态。仅处理已知团队插件，不重定向仍存在的路径或其他插件，不增加轮询。配套修复：`scripts/launch.vbs` 使用 ASCII 避免 Windows ANSI 代码页误解无 BOM 的 UTF-8；团队创建先注册插件，插件不可用时在写入主管、员工和工作目录之前明确失败。验证：根目录 291 项测试、插件加载 7 项回归、服务端类型检查通过；VBS 在含中文、空格和 `&` 的隔离路径实跑通过。插件加载测试验证原 ID 的路径更新、启动参数及策略拒绝，不代替故障远程电脑的重启复验。
+
 ## 待做
 Windows 更新停机（2026-11-17）：`server/src/embedded-postgres-supervisor.ts` 增加可选的恢复许可回调；`server/src/index.ts` 仅在数据库退出或恢复时检查 AgenTeam 传入的停止标记。更新脚本先写标记，使用对应数据库的 `pg_ctl stop -m fast -w`，再结束 Windows 应用进程，避免强杀控制台父进程后遗留共享内存；不影响正常运行时的自动恢复。验证包括 Windows 临时数据库连续两轮停机重启、数据保留，以及另一套同时运行的数据库不受影响。
 
