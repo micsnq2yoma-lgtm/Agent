@@ -120,7 +120,6 @@ export interface Settings {
   externalDefault: "ask" | "direct";
   globalBudgetCents: number;
   feishu: { enabled: boolean; appId: string; secretRef: string; allowUserIds: string[]; pushTiers: string[]; pushNotices?: boolean };
-  autoUpdate?: { enabled: boolean; hour: number };
 }
 export interface Context {
   company: Company | null;

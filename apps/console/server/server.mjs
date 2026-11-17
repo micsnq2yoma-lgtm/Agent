@@ -45,8 +45,6 @@ const DEFAULT_SETTINGS = {
   externalDefault: "ask",
   globalBudgetCents: 0,
   feishu: { enabled: false, appId: "", secretRef: "", allowUserIds: [], pushTiers: ["high"] },
-  // nightly self-update (scripts/update.mjs): at `hour` local time, only when nobody is working
-  autoUpdate: { enabled: false, hour: 4 },
 };
 function loadStore() {
   try {
@@ -466,25 +464,6 @@ function launchUpdate() {
     spawn(process.execPath, [UPDATE_SCRIPT], { cwd: REPO_ROOT, detached: true, stdio: "ignore" }).unref();
   }
 }
-let lastAutoUpdateDay = null;
-async function autoUpdateTick() {
-  const a = store.settings.autoUpdate ?? {};
-  const now = new Date();
-  const day = now.toDateString();
-  if (!a.enabled || now.getHours() !== Number(a.hour ?? 4) || lastAutoUpdateDay === day) return;
-  try {
-    const c = await checkUpdate();
-    if (!c.behind) return void (lastAutoUpdateDay = day);
-    const busy = await busyAgents();
-    if (busy.length) return console.log(`auto-update waits: ${busy.join("、")} still working`);
-    lastAutoUpdateDay = day;
-    console.log(`auto-update: ${c.current} → ${c.latest}`);
-    launchUpdate();
-  } catch (e) {
-    console.error(`auto-update check failed: ${e instanceof Error ? e.message : e}`);
-  }
-}
-
 /* ---------------- agent runtime sync ---------------- */
 /** Rewrite every AgenTeam agent's instructions file, MCP config and adapter config (picks up skill / tool updates). */
 export async function syncAllAgents(log = console.log) {
@@ -884,7 +863,6 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   createServer().listen(PORT, HOST, () => {
     console.log(`AgenTeam local service http://${HOST}:${PORT}/agenteam/api  (open the app at ${PAPERCLIP})`);
     void restartIm();
-    setInterval(() => void autoUpdateTick(), 10 * 60_000);
     // Paperclip may still be starting; retry the sync for a few minutes, and say why each try failed.
     const trySync = (left) =>
       syncAllAgents()

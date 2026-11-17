@@ -64,7 +64,7 @@ Each machine is independent: its own subscriptions, API keys and data.
 
 ## Updating
 
-Settings → General → Version & updates: check, update now, or update daily (only when no employee is working). From the command line:
+Settings → General → Version & updates: click “Check and update”. If there is a newer version it updates in the background and shows progress; click “Refresh page” when it finishes (if employees are working, it asks before interrupting them). There is no scheduled auto-update: you decide when. From the command line:
 
 ```powershell
 node scripts\update.mjs --check   # is there a new version
