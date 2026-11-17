@@ -253,7 +253,7 @@ async function putProvider(id, body) {
     if (secretId) await pc("POST", `/secrets/${secretId}/rotate`, { value: key });
     else secretId = (await pc("POST", `/companies/${ctx.company.id}/secrets`, { name: `agentself-${id}-api-key`, value: key, description: `AgenTeam：${body.name ?? cur?.name ?? id} 的 API key` })).id;
   }
-  const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, ...(secretId ? { secretId } : {}) });
+  const saved = saveProvider(HOME, id, { name: body.name, baseUrl: body.baseUrl, model: body.model, smallModel: body.smallModel, prices: body.prices, pricingUrl: body.pricingUrl, ...(secretId ? { secretId } : {}) });
   // agents on this provider pick up a new endpoint / model on their next sync
   if (key || body.baseUrl || body.model || body.smallModel) void syncAllAgents(() => {}).catch(() => {});
   return saved;

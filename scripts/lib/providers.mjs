@@ -9,13 +9,16 @@
 import fs from "node:fs";
 import path from "node:path";
 
-/** Anthropic-compatible endpoints. Model names change often: they are defaults the user can edit. */
+/**
+ * Anthropic-compatible endpoints. Model names and prices change often: model names are defaults the
+ * user can edit, and prices are not preset at all — the user copies them from `pricingUrl` once.
+ */
 export const PROVIDER_PRESETS = [
-  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-chat", smallModel: "deepseek-chat", modelsUrl: "https://api.deepseek.com/models", keyUrl: "https://platform.deepseek.com/api_keys", blurb: "推理和代码能力强，价格低" },
-  { id: "kimi", name: "Kimi（月之暗面）", baseUrl: "https://api.moonshot.cn/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", modelsUrl: "https://api.moonshot.cn/v1/models", keyUrl: "https://platform.moonshot.cn/console/api-keys", blurb: "长上下文，擅长读长文档和工具调用" },
-  { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", modelsUrl: "https://open.bigmodel.cn/api/paas/v4/models", keyUrl: "https://open.bigmodel.cn/usercenter/apikeys", blurb: "代码和智能体任务，有包月套餐" },
-  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/apps/anthropic", model: "qwen3-coder-plus", smallModel: "qwen3-coder-plus", modelsUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1/models", keyUrl: "https://bailian.console.aliyun.com/?apiKey=1", blurb: "阿里云百炼，模型种类多" },
-  { id: "minimax", name: "MiniMax", baseUrl: "https://api.minimaxi.com/anthropic", model: "MiniMax-M2", smallModel: "MiniMax-M2", modelsUrl: "https://api.minimaxi.com/v1/models", keyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key", blurb: "智能体和代码任务" },
+  { id: "deepseek", name: "DeepSeek", baseUrl: "https://api.deepseek.com/anthropic", model: "deepseek-chat", smallModel: "deepseek-chat", modelsUrl: "https://api.deepseek.com/models", keyUrl: "https://platform.deepseek.com/api_keys", pricingUrl: "https://api-docs.deepseek.com/zh-cn/quick_start/pricing", blurb: "推理和代码能力强，价格低" },
+  { id: "kimi", name: "Kimi（月之暗面）", baseUrl: "https://api.moonshot.cn/anthropic", model: "kimi-k2-turbo-preview", smallModel: "kimi-k2-turbo-preview", modelsUrl: "https://api.moonshot.cn/v1/models", keyUrl: "https://platform.moonshot.cn/console/api-keys", pricingUrl: "https://platform.moonshot.cn/docs/pricing/chat", blurb: "长上下文，擅长读长文档和工具调用" },
+  { id: "glm", name: "智谱 GLM", baseUrl: "https://open.bigmodel.cn/api/anthropic", model: "glm-4.6", smallModel: "glm-4.5-air", modelsUrl: "https://open.bigmodel.cn/api/paas/v4/models", keyUrl: "https://open.bigmodel.cn/usercenter/apikeys", pricingUrl: "https://open.bigmodel.cn/pricing", blurb: "代码和智能体任务，有包月套餐" },
+  { id: "qwen", name: "通义千问", baseUrl: "https://dashscope.aliyuncs.com/apps/anthropic", model: "qwen3-coder-plus", smallModel: "qwen3-coder-plus", modelsUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1/models", keyUrl: "https://bailian.console.aliyun.com/?apiKey=1", pricingUrl: "https://help.aliyun.com/zh/model-studio/models", blurb: "阿里云百炼，模型种类多" },
+  { id: "minimax", name: "MiniMax", baseUrl: "https://api.minimaxi.com/anthropic", model: "MiniMax-M2", smallModel: "MiniMax-M2", modelsUrl: "https://api.minimaxi.com/v1/models", keyUrl: "https://platform.minimaxi.com/user-center/basic-information/interface-key", pricingUrl: "https://platform.minimaxi.com/document/Price", blurb: "智能体和代码任务" },
 ];
 
 /** Env keys this module manages on an agent; switching source removes the ones no longer wanted. */
@@ -64,6 +67,8 @@ export function saveProvider(home, id, patch) {
   const cur = all[key] ?? {};
   const next = { ...cur };
   for (const k of ["name", "baseUrl", "model", "smallModel", "secretId", "modelsUrl", "models", "modelsFetchedAt"]) if (patch[k] !== undefined) next[k] = typeof patch[k] === "string" ? patch[k].trim() : patch[k];
+  if (patch.prices !== undefined) next.prices = normalizePrices(patch.prices);
+  if (patch.pricingUrl !== undefined && !preset) next.pricingUrl = String(patch.pricingUrl).trim();
   if (!preset && !next.baseUrl) throw Object.assign(new Error("自定义服务商要填 Anthropic 兼容接口地址"), { status: 400 });
   if (next.baseUrl && !/^https?:\/\//.test(next.baseUrl)) throw Object.assign(new Error("接口地址要以 http(s):// 开头"), { status: 400 });
   next.updatedAt = new Date().toISOString();
@@ -171,3 +176,38 @@ export const SUBSCRIPTION_MODELS = {
   claude: ["claude-opus-5-5", "opus", "sonnet", "haiku"],
   codex: [],
 };
+
+/* ---------------- prices ---------------- */
+/**
+ * Prices per model, in yuan per million tokens: { model: { input, output, cached? } }. Anything
+ * that is not a finite non-negative number is dropped; a model with neither input nor output goes.
+ * `cached` is the cache-hit input price (DeepSeek and others charge less for it). Pure.
+ */
+export function normalizePrices(raw) {
+  const out = {};
+  if (!raw || typeof raw !== "object") return out;
+  const num = (v) => {
+    if (v === "" || v === null || v === undefined) return undefined;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 1e4) / 1e4 : undefined;
+  };
+  for (const [model, p] of Object.entries(raw)) {
+    const name = String(model).trim();
+    if (!name || !p || typeof p !== "object") continue;
+    const price = { input: num(p.input), output: num(p.output), cached: num(p.cached) };
+    if (price.input === undefined && price.output === undefined) continue;
+    out[name] = Object.fromEntries(Object.entries(price).filter(([, v]) => v !== undefined));
+  }
+  return out;
+}
+
+/**
+ * Estimated cost in yuan of some token counts at a model's price (null when there is no price).
+ * Cached input uses the cache-hit price when given, else the normal input price. Pure.
+ */
+export function estimateYuan({ inputTokens = 0, cachedInputTokens = 0, outputTokens = 0 }, price) {
+  if (!price || (price.input === undefined && price.output === undefined)) return null;
+  const input = price.input ?? 0;
+  const cached = price.cached ?? input;
+  return (inputTokens * input + cachedInputTokens * cached + outputTokens * (price.output ?? 0)) / 1e6;
+}

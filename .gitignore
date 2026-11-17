@@ -20,3 +20,4 @@ spikes/*-result.txt
 
 # built by `node build.mjs` in each plugin; rebuild after pulling
 plugins/*/dist/
+.agenteam-acceptance/

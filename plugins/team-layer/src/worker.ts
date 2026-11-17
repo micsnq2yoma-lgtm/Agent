@@ -25,7 +25,7 @@ import {
   type Dispute,
   type EvidenceItem,
 } from "./acceptance.js";
-import { afterCheck, classifyProbe, dueWatches, newWatch, WATCH_LIMITS, wakeComment, type Watch } from "./watch.js";
+import { afterCheck, classifyProbe, dueWatches, newWatch, WATCH_LIMITS, wakeComment, watchesFor, type Watch } from "./watch.js";
 
 type Ctx = Parameters<Parameters<typeof definePlugin>[0]["setup"]>[0];
 
@@ -788,6 +788,17 @@ const plugin = definePlugin({
       const companyId = (params as { companyId?: string }).companyId;
       if (!companyId) return [];
       return getState<FeedMessage[]>(ctx, companyKey(companyId, "notices"), []);
+    });
+    // the project drawer's 盯守 section: watches and pending reminders on a task and its subtasks
+    ctx.data.register("watches", async (params) => {
+      const p = params as { companyId?: string; issueIds?: unknown };
+      if (!p.companyId) return { watches: [], reminders: [] };
+      const ids = Array.isArray(p.issueIds) ? p.issueIds.map(String).slice(0, 200) : [];
+      return watchesFor(
+        await getState<Watch[]>(ctx, companyKey(p.companyId, "watches"), []),
+        await getState<Reminder[]>(ctx, companyKey(p.companyId, "reminders"), []),
+        ids,
+      );
     });
   },
 
