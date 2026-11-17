@@ -58,7 +58,7 @@ cd AgenTeam
 node scripts\install.mjs
 ```
 
-The script checks the environment, installs and builds, runs Paperclip's first-time setup, starts everything, installs the team-layer plugin and enables autostart (10+ minutes). Then open <http://127.0.0.1:3100> and click **+** next to “Leads” in the sidebar to create your first lead and employee.
+The script checks the environment, installs and builds, runs first-time setup, starts everything, installs the team-layer plugin and enables autostart (10+ minutes). Then open <http://127.0.0.1:3100> and click **+** next to “Leads” in the sidebar to create your first lead and employee.
 
 Each machine is independent: its own subscriptions, API keys and data.
 
@@ -75,23 +75,14 @@ A version that fails to start is rolled back automatically. The database is not 
 
 ## Architecture
 
-```
-              ┌──────────── only :3100 is exposed ────────────┐
- you / Feishu ─▶│  Paperclip (tasks, runs, UI; vendor/paperclip)  │
-              │   ├─ team-layer plugin: acceptance / checks / watching / memory │
-              │   └─ /agenteam/api ─▶ local service :3200 (localhost only) │
-              └────────────────────────────────────────────────┘
-                     router · settings · team MCP · mail · papers · Feishu
-                              │
-                 employees: local Claude Code / Codex / API models
-```
+<p align="center"><img src="docs/assets/architecture-en.png" width="900" alt="AgenTeam architecture"></p>
 
 | Directory | Contents |
 | --- | --- |
 | `apps/console/` | Local service: router, IM, settings, memory, team wizard, hiring approval, team MCP |
-| `plugins/team-layer/` | Paperclip plugin: rework / hop limits, cards, structured acceptance, independent checks, watching, memory tidy-up |
+| `plugins/team-layer/` | Team-layer plugin: rework / hop limits, cards, structured acceptance, independent checks, watching, memory tidy-up |
 | `plugins/im-feishu/` | Feishu channel |
-| `vendor/paperclip/ui/src/agenteam/` | Workbench and other pages inside the Paperclip UI |
+| `vendor/paperclip/ui/src/agenteam/` | Workbench, lead pages, settings: the AgenTeam UI |
 | `packages/` | `shared` types · `skins` · `pixel-office` renderer |
 | `skills/` `packs/` | Lead / employee / memory skill packs; blank team templates |
 | `scripts/` | Start, install, update, acceptance scripts, localization tools |

@@ -56,7 +56,7 @@ cd AgenTeam
 node scripts\install.mjs
 ```
 
-脚本会检查环境、安装依赖并构建、做 Paperclip 首次配置、启动、安装团队层插件、设置开机自启（十几分钟）。装完打开 <http://127.0.0.1:3100>，在侧栏“主管”旁边点 **+** 新建第一位主管和员工。
+脚本会检查环境、安装依赖并构建、做首次配置、启动、安装团队层插件、设置开机自启（十几分钟）。装完打开 <http://127.0.0.1:3100>，在侧栏“主管”旁边点 **+** 新建第一位主管和员工。
 
 多台电脑各装一套，互不依赖：各自登录订阅、配置 API key，数据存在各自本机。
 
@@ -73,23 +73,14 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 
 ## 架构
 
-```
-              ┌────────────── 对外只有 :3100 ──────────────┐
-   你 / 飞书 ─▶│  Paperclip（任务、运行、界面，vendor/paperclip）│
-              │   ├─ team-layer 插件：验收 / 核查 / 盯守 / 记忆整理 │
-              │   └─ /agenteam/api ─▶ 本地服务 :3200（仅本机）   │
-              └──────────────────────────────────────────────┘
-                     路由 · 设置 · 团队 MCP · 邮箱 · 论文库 · 飞书
-                              │
-                 员工：本机 Claude Code / Codex / API 模型
-```
+<p align="center"><img src="docs/assets/architecture-zh.png" width="900" alt="AgenTeam 架构"></p>
 
 | 目录 | 内容 |
 | --- | --- |
 | `apps/console/` | 本地服务：路由、IM、设置、记忆、团队向导、招人审批，以及主管 / 员工用的团队 MCP |
-| `plugins/team-layer/` | Paperclip 插件：返工与跳数上限、卡片、结构化验收、独立核查、盯守、记忆整理 |
+| `plugins/team-layer/` | 团队层插件：返工与跳数上限、卡片、结构化验收、独立核查、盯守、记忆整理 |
 | `plugins/im-feishu/` | 飞书通道 |
-| `vendor/paperclip/ui/src/agenteam/` | 工作台等页面，挂在 Paperclip 界面里 |
+| `vendor/paperclip/ui/src/agenteam/` | 工作台、主管页、设置等 AgenTeam 界面 |
 | `packages/` | `shared` 类型 · `skins` 皮肤 · `pixel-office` 像素员工与办公室渲染 |
 | `skills/` `packs/` | 主管 / 员工 / 记忆技能包；新建团队的空白模板 |
 | `scripts/` | 启动、安装、更新、验收脚本、中文化工具 |
