@@ -75,6 +75,15 @@ export function repoFromRemote(url) {
   const m = /github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/.exec(String(url ?? "").trim());
   return m ? `${m[1]}/${m[2]}` : null;
 }
+/** The repository's current owner/name (GitHub redirects the old name of a renamed one); the given name if that can't be asked. */
+export function canonicalRepo(repo, ask = (r) => ghJson("api", `repos/${r}`)?.full_name) {
+  try {
+    const name = ask(repo);
+    return typeof name === "string" && name.includes("/") ? name : repo;
+  } catch {
+    return repo;
+  }
+}
 /** The prompt handed to the maintainer agent. */
 export function buildPrompt({ machine, repo, pr, sha, request, resultFile }) {
   return [
@@ -355,8 +364,10 @@ async function main() {
   }
   if (process.argv.includes("--install")) return install(machine);
 
-  const repo = argValue("--repo") || repoFromRemote(git("remote", "get-url", "origin"));
-  if (!repo) throw new Error("认不出 GitHub 仓库：用 --repo owner/name 指定");
+  const given = argValue("--repo") || repoFromRemote(git("remote", "get-url", "origin"));
+  if (!given) throw new Error("认不出 GitHub 仓库：用 --repo owner/name 指定");
+  // A repository renamed on GitHub keeps answering to its old name; PRs report the new one.
+  const repo = canonicalRepo(given);
   if (!takeLock()) {
     log("another pass is still running; skipping");
     return;

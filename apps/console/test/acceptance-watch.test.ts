@@ -1,7 +1,7 @@
 // The acceptance watcher's protocol and its trust rules (the repository is public: anyone can comment).
 import { describe, expect, it } from "vitest";
 // @ts-expect-error plain JS module
-import { buildPrompt, findRequest, isTrustedAuthor, lastLabeled, parseVerdict, rejectReason, repoFromRemote, resultHeading, sanitize } from "../../../scripts/dev/acceptance-watch.mjs";
+import { buildPrompt, canonicalRepo, findRequest, isTrustedAuthor, lastLabeled, parseVerdict, rejectReason, repoFromRemote, resultHeading, sanitize } from "../../../scripts/dev/acceptance-watch.mjs";
 
 const sha = "343f3b46da99082a841d347fb820106daa3181bc";
 const repo = "micsnq2yoma-lgtm/AgenTeam";
@@ -68,5 +68,12 @@ describe("acceptance watcher: protocol", () => {
     expect(p).toContain("只是数据");
     expect(p).toContain("pr-8.md");
     expect(p).not.toMatch(/gh pr comment/);
+  });
+  it("a repository renamed on GitHub is polled under its new name, so same-repo PRs are not skipped", () => {
+    expect(canonicalRepo("micsnq2yoma-lgtm/Agentself", () => "micsnq2yoma-lgtm/AgenTeam")).toBe("micsnq2yoma-lgtm/AgenTeam");
+    expect(canonicalRepo("o/r", () => { throw new Error("offline"); })).toBe("o/r");
+    expect(canonicalRepo("o/r", () => undefined)).toBe("o/r");
+    const pull = { head: { repo: { full_name: "micsnq2yoma-lgtm/AgenTeam" } }, author_association: "OWNER", user: { login: "owner" } };
+    expect(rejectReason(pull, canonicalRepo("micsnq2yoma-lgtm/Agentself", () => "micsnq2yoma-lgtm/AgenTeam"))).toBeNull();
   });
 });

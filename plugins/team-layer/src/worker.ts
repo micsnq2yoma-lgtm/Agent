@@ -11,6 +11,8 @@ import { appendRunLog, consolidate, logLine, runClaudeJson, runCodexText, should
 // Shared with the local service; bundled into the worker by esbuild.
 // @ts-expect-error plain JS module without type declarations
 import { refreshInstructions } from "../../../scripts/lib/instructions.mjs";
+// @ts-expect-error plain JS module without type declarations
+import { legacyHome, rewriteLegacyPaths } from "../../../scripts/lib/legacy.mjs";
 import {
   criteriaMarkdown,
   evidenceMarkdown,
@@ -720,7 +722,13 @@ const plugin = definePlugin({
     ctx.jobs.register("watch-tick", async () => {
       for (const cid of await knownCompanies(ctx)) {
         const key = companyKey(cid, "watches");
-        const list = await getState<Watch[]>(ctx, key, []);
+        let list = await getState<Watch[]>(ctx, key, []);
+        // A watch registered before the rename still points into ~/.agentself (its folder and command).
+        const moved = list.map((w) => rewriteLegacyPaths(w, legacyHome(), agenteamHome()) as Watch | null);
+        if (moved.some(Boolean)) {
+          list = list.map((w, i) => moved[i] ?? w);
+          await ctx.state.set(key, list);
+        }
         const due = dueWatches(list, Date.now());
         if (due.length === 0) continue;
         const next = new Map(list.map((w) => [w.id, w as Watch | null]));
