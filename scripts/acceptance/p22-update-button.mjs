@@ -3,8 +3,10 @@
 //   node scripts/acceptance/p22-update-button.mjs            # 已是最新：点按钮只显示“已是最新”，不启动更新
 //   node scripts/acceptance/p22-update-button.mjs --update   # 真更新：实例要比 origin/main 落后至少一个提交
 //
-// 不要在平时用的实例上跑 --update：它会真的停止系统、拉取、构建、重启。在隔离的克隆上跑（独立的 AGENTEAM_HOME 和端口），
-// 用 `git reset --hard HEAD~1`（只落后一个提交就够）做出“落后”的状态，再启动、再跑本脚本。
+// --update 会真的停止系统、拉取 main、构建、重启，并先备份数据库。scripts/update.mjs、stop.mjs、start.mjs 固定用 3100 / 3200，
+// 所以不能在隔离端口上和现用实例并行跑：要在“被更新的那个实例”上跑，也就是验收机这台专用电脑上 3100 的那一套，
+// 不要在日常使用的电脑上跑。做出“落后”的状态：把这台机器的克隆切回 main 再 `git reset --hard HEAD~1`（落后一个提交就够），
+// 重新构建并启动，再跑本脚本（脚本本身从别的检出目录运行，更新不会把它覆盖）。
 //
 // 验：没有“每天自动更新”开关；点按钮后依次出现进度文字（正在更新 / 系统正在重启），结束后显示结果和“刷新页面”，
 // 刷新后版本变成最新；服务端不再有定时更新任务（设置里没有 autoUpdate）。
@@ -29,7 +31,7 @@ const behind = before.lastCheck?.behind ?? 0;
 const results = { mode: doUpdate ? "update" : "up-to-date", versionBefore: before.lastCheck?.current ?? before.current, latest: before.lastCheck?.latest, behind };
 
 if (doUpdate && behind < 1) {
-  console.log(JSON.stringify({ ...results, RESULT: "FAIL", why: "实例没有落后于 origin/main：先 git reset --hard HEAD~1 再启动，或不带 --update 跑“已是最新”那一条" }, null, 2));
+  console.log(JSON.stringify({ ...results, RESULT: "FAIL", why: "实例没有落后于 origin/main：按文件头的说明做出“落后”状态，或不带 --update 跑“已是最新”那一条" }, null, 2));
   process.exit(1);
 }
 if (!doUpdate && behind > 0) {
