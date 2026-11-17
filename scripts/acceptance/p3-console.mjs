@@ -35,7 +35,7 @@ await page.waitForTimeout(1500);
 const courtText = await page.locator("body").innerText();
 results.courtTerms = ["御书房", "朝堂", "待朱批", "通政司"].every((w) => courtText.includes(w));
 results.courtLayoutRight = (await page.evaluate(() => document.documentElement.dataset.layoutSidebar)) === "right";
-await page.screenshot({ path: "spikes/shots/p3-court.png" });
+await page.screenshot({ path: ".agenteam-shots/p3-court.png" });
 await page.getByRole("link", { name: "设置", exact: true }).click();
 await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator(".section", { hasText: "皮肤" }).locator(".row", { hasText: "办公室" }).getByRole("button", { name: /^使用/ }).click();
@@ -76,7 +76,7 @@ await page.getByRole("link", { name: "用量与预算" }).click();
 await page.waitForTimeout(2500);
 const usageText = await page.locator("body").innerText();
 results.usageByDepartment = usageText.includes(ctx.departments.find((d) => d.key === "research")?.name ?? "科研") && usageText.includes("订阅额度");
-await page.screenshot({ path: "spikes/shots/p3-usage.png" });
+await page.screenshot({ path: ".agenteam-shots/p3-usage.png" });
 
 // 4. pixel office: every agent has a nameplate and a mapped state
 await page.getByRole("link", { name: "工作台", exact: true }).first().click();
@@ -85,7 +85,7 @@ await page.waitForTimeout(5000);
 const office = await j("GET", "/agentself/api/office");
 const plates = await page.locator(".nameplate").count();
 results.officePeople = { snapshot: office.people.length, nameplates: plates, anims: office.people.map((p) => `${p.name}:${p.anim}`) };
-await page.screenshot({ path: "spikes/shots/p3-team.png" });
+await page.screenshot({ path: ".agenteam-shots/p3-team.png" });
 await page.getByRole("tab", { name: "工作台" }).click();
 await browser.close();
 

@@ -47,7 +47,7 @@ await page.waitForTimeout(800);
 const text = await page.locator("body").innerText();
 results.termsApplied = text.includes("实验台") && text.includes("实验室全景");
 results.accent = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--as-accent").trim());
-await page.screenshot({ path: "spikes/shots/p6-skin-lab.png" });
+await page.screenshot({ path: ".agenteam-shots/p6-skin-lab.png" });
 
 // export
 await page.getByRole("link", { name: "设置", exact: true }).click();

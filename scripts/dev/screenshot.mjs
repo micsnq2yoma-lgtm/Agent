@@ -7,7 +7,7 @@ import fs from "node:fs";
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 let pw;
 try { pw = require("playwright"); } catch { pw = require(path.resolve("vendor/paperclip/node_modules/.pnpm/playwright@1.62.1/node_modules/playwright")); }
-const out = process.argv[2] ?? "spikes/shots";
+const out = process.argv[2] ?? ".agenteam-shots";
 const base = process.argv[3] ?? "http://127.0.0.1:3100";
 fs.mkdirSync(out, { recursive: true });
 const exe = process.env.AGENTSELF_CHROME ?? fs.readdirSync(path.join(process.env.LOCALAPPDATA, 'ms-playwright')).filter((d) => d.startsWith('chromium-')).map((d) => path.join(process.env.LOCALAPPDATA, 'ms-playwright', d, 'chrome-win64', 'chrome.exe')).find((p) => fs.existsSync(p));
