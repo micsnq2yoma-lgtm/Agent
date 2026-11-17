@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { buildPrompt, findRequest, isTrustedAuthor, lastLabeled, parseVerdict, rejectReason, repoFromRemote, resultHeading, sanitize } from "../../../scripts/dev/acceptance-watch.mjs";
 
 const sha = "343f3b46da99082a841d347fb820106daa3181bc";
-const repo = "micsnq2yoma-lgtm/Agentself";
+const repo = "micsnq2yoma-lgtm/AgenTeam";
 const owner = { user: { login: "yizhidianlu" }, author_association: "OWNER" };
 const stranger = { user: { login: "someone" }, author_association: "NONE" };
 
@@ -30,7 +30,7 @@ describe("acceptance watcher: trust", () => {
   it("fork PRs and PRs by strangers are rejected", () => {
     const same = { ...owner, head: { repo: { full_name: repo } } };
     expect(rejectReason(same, repo)).toBeNull();
-    expect(rejectReason({ ...owner, head: { repo: { full_name: "evil/Agentself" } } }, repo)).toMatch(/其他仓库/);
+    expect(rejectReason({ ...owner, head: { repo: { full_name: "evil/AgenTeam" } } }, repo)).toMatch(/其他仓库/);
     expect(rejectReason({ ...owner, head: { repo: null } }, repo)).toMatch(/其他仓库/);
     expect(rejectReason({ ...stranger, head: { repo: { full_name: repo } } }, repo)).toMatch(/不是仓库的所有者或协作者/);
   });
@@ -57,7 +57,7 @@ describe("acceptance watcher: protocol", () => {
     expect(parseVerdict("没有结论")).toBeNull();
   });
   it("repo from the git remote", () => {
-    expect(repoFromRemote("https://github.com/micsnq2yoma-lgtm/Agentself.git")).toBe(repo);
+    expect(repoFromRemote("https://github.com/micsnq2yoma-lgtm/AgenTeam.git")).toBe(repo);
     expect(repoFromRemote("git@github.com:acme/app.git")).toBe("acme/app");
     expect(repoFromRemote("http://127.0.0.1:1234/git/x")).toBeNull();
   });

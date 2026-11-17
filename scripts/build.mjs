@@ -1,4 +1,4 @@
-// Build Paperclip (and the Agentself UI inside it) by hand: `node scripts/build.mjs [--ui] [--install]`.
+// Build Paperclip (and the AgenTeam UI inside it) by hand: `node scripts/build.mjs [--ui] [--install]`.
 // On Windows Paperclip's package scripts need Git Bash; plain `pnpm build` in cmd fails with
 // "命令语法不正确". This finds Git Bash and passes it to pnpm (see scripts/lib/shell.mjs).
 //   --install  run `pnpm install --frozen-lockfile` first
@@ -13,7 +13,7 @@ const paperclip = path.join(root, "vendor", "paperclip");
 const argv = new Set(process.argv.slice(2));
 
 if (process.platform === "win32" && !gitBash()) {
-  console.error("没找到 Git Bash（Paperclip 的构建脚本要用它）。装好 Git for Windows，或者用环境变量 AGENTSELF_BASH 指向 bash.exe。");
+  console.error("没找到 Git Bash（Paperclip 的构建脚本要用它）。装好 Git for Windows，或者用环境变量 AGENTEAM_BASH 指向 bash.exe。");
   process.exit(1);
 }
 const env = pnpmEnv();

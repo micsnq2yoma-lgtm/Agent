@@ -3,7 +3,7 @@
 // Needs one mailbox in 设置 → 邮箱. The script reads the newest subject itself (same machine,
 // apps/console/server/mail.mjs) and expects the employee to report the same subject. The app
 // password is in Paperclip's secret store and cannot be read back: pass it for this check as
-// AGENTSELF_MAIL_PASSWORD=<授权码>. Without it the script only checks that the employee read the
+// AGENTEAM_MAIL_PASSWORD=<授权码>. Without it the script only checks that the employee read the
 // mailbox (a subject reported, no error) — which already proves the secret reached the run.
 //   --draft   also have the employee save a draft (to your own address) into the Drafts folder;
 //             delete it afterwards. Nothing is ever sent.
@@ -19,10 +19,10 @@ if (!accounts.length) {
   process.exit(0);
 }
 const acc = accounts[0];
-if (process.env.AGENTSELF_MAIL_PASSWORD) process.env[mailEnvName(acc.id)] = process.env.AGENTSELF_MAIL_PASSWORD;
-const canRead = !acc.inSecretStore || !!process.env.AGENTSELF_MAIL_PASSWORD;
+if (process.env.AGENTEAM_MAIL_PASSWORD) process.env[mailEnvName(acc.id)] = process.env.AGENTEAM_MAIL_PASSWORD;
+const canRead = !acc.inSecretStore || !!process.env.AGENTEAM_MAIL_PASSWORD;
 const newest = canRead ? ((await recentMail({ account: acc.id, days: 7, max: 1 })).messages[0] ?? null) : undefined;
-log("mailbox", acc.address, "newest:", newest === undefined ? "(授权码在密钥库里，脚本不读；设 AGENTSELF_MAIL_PASSWORD 可对比主题)" : (newest?.subject ?? "(最近 7 天没有邮件)"));
+log("mailbox", acc.address, "newest:", newest === undefined ? "(授权码在密钥库里，脚本不读；设 AGENTEAM_MAIL_PASSWORD 可对比主题)" : (newest?.subject ?? "(最近 7 天没有邮件)"));
 
 const { companyId, projectId, employee } = await researchTeam();
 const mark = `p19-${Date.now().toString(36)}`;

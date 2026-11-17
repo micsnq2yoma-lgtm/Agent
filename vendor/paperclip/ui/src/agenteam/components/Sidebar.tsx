@@ -1,4 +1,4 @@
-// The one Agentself sidebar (PLAN 7.0), mounted by ui/src/components/Layout.tsx in place of
+// The one AgenTeam sidebar (PLAN 7.0), mounted by ui/src/components/Layout.tsx in place of
 // Paperclip's own navigation. v0.6 SETO (DESIGN §4.1): four top-level items — 工作台, 项目,
 // 主管 (one row per lead + new), 管理 (collapsed) — and 设置 pinned at the bottom.
 // Paperclip's inbox, dashboard, agent chat, cases, goals and company switcher stay reachable by URL.
@@ -6,12 +6,12 @@ import { useState, type ReactNode } from "react";
 import { BookOpen, ChevronDown, ChevronRight, Folder, House, PanelLeftClose, Plus, Search, Settings } from "lucide-react";
 import { Link, useLocation, useParams } from "@/lib/router";
 import { useSidebar } from "@/context/SidebarContext";
-import { AS_BASE, useAgentselfOptional } from "../App";
+import { AS_BASE, useAgenteamOptional } from "../App";
 import { useSkin } from "../lib/skin";
 import { PackIcon } from "../lib/icons";
 import { Wordmark } from "./Brand";
 
-const MANAGE_KEY = "agentself.sidebar.manageOpen";
+const MANAGE_KEY = "agenteam.sidebar.manageOpen";
 
 function readManageOpen(): boolean {
   try {
@@ -21,8 +21,8 @@ function readManageOpen(): boolean {
   }
 }
 
-export function AgentselfSidebar() {
-  const s = useAgentselfOptional();
+export function AgenteamSidebar() {
+  const s = useAgenteamOptional();
   const { t } = useSkin();
   const { toggleSidebar } = useSidebar();
   const { companyPrefix } = useParams<{ companyPrefix?: string }>();
@@ -30,7 +30,7 @@ export function AgentselfSidebar() {
   const [manageOpen, setManageOpen] = useState(readManageOpen);
   const ctx = s?.ctx ?? null;
 
-  // path relative to the company prefix, e.g. "/agentself/projects" or "/org"
+  // path relative to the company prefix, e.g. "/agenteam/projects" or "/org"
   const rel = companyPrefix ? location.pathname.replace(new RegExp(`^/${companyPrefix}(?=/|$)`, "i"), "") || "/" : location.pathname;
   const isActive = (to: string, exact = false) => (exact ? rel === to : rel === to || rel.startsWith(`${to}/`));
 
@@ -54,10 +54,10 @@ export function AgentselfSidebar() {
 
   const depts = (ctx?.departments ?? []).filter((d) => !d.archived);
   const archived = (ctx?.departments ?? []).filter((d) => d.archived).length;
-  const manageActive = ["/agentself/org", "/org", "/agents", "/agentself/capabilities", "/agentself/routines", "/routines", "/agentself/usage", "/agentself/records", "/costs", "/activity", "/approvals", "/skills", "/apps", "/artifacts", "/agentself/archived"].some((p) => isActive(p));
+  const manageActive = ["/agenteam/org", "/org", "/agents", "/agenteam/capabilities", "/agenteam/routines", "/routines", "/agenteam/usage", "/agenteam/records", "/costs", "/activity", "/approvals", "/skills", "/apps", "/artifacts", "/agenteam/archived"].some((p) => isActive(p));
 
   return (
-    <div className="agentself" style={{ height: "100%", width: "100%" }} data-agentself-sidebar="">
+    <div className="agenteam" style={{ height: "100%", width: "100%" }} data-agenteam-sidebar="">
       <aside className="sidebar" aria-label="AgenTeam 导航">
         <div className="brand">
           <Wordmark />

@@ -92,7 +92,7 @@ describe("IM host", () => {
   });
 
   it("end to end with a fake channel: push, answer in IM, sync handled from web, inbound text", async () => {
-    process.env.AGENTSELF_FEISHU_APP_SECRET = "test-secret";
+    process.env.AGENTEAM_FEISHU_APP_SECRET = "test-secret";
     let items = [...attention.slice(0, 1)];
     const sentCards: string[] = [];
     const updates: string[] = [];
@@ -160,9 +160,9 @@ describe("IM host", () => {
   });
 
   it("stays disabled without credentials", async () => {
-    delete process.env.AGENTSELF_FEISHU_APP_SECRET;
+    delete process.env.AGENTEAM_FEISHU_APP_SECRET;
     await startIm({ settings: { feishu: { enabled: true, appId: "x", allowUserIds: ["ou"] } }, store: {}, saveStore: () => {}, pc: async () => ({}), loadContext: async () => ({}), frontdesk: async () => ({}), createChannel: async () => ({}) });
-    expect(imStatus()).toContain("AGENTSELF_FEISHU_APP_SECRET");
+    expect(imStatus()).toContain("AGENTEAM_FEISHU_APP_SECRET");
   });
 });
 

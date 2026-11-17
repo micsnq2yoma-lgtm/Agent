@@ -1,5 +1,5 @@
 {
-  "schema": "agentself.department/1",
+  "schema": "agenteam.department/1",
   "name": "新团队",
   "icon": "sparkles",
   "description": "",
@@ -26,9 +26,9 @@
     }
   ],
   "skills": [
-    "agentself-lead",
-    "agentself-employee",
-    "agentself-memory"
+    "agenteam-lead",
+    "agenteam-employee",
+    "agenteam-memory"
   ],
   "routines": []
 }

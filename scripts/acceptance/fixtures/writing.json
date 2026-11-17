@@ -1,5 +1,5 @@
 {
-  "schema": "agentself.department/1",
+  "schema": "agenteam.department/1",
   "name": "验收写作",
   "icon": "sparkles",
   "description": "p14 并行验收用的临时团队：中文写作、文案、诗歌。验收结束会被删除。",
@@ -25,6 +25,6 @@
       "identity": "你是用户的写手，按任务书写出中文作品，并逐条附证据交付。"
     }
   ],
-  "skills": ["agentself-employee", "agentself-memory"],
+  "skills": ["agenteam-employee", "agenteam-memory"],
   "routines": []
 }

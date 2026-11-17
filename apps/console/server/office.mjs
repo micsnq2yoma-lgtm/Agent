@@ -1,5 +1,5 @@
 // Office snapshot (PLAN 7.1): agent status + runs + attention -> pixel animation state.
-import { modelFamilyFor } from "@agentself/shared";
+import { modelFamilyFor } from "@agenteam/shared";
 const arr = (x) => (Array.isArray(x) ? x : (x?.items ?? []));
 
 /** Pure mapping, priority order from PLAN 7.1. */
@@ -38,9 +38,9 @@ export async function buildOfficeSnapshot(ctx, pc, now = Date.now()) {
   const runList = arr(runs);
 
   const people = ctx.agents
-    .filter((a) => a.metadata?.agentself)
+    .filter((a) => a.metadata?.agenteam)
     .map((agent) => {
-      const m = agent.metadata.agentself;
+      const m = agent.metadata.agenteam;
       const agentRuns = runList.filter((r) => r.agentId === agent.id).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
       const last = agentRuns[0];
       const running = agentRuns.some((r) => r.status === "running" || r.status === "queued");

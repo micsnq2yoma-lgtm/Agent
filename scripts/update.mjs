@@ -1,28 +1,29 @@
 #!/usr/bin/env node
-// Update this machine's Agentself to the latest `main`, with automatic rollback.
+// Update this machine's AgenTeam to the latest `main`, with automatic rollback.
 //   node scripts/update.mjs            # update now (stops, builds, restarts, checks health)
 //   node scripts/update.mjs --check    # only say whether an update is available (JSON)
 //   node scripts/update.mjs --no-backup
 // Steps: refuse on local changes → fetch → back up (Paperclip database via `paperclipai
-// db:backup`, ~/.agentself without workspaces) → stop → fast-forward → install only what the
+// db:backup`, ~/.agenteam without workspaces) → stop → fast-forward → install only what the
 // lockfiles changed → build only what changed → start → health check. If the new version
 // does not come up healthy, the code goes back to the previous commit, is rebuilt and started
 // again. The database is NOT restored automatically (Paperclip may have migrated it); the
 // backup path is printed so it can be restored by hand.
-// Every run appends to ~/.agentself/logs/update.log and writes ~/.agentself/run/update.json.
+// Every run appends to ~/.agenteam/logs/update.log and writes ~/.agenteam/run/update.json.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
-import { stopAgentself } from "./stop.mjs";
+import { resolveHome } from "./lib/legacy.mjs";
+import { stopAgenteam } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const vendor = path.join(root, "vendor", "paperclip");
-const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const home = resolveHome();
 const args = new Set(process.argv.slice(2));
-const branch = process.env.AGENTSELF_UPDATE_BRANCH ?? "main";
+const branch = process.env.AGENTEAM_UPDATE_BRANCH ?? "main";
 const stateFile = path.join(home, "run", "update.json");
 fs.mkdirSync(path.join(home, "logs"), { recursive: true });
 fs.mkdirSync(path.dirname(stateFile), { recursive: true });
@@ -49,7 +50,7 @@ function sh(cmd, argv, cwd = root, { quiet = false } = {}) {
   return (r.stdout ?? "").trim();
 }
 const git = (...a) => sh("git", a, root, { quiet: true });
-const pnpm = process.env.AGENTSELF_PNPM ?? "pnpm";
+const pnpm = process.env.AGENTEAM_PNPM ?? "pnpm";
 async function healthy(url) {
   try {
     return (await fetch(url, { signal: AbortSignal.timeout(3000) })).ok;
@@ -87,10 +88,10 @@ export function startDetached() {
   const child = spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: "ignore", windowsHide: true });
   child.unref();
 }
-export async function waitHealthy(minutes = Number(process.env.AGENTSELF_UPDATE_HEALTH_MINUTES ?? 4)) {
+export async function waitHealthy(minutes = Number(process.env.AGENTEAM_UPDATE_HEALTH_MINUTES ?? 4)) {
   const end = Date.now() + minutes * 60_000;
   while (Date.now() < end) {
-    if ((await healthy("http://127.0.0.1:3100/api/health")) && (await healthy("http://127.0.0.1:3100/agentself/api/context"))) return true;
+    if ((await healthy("http://127.0.0.1:3100/api/health")) && (await healthy("http://127.0.0.1:3100/agenteam/api/context"))) return true;
     await new Promise((r) => setTimeout(r, 5000));
   }
   return false;
@@ -100,9 +101,9 @@ export function backup() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const dir = path.join(home, "backups", stamp);
   fs.mkdirSync(dir, { recursive: true });
-  // ~/.agentself without the bulky or regenerable parts (agent workspaces hold experiment data)
+  // ~/.agenteam without the bulky or regenerable parts (agent workspaces hold experiment data)
   const skip = new Set(["workspaces", "backups", "logs", "run"]);
-  for (const e of fs.readdirSync(home)) if (!skip.has(e)) fs.cpSync(path.join(home, e), path.join(dir, "agentself", e), { recursive: true });
+  for (const e of fs.readdirSync(home)) if (!skip.has(e)) fs.cpSync(path.join(home, e), path.join(dir, "agenteam", e), { recursive: true });
   let db = null;
   try {
     const out = sh(pnpm, ["paperclipai", "db:backup", "--json", "--dir", path.join(dir, "paperclip")], vendor, { quiet: true });
@@ -151,7 +152,7 @@ async function main() {
   const saved = args.has("--no-backup") ? null : backup();
   if (saved) log(`backup: ${saved.dir}`);
 
-  await stopAgentself(log);
+  await stopAgenteam(log);
   let failure = null;
   try {
     git("merge", "--ff-only", `origin/${branch}`);
@@ -167,7 +168,7 @@ async function main() {
 
   // roll back the code (the repository was clean, so a hard reset only moves back the update)
   log(`update failed: ${failure.message}; rolling back to ${prev.slice(0, 7)}`);
-  await stopAgentself(log);
+  await stopAgenteam(log);
   try {
     const now = git("rev-parse", "HEAD");
     git("reset", "--hard", prev);

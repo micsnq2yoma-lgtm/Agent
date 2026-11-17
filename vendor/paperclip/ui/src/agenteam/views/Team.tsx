@@ -1,7 +1,7 @@
 import { X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { OfficeSnapshot } from "@agentself/shared";
-import { ACTION_TEXT, DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, WORLD_H, ZONE_W, type Label } from "@agentself/pixel-office";
+import type { OfficeSnapshot } from "@agenteam/shared";
+import { ACTION_TEXT, DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, WORLD_H, ZONE_W, type Label } from "@agenteam/pixel-office";
 import { as, type Context } from "../lib/api";
 import type { Card } from "../lib/cards";
 import { useSkin } from "../lib/skin";

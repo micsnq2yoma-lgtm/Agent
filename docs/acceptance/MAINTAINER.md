@@ -53,7 +53,7 @@ AgenTeam 的开发在云端会话里进行（下称"开发方"），验收在用
    ```
    node scripts\dev\acceptance-watch.mjs --install --machine B
    ```
-   之后每 10 分钟查一次带「待验收」标签的 PR。日志在 `~/.agentself/logs/acceptance-watch.log`。
+   之后每 10 分钟查一次带「待验收」标签的 PR。日志在 `~/.agenteam/logs/acceptance-watch.log`。
    - 立刻验某个 PR：`node scripts\dev\acceptance-watch.mjs --pr 12`
    - 只看会验什么：`node scripts\dev\acceptance-watch.mjs --dry-run`
    - 停用：`node scripts\dev\acceptance-watch.mjs --uninstall`
@@ -69,10 +69,10 @@ AgenTeam 的开发在云端会话里进行（下称"开发方"），验收在用
    - 「待验收」标签必须是有写权限的人加的；
    - 只采用这些人在**标签最后一次加上之后**发的 `## 验收请求`，别人的评论一概不会交给 Agent；
    - 不满足就在 PR 上说明原因、打「需修改」，不切换版本也不启动 Agent。
-2. 备份数据库和 `~/.agentself`，停掉 AgenTeam，切到 PR 的提交，只装 / 只构建改动的部分，启动，健康检查。
+2. 备份数据库和 `~/.agenteam`，停掉 AgenTeam，切到 PR 的提交，只装 / 只构建改动的部分，启动，健康检查。
 3. 启动维护者 Agent（默认 `codex exec`），把这份说明和验收请求交给它。
 4. 读它写的结果文件，把邮箱和 key 打码后发到 PR 上：通过 → 打「已验收」；需修改，或者没写出合格的结果 → 打「需修改」（这时脚本发一条说明和 Agent 最后的输出）。同时去掉「待验收」。
-5. 切回原来的分支，重新构建、启动。验过的提交记在 `~/.agentself/acceptance-watch.json`，不会重复验。
+5. 切回原来的分支，重新构建、启动。验过的提交记在 `~/.agenteam/acceptance-watch.json`，不会重复验。
 
 注意：PR 里如果有数据库迁移，切回去以后旧版本可能读不了新结构；这种 PR 开发方会在验收请求里写明，必要时用第 2 步的备份恢复。
 

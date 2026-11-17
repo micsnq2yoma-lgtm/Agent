@@ -2,7 +2,7 @@
 // P9: one skin for the whole app — the provider also sets Paperclip's CSS variables and feeds
 // the skin's terms into the zh-CN translation layer. Light / dark follows Paperclip's theme.
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { cssVars, getSkin, paperclipVars, term, termOverrides, type Skin, type TermKey } from "@agentself/skins";
+import { cssVars, getSkin, paperclipVars, term, termOverrides, type Skin, type TermKey } from "@agenteam/skins";
 import { setTermOverrides } from "@/i18n/dom-translate";
 
 interface SkinCtx {

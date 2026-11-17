@@ -60,7 +60,7 @@ export function EmployeeProfile({ ctx, agentId, toast }: { ctx: Context; agentId
       setBusy(false);
     }
   }
-  const m = agent?.metadata?.agentself;
+  const m = agent?.metadata?.agenteam;
   const lead = ctx.agents.find((a) => a.id === agent?.reportsTo);
   const spent = (agent?.spentMonthlyCents ?? 0) / 100;
   const budget = (agent?.budgetMonthlyCents ?? 0) / 100;
@@ -203,7 +203,7 @@ export function EmployeeMemory({ agentId, toast }: { agentId: string; toast: (s:
 export function EmployeeHeader({ ctx, agentId, size = 44 }: { ctx: Context; agentId: string; size?: number }) {
   const { t } = useSkin();
   const agent = ctx.agents.find((a) => a.id === agentId);
-  const m = agent?.metadata?.agentself;
+  const m = agent?.metadata?.agenteam;
   return (
     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
       <Robot id={agentId} eye={eyeOf(agent?.adapterType, agent?.adapterConfig?.model)} size={size} grey={agent?.status === "paused"} />

@@ -1,5 +1,5 @@
 // Small state helpers kept separate so they can be unit-tested without the host.
-import type { FeedMessage } from "@agentself/shared";
+import type { FeedMessage } from "@agenteam/shared";
 import { tierOf } from "./rules/index.js";
 
 export interface Reminder {

@@ -1,5 +1,5 @@
 import { agentAvatarUrl } from "@/lib/agent-avatar-url";
-import { employeeRevision, robotAvatarUrl, subscribeEmployees, type EmployeeIdentity } from "@/agentself/lib/avatar";
+import { employeeRevision, robotAvatarUrl, subscribeEmployees, type EmployeeIdentity } from "@/agenteam/lib/avatar";
 import { useState, useSyncExternalStore } from "react";
 import { resolveAgentAppearance, type AgentAppearance, type AgentAvatarSize, type CharacterState } from "@paperclipai/shared";
 import { cn } from "@/lib/utils";

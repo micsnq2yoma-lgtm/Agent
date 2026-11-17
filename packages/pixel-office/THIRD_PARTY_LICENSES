@@ -1,7 +1,7 @@
 Pixel art reference: https://github.com/zhizunbao-studio/claude-code-pixel-pet
 The supplied sprite.ts's whale silhouette, belly pattern, palette and spout are
 retained in src/characters.ts. Other provider silhouettes and the shared state
-renderer are authored for Agentself. These are unofficial model-inspired mascots.
+renderer are authored for Agenteam. These are unofficial model-inspired mascots.
 
 Official logo references for the Gemini, Kimi, GLM, Qwen, MiniMax and Grok
 redesigns are listed below. These six sprites are original, unofficial pixel

@@ -1,8 +1,8 @@
-// Agentself: zh-CN UI translation layer for the Paperclip admin UI.
+// AgenTeam: zh-CN UI translation layer for the Paperclip admin UI.
 //
 // Most Paperclip UI text is hard-coded English across ~1,500 files. Instead of rewriting every
 // component (and fighting every upstream merge), this layer translates rendered UI text with a
-// dictionary extracted from the source (scripts/i18n in the Agentself repo) plus a few patterns
+// dictionary extracted from the source (scripts/i18n in the AgenTeam repo) plus a few patterns
 // for dynamic strings. User content (editors, markdown bodies, code, inputs) is never touched.
 //
 // Opt out per browser: localStorage.setItem("paperclip.locale", "en").
@@ -47,7 +47,7 @@ const PATTERNS: Pattern[] = [
   [/^(\d+) of (\d+)$/i, (m) => `${m[1]} / ${m[2]}`],
 ];
 
-// Agentself (P9): skin terminology on top of the dictionary, e.g. 智能体 → 员工, 管理台 → 我.
+// AgenTeam (P9): skin terminology on top of the dictionary, e.g. 智能体 → 员工, 管理台 → 我.
 let TERMS: Array<[string, string]> = [];
 function applyTerms(s: string): string {
   for (const [from, to] of TERMS) if (s.includes(from)) s = s.split(from).join(to);
@@ -117,7 +117,7 @@ function translateTextNode(node: Text, fromOriginal = false) {
   if (!parent || skipped(parent)) return;
   const value = node.nodeValue ?? "";
   const source = fromOriginal ? (originals.get(node) ?? value) : value;
-  // Skin terms apply everywhere: Agentself copy already uses them, data text (skill
+  // Skin terms apply everywhere: AgenTeam copy already uses them, data text (skill
   // descriptions, Paperclip strings) gets them here.
   const next = translateText(source);
   if (next !== value) {
@@ -157,7 +157,7 @@ function walk(root: Node, fromOriginal = false) {
 }
 
 let retranslate: (() => void) | null = null;
-/** Agentself (P9): set the skin terminology and re-render already-translated text. */
+/** AgenTeam (P9): set the skin terminology and re-render already-translated text. */
 export function setTermOverrides(pairs: Array<[string, string]>) {
   const next = pairs.filter(([from, to]) => from && from !== to);
   if (JSON.stringify(next) === JSON.stringify(TERMS)) return;

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // P10 acceptance, updated for the v0.6 SETO interface (docs/handoff/design/DESIGN.md):
-//  - every sidebar item opens inside the one app, with the Agentself sidebar and skin, no 404, no 智能体
+//  - every sidebar item opens inside the one app, with the AgenTeam sidebar and skin, no 404, no 智能体
 //  - the sidebar offers no duplicate entries (no inbox / dashboard / tasks list / costs / activity / skills / apps)
 //  - sidebar (§4.1): 工作台 / 项目 / 主管 rows / 管理 / 设置 only; line icons, no text glyphs; "我 / 通知" gone
 //  - top bar (§4.2): no pending badge; workbench (§2): progress panel on the right, composer docked at the bottom
@@ -16,12 +16,12 @@ import path from "node:path";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_APP ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_APP ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.existsSync(msDir)
   ? fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p))
   : undefined;
-const ctx = await (await fetch(`${base}/agentself/api/context`)).json();
+const ctx = await (await fetch(`${base}/agenteam/api/context`)).json();
 const prefix = ctx.company.issuePrefix;
 const research = ctx.departments.find((d) => d.key === "research") ?? ctx.departments[0];
 const office = ctx.settings.skin !== "court";
@@ -34,7 +34,7 @@ page.on("pageerror", (e) => errors.push(String(e).slice(0, 200)));
 const results = {};
 
 async function state() {
-  await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
+  await page.waitForSelector("[data-agenteam-sidebar] .nav-item", { timeout: 60_000 });
   await page.waitForTimeout(3500);
   return page.evaluate(() => {
     const skip = "code,pre,textarea,input,[contenteditable='true'],.prose,.markdown-body,.mdxeditor,script,style";
@@ -48,7 +48,7 @@ async function state() {
     return {
       path: location.pathname + location.search,
       origin: location.origin,
-      sidebars: document.querySelectorAll("[data-agentself-sidebar]").length,
+      sidebars: document.querySelectorAll("[data-agenteam-sidebar]").length,
       asides: navAsides.length,
       skinBg: getComputedStyle(document.documentElement).getPropertyValue("--background").trim().toLowerCase(),
       notFound: /页面未找到|Page not found|API route not found/.test(text),
@@ -60,9 +60,9 @@ async function state() {
 const good = (s) => s.origin === new URL(base).origin && s.sidebars === 1 && s.asides === 1 && s.skinBg === skinBg && !s.notFound && s.agentWord === 0 && s.pendingBadge === 0;
 
 // 0. sidebar structure, skin tokens, workbench layout (§2, §3, §4.1, §4.2)
-await page.goto(`${base}/${prefix}/agentself`, { waitUntil: "domcontentloaded" });
+await page.goto(`${base}/${prefix}/agenteam`, { waitUntil: "domcontentloaded" });
 await state();
-const side = page.locator("[data-agentself-sidebar]");
+const side = page.locator("[data-agenteam-sidebar]");
 const sideText = await side.innerText();
 results.sidebarItems = {
   workbench: (await page.getByTestId("nav-workbench").count()) === 1,
@@ -95,16 +95,16 @@ results.workbenchOk = Object.values(results.workbenchLayout).every(Boolean);
 
 // 1. every sidebar item, clicked from the sidebar
 if ((await page.getByTestId("nav-manage").getAttribute("aria-expanded")) !== "true") await page.getByTestId("nav-manage").click();
-const hrefs = await page.locator("[data-agentself-sidebar] a").evaluateAll((as) => [...new Set(as.map((a) => a.getAttribute("href")))]);
+const hrefs = await page.locator("[data-agenteam-sidebar] a").evaluateAll((as) => [...new Set(as.map((a) => a.getAttribute("href")))]);
 results.sidebarLinks = hrefs;
 const forbidden = ["/inbox", "/dashboard", "/issues", "/costs", "/activity", "/skills", "/apps", "/approvals", "/goals", "/cases", "/chats", "/companies"];
 results.duplicateEntries = hrefs.filter((h) => forbidden.some((f) => h === `/${prefix}${f}` || h.startsWith(`/${prefix}${f}/`)));
 const visits = [];
 for (const href of hrefs) {
-  if (!(await page.locator(`[data-agentself-sidebar] a[href="${href}"]`).first().count())) {
+  if (!(await page.locator(`[data-agenteam-sidebar] a[href="${href}"]`).first().count())) {
     if ((await page.getByTestId("nav-manage").getAttribute("aria-expanded")) !== "true") await page.getByTestId("nav-manage").click();
   }
-  await page.locator(`[data-agentself-sidebar] a[href="${href}"]`).first().click();
+  await page.locator(`[data-agenteam-sidebar] a[href="${href}"]`).first().click();
   const s = await state();
   visits.push({ href, ...s, ok: good(s) });
 }
@@ -114,7 +114,7 @@ results.everySidebarItemInApp = visits.length > 8 && visits.every((v) => v.ok);
 // 2. lead page (§4.10): header, five tabs, side cards
 const deptTabs = {};
 for (const tab of ["", "/members", "/routines", "/capabilities", "/budget"]) {
-  await page.goto(`${base}/${prefix}/agentself/departments/${research.key}${tab}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/${prefix}/agenteam/departments/${research.key}${tab}`, { waitUntil: "domcontentloaded" });
   const s = await state();
   const activeTab = await page.locator("[data-testid=department-tabs] [aria-selected=true]").innerText().catch(() => "");
   deptTabs[tab || "/overview"] = { ok: good(s), activeTab };
@@ -122,7 +122,7 @@ for (const tab of ["", "/members", "/routines", "/capabilities", "/budget"]) {
 results.departmentTabs = deptTabs;
 const tabLabels = office ? ["概览", "员工", "例行任务", "能力", "预算"] : ["概览", "侍郎", "常例", "能力", "预算"];
 results.departmentPage = Object.values(deptTabs).every((x) => x.ok) && tabLabels.every((l) => Object.values(deptTabs).some((x) => x.activeTab.startsWith(l)));
-await page.goto(`${base}/${prefix}/agentself/departments/${research.key}`, { waitUntil: "domcontentloaded" });
+await page.goto(`${base}/${prefix}/agenteam/departments/${research.key}`, { waitUntil: "domcontentloaded" });
 await state();
 results.leadHeader = {
   title: (await page.locator(".lead-head h1").count()) === 1,
@@ -131,7 +131,7 @@ results.leadHeader = {
   stats: (await page.locator(".two-col .stats > div").count()) === 5,
 };
 results.leadPageOk = Object.values(results.leadHeader).every(Boolean);
-await page.goto(`${base}/${prefix}/agentself/departments/${research.key}/members`, { waitUntil: "domcontentloaded" });
+await page.goto(`${base}/${prefix}/agenteam/departments/${research.key}/members`, { waitUntil: "domcontentloaded" });
 await state();
 results.membersListed = await page.locator("[data-testid=department-page] table.data tbody tr").count(); // lead + employees
 
@@ -150,7 +150,7 @@ results.employeePaperclipTab = s.path.endsWith("/overview") && good(s) && (await
 // 4. merged pages and their tabs
 const hubTabs = {};
 for (const p of ["capabilities", "capabilities/skills", "capabilities/connectors", "capabilities/permissions", "usage", "usage/budgets", "usage/costs", "records", "records/runs", "records/artifacts", "records/approvals/all", "org", "routines", "settings"]) {
-  await page.goto(`${base}/${prefix}/agentself/${p}`, { waitUntil: "domcontentloaded" });
+  await page.goto(`${base}/${prefix}/agenteam/${p}`, { waitUntil: "domcontentloaded" });
   hubTabs[p] = good(await state());
 }
 results.mergedPages = hubTabs;
@@ -168,7 +168,7 @@ results.settingsAdvanced = (await page.locator("a", { hasText: "打开" }).count
 results.settingsOk = ["通用", "路由", "模型与订阅", "邮箱", "论文库", "飞书", "预算", "对外动作", "皮肤", "关于我", "高级"].every((l) => settingsTabs.includes(l)) && results.settingsProfile && results.settingsAdvanced;
 
 // 5. project drawer (§4.9), when there is a project to open
-await page.goto(`${base}/${prefix}/agentself`, { waitUntil: "domcontentloaded" });
+await page.goto(`${base}/${prefix}/agenteam`, { waitUntil: "domcontentloaded" });
 await state();
 const row = page.locator("aside.progress .row-link").first();
 if (await row.count()) {

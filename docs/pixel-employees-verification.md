@@ -5,7 +5,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | 根工作区 `pnpm exec vitest run` | 18 个文件、166 项测试通过，包括模型识别、全部帧边界、暂停静止、办公室布局/行走中断和快照标题 |
-| UI `vitest run src/agentself/lib/avatar.test.ts src/components/AgentAvatar.test.tsx` | 2 个文件、6 项通过；覆盖挂载后的身份更新、兼容接口模型、公司切换、状态及动态效果 |
+| UI `vitest run src/agenteam/lib/avatar.test.ts src/components/AgentAvatar.test.tsx` | 2 个文件、6 项通过；覆盖挂载后的身份更新、兼容接口模型、公司切换、状态及动态效果 |
 | UI `node ../scripts/storybook-catalog.mjs` 后 `tsc --noEmit -p tsconfig.json` | 通过 |
 | UI `vite build` | 通过 |
 | Paperclip `pnpm build` | 完整工作区构建通过，保留上游 chunk 大小和 Windows Copilot runtime unsupported-platform 提示 |

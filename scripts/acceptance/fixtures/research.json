@@ -1,5 +1,5 @@
 {
-  "schema": "agentself.department/1",
+  "schema": "agenteam.department/1",
   "name": "科研",
   "icon": "microscope",
   "description": "验收脚本用的示例团队（不是产品预设）。",
@@ -26,8 +26,8 @@
     }
   ],
   "skills": [
-    "agentself-employee",
-    "agentself-memory"
+    "agenteam-employee",
+    "agenteam-memory"
   ],
   "routines": []
 }

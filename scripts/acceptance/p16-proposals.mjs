@@ -43,7 +43,7 @@ try {
   // inlined into the agents' instructions (refreshed when the profile changes)
   const instr = (agent) => {
     const cwd = agent?.adapterConfig?.cwd;
-    const f = cwd && path.join(cwd, ".agentself", "instructions.md");
+    const f = cwd && path.join(cwd, ".agenteam", "instructions.md");
     return f && fs.existsSync(f) ? fs.readFileSync(f, "utf8") : "";
   };
   const lead = ctx.agents.find((a) => a.id === leadAgentId);

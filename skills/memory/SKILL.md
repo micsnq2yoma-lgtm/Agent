@@ -1,5 +1,5 @@
 ---
-name: agentself-memory
+name: agenteam-memory
 description: AgenTeam 员工记忆：开工前读 memory/ 里的身份、风格、用户偏好和经验；按任务关键词读 topics；收工前把新学到的写回。每次运行都要用。
 ---
 

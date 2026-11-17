@@ -12,7 +12,7 @@
 
 [快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md) · [路线](docs/v0.6-direction.md)
 
-[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/Agentself?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/Agentself/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/Agentself/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/Agentself/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
+[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/AgenTeam?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/AgenTeam/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/AgenTeam/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/AgenTeam/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
 <img src="docs/assets/pixel-office-1440x900.png" width="860" alt="AgenTeam 像素办公室">
 
@@ -51,8 +51,8 @@ Windows 11，Node 24.11+，pnpm 9.15+，Git。先装好并登录：
 - Codex（可选）：`npm i -g @openai/codex`，`codex login`
 
 ```powershell
-git clone https://github.com/micsnq2yoma-lgtm/Agentself.git
-cd Agentself
+git clone https://github.com/micsnq2yoma-lgtm/AgenTeam.git
+cd AgenTeam
 node scripts\install.mjs
 ```
 
@@ -69,7 +69,7 @@ node scripts\update.mjs --check   # 有没有新版本
 node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量构建 → 启动 → 健康检查
 ```
 
-新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agentself/backups/`（留 5 份）。每个 PR 和 main 都在 GitHub Actions 跑单测和完整构建（Linux + Windows）。
+新版本起不来会自动回退；数据库不自动恢复，备份在 `~/.agenteam/backups/`（留 5 份）。每个 PR 和 main 都在 GitHub Actions 跑单测和完整构建（Linux + Windows）。
 
 ## 架构
 
@@ -77,7 +77,7 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
               ┌────────────── 对外只有 :3100 ──────────────┐
    你 / 飞书 ─▶│  Paperclip（任务、运行、界面，vendor/paperclip）│
               │   ├─ team-layer 插件：验收 / 核查 / 盯守 / 记忆整理 │
-              │   └─ /agentself/api ─▶ 本地服务 :3200（仅本机）   │
+              │   └─ /agenteam/api ─▶ 本地服务 :3200（仅本机）   │
               └──────────────────────────────────────────────┘
                      路由 · 设置 · 团队 MCP · 邮箱 · 论文库 · 飞书
                               │
@@ -89,12 +89,12 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 | `apps/console/` | 本地服务：路由、IM、设置、记忆、团队向导、招人审批，以及主管 / 员工用的团队 MCP |
 | `plugins/team-layer/` | Paperclip 插件：返工与跳数上限、卡片、结构化验收、独立核查、盯守、记忆整理 |
 | `plugins/im-feishu/` | 飞书通道 |
-| `vendor/paperclip/ui/src/agentself/` | 工作台等页面，挂在 Paperclip 界面里 |
+| `vendor/paperclip/ui/src/agenteam/` | 工作台等页面，挂在 Paperclip 界面里 |
 | `packages/` | `shared` 类型 · `skins` 皮肤 · `pixel-office` 像素员工与办公室渲染 |
 | `skills/` `packs/` | 主管 / 员工 / 记忆技能包；新建团队的空白模板 |
 | `scripts/` | 启动、安装、更新、验收脚本、中文化工具 |
 
-代码里的目录、接口路径、环境变量和数据目录仍叫 `agentself`（`~/.agentself`、`/agentself/api`、`AGENTSELF_*`），改名不影响已有安装。
+**从 Agentself 改名而来。** 目录、接口路径、环境变量和数据目录都已统一为 `agenteam`（`~/.agenteam`、`/agenteam/api`、`AGENTEAM_*`）。已有安装更新后首次启动时自动迁移：`~/.agentself` 改名为 `~/.agenteam`，旧的 `AGENTSELF_*` 环境变量仍然认，员工的元数据和工作目录里的 `.agentself` 也会自动转过来，不丢数据。唯一没改的是团队层插件的内部标识 `agentself.team-layer`（改了会丢插件里的提醒和盯守状态）。旧版导出的团队文件（`agentself.department/1`）仍可导入。
 
 ## 文档
 
@@ -106,7 +106,7 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/Agentself&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/Agentself&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/AgenTeam&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/AgenTeam&Date)
 
 ## 致谢
 

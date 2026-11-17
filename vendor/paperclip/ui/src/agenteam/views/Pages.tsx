@@ -1,6 +1,6 @@
 import { Plus } from "lucide-react";
 import { useEffect, useState } from "react";
-import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins";
+import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agenteam/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
@@ -175,7 +175,7 @@ export function Capabilities({ ctx, agentIds, permissionsOnly = false, embedded 
       <div className="section">
         <h2>对外动作权限</h2>
         <p className="hint">发邮件、发布、推代码、花钱等不可撤回的动作，默认「先问我」：{t("employee")}只做到草稿就绪，再用{t("card")}请你确认。连接器的 Allowed / Ask first / Off 在高级设置里调整。</p>
-        <Link className="btn" to="/agentself/capabilities/connectors">
+        <Link className="btn" to="/agenteam/capabilities/connectors">
           打开连接器设置
         </Link>
         <p className="hint">单个{t("employee")}的权限与信任级别在其完整页的「权限」标签里调整。</p>
@@ -228,7 +228,7 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
   // API employees: their real token counts × the price the user filled in for each model
   const estimate = (id: string): { yuan: number; missing: boolean } | null => {
     const a = ctx.agents.find((x) => x.id === id);
-    const source = a?.metadata?.agentself?.source;
+    const source = a?.metadata?.agenteam?.source;
     if (!source?.startsWith("api:")) return null;
     let yuan = 0;
     let missing = false;
@@ -460,7 +460,7 @@ function ProfileEditor() {
             <div className="md-preview">{draft || "（空）"}</div>
           )}
           <div className="sub mono" style={{ marginTop: 8 }}>
-            ~/.agentself/profile/{sel}.md
+            ~/.agenteam/profile/{sel}.md
           </div>
         </div>
       </div>
@@ -601,9 +601,9 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
         <div className="row">
           <div>
             <div className="label">App Secret</div>
-            <div className="sub">存在环境变量 AGENTSELF_FEISHU_APP_SECRET，不写进配置文件</div>
+            <div className="sub">存在环境变量 AGENTEAM_FEISHU_APP_SECRET，不写进配置文件</div>
           </div>
-          <span className="sub">{s.feishu.secretRef || "AGENTSELF_FEISHU_APP_SECRET"}</span>
+          <span className="sub">{s.feishu.secretRef || "AGENTEAM_FEISHU_APP_SECRET"}</span>
         </div>
         <div className="row">
           <span className="label">推送哪些</span>
@@ -751,7 +751,7 @@ export function SettingsPage({ ctx, onSaved, tab, setTab }: { ctx: Context; onSa
                 const blob = new Blob([JSON.stringify(sk, null, 2)], { type: "application/json" });
                 const a = document.createElement("a");
                 a.href = URL.createObjectURL(blob);
-                a.download = `agentself-skin-${sk.id}.json`;
+                a.download = `agenteam-skin-${sk.id}.json`;
                 a.click();
                 URL.revokeObjectURL(a.href);
               }}
@@ -1452,7 +1452,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
     setErr(null);
     try {
       const pack = {
-        schema: "agentself.department/1",
+        schema: "agenteam.department/1",
         ...(templateKey ? { key: templateKey } : {}),
         name,
         icon,
@@ -1471,7 +1471,7 @@ export function NewDepartment({ ctx, onCreated }: { ctx: Context; onCreated: (ke
           identity: `你是用户的${t("lead")}，负责「${name}」。${description}`,
         },
         members: members.map((m) => ({ ...m, identity: m.identity || `你是${name}的${m.name}，负责${m.title}。` })),
-        skills: ["agentself-lead", "agentself-employee", "agentself-memory"],
+        skills: ["agenteam-lead", "agenteam-employee", "agenteam-memory"],
         routines: routineCron && routinePrompt ? [{ key: "r1", title: routinePrompt.slice(0, 30), cron: routineCron, to: members[0]?.key, prompt: routinePrompt }] : [],
       };
       const r = await as.post<{ department: string }>("/departments", pack);

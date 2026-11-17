@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // First install on one machine (Windows; also works on macOS / Linux for development).
-// Each machine is an independent Agentself with its own subscriptions, API keys and data.
-//   git clone https://github.com/micsnq2yoma-lgtm/Agentself.git; cd Agentself
+// Each machine is an independent AgenTeam with its own subscriptions, API keys and data.
+//   git clone https://github.com/micsnq2yoma-lgtm/AgenTeam.git; cd AgenTeam
 //   node scripts/install.mjs            # check → install → build → first-run setup → start → plugin → autostart
 //   node scripts/install.mjs --no-autostart
 // Safe to run again: every step skips what is already done.
@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gitBash, pnpmEnv } from "./lib/shell.mjs";
 import { codexConfigProblems } from "./lib/codex-check.mjs";
-import { stopAgentself } from "./stop.mjs";
+import { stopAgenteam } from "./stop.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const vendor = path.join(root, "vendor", "paperclip");
@@ -56,7 +56,7 @@ ok(`pnpm ${pnpmV}`);
 ok(`git ${version("git")?.replace(/^git version /, "") ?? "?"}`);
 if (win) {
   const bash = gitBash();
-  if (!bash) throw new Error("没找到 Git Bash（Paperclip 的安装脚本要用）：装 Git for Windows，或者设置环境变量 AGENTSELF_BASH 指向 bash.exe");
+  if (!bash) throw new Error("没找到 Git Bash（Paperclip 的安装脚本要用）：装 Git for Windows，或者设置环境变量 AGENTEAM_BASH 指向 bash.exe");
   ok(`Git Bash ${bash}`);
 }
 const claudeV = version("claude");
@@ -87,7 +87,7 @@ else {
     await new Promise((r) => setTimeout(r, 3000));
   }
   if (!fs.existsSync(configPath)) throw new Error("Paperclip 首次配置没有完成，请手动运行：cd vendor/paperclip; pnpm paperclipai onboard");
-  await stopAgentself(() => {});
+  await stopAgenteam(() => {});
   if (child.exitCode === null) child.kill();
   ok("已生成配置");
 }
@@ -99,7 +99,7 @@ else {
   spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: "ignore", windowsHide: true }).unref();
   const end = Date.now() + 5 * 60_000;
   while (Date.now() < end && !(await healthy("http://127.0.0.1:3100/api/health"))) await new Promise((r) => setTimeout(r, 3000));
-  if (!(await healthy("http://127.0.0.1:3100/api/health"))) throw new Error("Paperclip 5 分钟内没起来，看 ~/.agentself/logs/paperclip.log");
+  if (!(await healthy("http://127.0.0.1:3100/api/health"))) throw new Error("Paperclip 5 分钟内没起来，看 ~/.agenteam/logs/paperclip.log");
   ok("Paperclip 和本地服务已启动");
 }
 

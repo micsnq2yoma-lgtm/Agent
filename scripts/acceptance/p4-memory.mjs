@@ -11,9 +11,9 @@ import { api, list } from "../lib/paperclip.mjs";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
-const { companyId, projectId } = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agentself", "department-research.json"), "utf8"));
+const { companyId, projectId } = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agenteam", "department-research.json"), "utf8"));
 const agents = list(await api("GET", `/companies/${companyId}/agents`));
-const scholar = agents.find((a) => a.metadata?.agentself?.memberKey === "scholar");
+const scholar = agents.find((a) => a.metadata?.agenteam?.memberKey === "scholar");
 const memDir = path.join(scholar.adapterConfig.cwd, "memory");
 const plugin = list(await api("GET", "/plugins")).find((p) => p.pluginKey === "agentself.team-layer");
 const results = {};

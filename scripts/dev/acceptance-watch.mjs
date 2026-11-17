@@ -18,7 +18,8 @@
 // owner / member / collaborator are verified, and only a 验收请求 posted by one of them after the
 // 待验收 label was last added (by someone with write access) reaches the agent. The agent gets no
 // GitHub access of its own: it writes its result to a file and this script posts it.
-// Logs: ~/.agentself/logs/acceptance-watch.log; history: ~/.agentself/acceptance-watch.json.
+// Logs: ~/.agenteam/logs/acceptance-watch.log; history: ~/.agenteam/acceptance-watch.json.
+import { resolveHome } from "../lib/legacy.mjs";
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -98,7 +99,7 @@ export function buildPrompt({ machine, repo, pr, sha, request, resultFile }) {
 
 /* ---------------- machine side ---------------- */
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const home = resolveHome();
 const historyFile = path.join(home, "acceptance-watch.json");
 const lockFile = path.join(home, "run", "acceptance-watch.lock");
 const logFile = path.join(home, "logs", "acceptance-watch.log");
@@ -235,9 +236,9 @@ function runAgent(prompt) {
 /** Back up, switch this install to `sha`, build what changed, start, health check. */
 async function deploy(sha, prev, { backupFirst }) {
   const { backup, installAndBuild, startDetached, waitHealthy } = await import("../update.mjs");
-  const { stopAgentself } = await import("../stop.mjs");
+  const { stopAgenteam } = await import("../stop.mjs");
   if (backupFirst) log(`backup: ${backup().dir}`);
-  await stopAgentself(log);
+  await stopAgenteam(log);
   git("checkout", "--quiet", "--detach", sha);
   installAndBuild(prev, sha);
   startDetached();
@@ -246,13 +247,13 @@ async function deploy(sha, prev, { backupFirst }) {
 /** Put the install back on the branch / commit it was on before the round. */
 async function restore(prevRef, prevSha) {
   const { installAndBuild, startDetached, waitHealthy } = await import("../update.mjs");
-  const { stopAgentself } = await import("../stop.mjs");
+  const { stopAgenteam } = await import("../stop.mjs");
   const now = git("rev-parse", "HEAD");
-  await stopAgentself(log);
+  await stopAgenteam(log);
   git("checkout", "--quiet", prevRef === "HEAD" ? prevSha : prevRef);
   installAndBuild(now, prevSha);
   startDetached();
-  log((await waitHealthy()) ? `restored ${prevRef} (${prevSha.slice(0, 7)})` : `restored ${prevRef}, but it did not come up healthy: check ~/.agentself/logs`);
+  log((await waitHealthy()) ? `restored ${prevRef} (${prevSha.slice(0, 7)})` : `restored ${prevRef}, but it did not come up healthy: check ~/.agenteam/logs`);
 }
 
 const resultDir = path.join(root, ".agenteam-acceptance");

@@ -5,7 +5,7 @@
 //   <root>/papers/<id>/paper.pdf         the PDF, when there is one
 //   <root>/papers/<id>/fulltext.txt      extracted text (PDF, or arXiv's HTML version)
 //   <root>/papers/<id>/notes.md          the user's and the agents' notes
-// The root itself is set in ~/.agentself/library-settings.json (default ~/.agentself/library).
+// The root itself is set in ~/.agenteam/library-settings.json (default ~/.agenteam/library).
 // Search is plain full text (BM25 over title / abstract / notes / full-text chunks, CJK as bigrams):
 // no embeddings, no index service, fine for a personal library of a few thousand papers.
 import fs from "node:fs";
@@ -14,9 +14,9 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { pdfText } from "./pdf-text.mjs";
 
-const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
-const settingsFile = () => path.join(agentselfHome(), "library-settings.json");
-export const defaultRoot = () => path.join(agentselfHome(), "library");
+const agenteamHome = () => process.env.AGENTEAM_HOME ?? path.join(os.homedir(), ".agenteam");
+const settingsFile = () => path.join(agenteamHome(), "library-settings.json");
+export const defaultRoot = () => path.join(agenteamHome(), "library");
 
 export function libraryRoot() {
   try {
@@ -50,7 +50,7 @@ export function setLibraryRoot(next, { move = false } = {}) {
     }
     for (const id of fs.readdirSync(path.join(old, "papers"))) if (fs.existsSync(path.join(root, "papers", id))) fs.rmSync(path.join(old, "papers", id), { recursive: true, force: true });
   }
-  fs.mkdirSync(agentselfHome(), { recursive: true });
+  fs.mkdirSync(agenteamHome(), { recursive: true });
   fs.writeFileSync(settingsFile(), JSON.stringify({ root, updatedAt: new Date().toISOString() }, null, 2));
   rebuildCatalog(root);
   return { root, moved };
@@ -258,7 +258,7 @@ export function htmlArticleText(html) {
 }
 
 async function get(url, { binary = false, timeoutMs = 60_000 } = {}) {
-  const r = await fetch(url, { headers: { "user-agent": "agentself-library/1.0 (personal research library)" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
+  const r = await fetch(url, { headers: { "user-agent": "agenteam-library/1.0 (personal research library)" }, redirect: "follow", signal: AbortSignal.timeout(timeoutMs) });
   if (!r.ok) throw Object.assign(new Error(`${new URL(url).host} 返回 ${r.status}`), { status: r.status });
   return binary ? Buffer.from(await r.arrayBuffer()) : r.text();
 }

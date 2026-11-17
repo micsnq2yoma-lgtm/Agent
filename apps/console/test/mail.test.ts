@@ -60,23 +60,23 @@ describe("drafts and presets", () => {
 
 describe("app passwords live in the secret store", () => {
   it("with a secretId nothing secret is written to mail.json; agents get a secret_ref binding", async () => {
-    const prev = process.env.AGENTSELF_HOME;
-    process.env.AGENTSELF_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-mail-"));
+    const prev = process.env.AGENTEAM_HOME;
+    process.env.AGENTEAM_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-mail-"));
     try {
       saveAccount({ address: "me@qq.com", password: "typed-code" });
       expect(plainPasswordAccounts()).toHaveLength(1); // before any team: waits in the file
       saveAccount({ address: "me@qq.com" }, { secretId: "sec-1" });
-      const file = fs.readFileSync(path.join(process.env.AGENTSELF_HOME, "mail.json"), "utf8");
+      const file = fs.readFileSync(path.join(process.env.AGENTEAM_HOME, "mail.json"), "utf8");
       expect(file).not.toMatch(/typed-code/);
       expect(plainPasswordAccounts()).toHaveLength(0);
       expect(listAccounts()[0]).toMatchObject({ hasPassword: true, inSecretStore: true, host: "imap.qq.com" });
       const name = mailEnvName("me@qq.com");
-      expect(name).toMatch(/^AGENTSELF_MAIL_PW_[0-9A-F]{10}$/);
+      expect(name).toMatch(/^AGENTEAM_MAIL_PW_[0-9A-F]{10}$/);
       expect(mailEnv()).toEqual({ [name]: { type: "secret_ref", secretId: "sec-1", version: "latest" } });
       // outside a run the stored password is not available: testing needs it typed again
       await expect(testAccount({ id: "me@qq.com" })).rejects.toThrow(/再填一次授权码/);
     } finally {
-      process.env.AGENTSELF_HOME = prev;
+      process.env.AGENTEAM_HOME = prev;
     }
   });
 });

@@ -2351,7 +2351,7 @@ export function pluginLoader(
       // (for example @paperclipai/shared exports). Run those workers through
       // the tsx loader so first-party example plugins work in development.
       if (activePlugin.packagePath && existsSync(DEV_TSX_LOADER_PATH)) {
-        // Agentself: --import needs a file:// URL on Windows (a bare "C:\..." path is rejected).
+        // AgenTeam: --import needs a file:// URL on Windows (a bare "C:\..." path is rejected).
         workerOptions.execArgv = ["--import", pathToFileURL(DEV_TSX_LOADER_PATH).href];
       }
 

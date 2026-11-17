@@ -56,7 +56,7 @@ export function ToolServers({ ctx }: { ctx: Context }) {
   const [editing, setEditing] = useState<{ item: CatalogItem | null; current: Installed | null } | null>(null);
   const load = () => as.get<{ catalog: CatalogItem[]; installed: Installed[] }>("/mcp/catalog").then(setData);
   useEffect(() => void load(), []);
-  const employees = ctx.agents.filter((a) => a.metadata?.agentself && !a.metadata.agentself.isLead && a.status !== "terminated");
+  const employees = ctx.agents.filter((a) => a.metadata?.agenteam && !a.metadata.agenteam.isLead && a.status !== "terminated");
   const nameOf = (id: string) => employees.find((a) => a.id === id)?.name ?? id;
 
   if (!data) return <Skeleton lines={4} />;

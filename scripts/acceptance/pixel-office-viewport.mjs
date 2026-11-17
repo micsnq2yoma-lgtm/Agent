@@ -22,10 +22,10 @@ const entry = `
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { ArrowUp, ChevronDown, Route, Shield, SlidersHorizontal, Zap } from 'lucide-react';
-import { Team } from '${path.join(ui, "src/agentself/views/Team.tsx").replaceAll("\\", "/")}';
-import { SkinProvider } from '${path.join(ui, "src/agentself/lib/skin.tsx").replaceAll("\\", "/")}';
-import { Wordmark } from '${path.join(ui, "src/agentself/components/Brand.tsx").replaceAll("\\", "/")}';
-import { layoutOffice, SPRITE_WIDTH, SPRITE_HEIGHT } from '@agentself/pixel-office';
+import { Team } from '${path.join(ui, "src/agenteam/views/Team.tsx").replaceAll("\\", "/")}';
+import { SkinProvider } from '${path.join(ui, "src/agenteam/lib/skin.tsx").replaceAll("\\", "/")}';
+import { Wordmark } from '${path.join(ui, "src/agenteam/components/Brand.tsx").replaceAll("\\", "/")}';
+import { layoutOffice, SPRITE_WIDTH, SPRITE_HEIGHT } from '@agenteam/pixel-office';
 const snapshot = window.__snapshot;
 window.__officeFixture = { snapshot, layout: layoutOffice(snapshot), spriteWidth: SPRITE_WIDTH, spriteHeight: SPRITE_HEIGHT };
 const ctx = { company: { id: 'fixture', name: '演示团队', spentMonthlyCents: 1234, budgetMonthlyCents: 10000 }, departments: snapshot.departments, agents: snapshot.people.map(p => ({ id: p.agentId, name: p.name, status: p.anim === 'working' ? 'running' : 'idle' })), projects: [], settings: { skin: 'office' }, paperclipUrl: '' };
@@ -51,14 +51,14 @@ function FixtureComposer() { return <div data-testid="fixture-composer">
 </div>; }
 const noop = () => {};
 createRoot(document.getElementById('root')).render(<SkinProvider initial="office">
-  <div className="fixture-shell" data-agentself-row="">
-    <div className="fixture-sidebar agentself"><aside className="sidebar" aria-label="AgenTeam 导航">
+  <div className="fixture-shell" data-agenteam-row="">
+    <div className="fixture-sidebar agenteam"><aside className="sidebar" aria-label="AgenTeam 导航">
       <div className="brand"><Wordmark /></div><div className="search-pill">搜索</div>
       <div className="nav-item active">工作台</div><div className="nav-item">项目</div><div className="nav-item">论文库</div>
       <div className="nav-section">主管</div>{snapshot.departments.map(d => <div className="nav-item" key={d.id}>{d.name}</div>)}
       <div className="spacer" /><div className="nav-item">设置</div>
     </aside></div>
-    <main className="fixture-main"><div className="agentself as-page">
+    <main className="fixture-main"><div className="agenteam as-page">
       <div className="topbar"><nav className="crumbs" aria-label="位置"><b>工作台</b><span className="crumb-meta">· 演示数据</span></nav>
         <div className="toggle" role="tablist"><button role="tab" aria-selected="false">工作台</button><button role="tab" className="on" aria-selected="true">像素团队</button></div><div className="actions" />
       </div>
@@ -76,9 +76,9 @@ await build({
   outfile: path.join(out, "fixture.js"), bundle: true, platform: "browser", format: "iife", jsx: "automatic",
   alias: {
     "@": path.join(ui, "src"),
-    "@agentself/pixel-office": path.join(root, "packages/pixel-office/src/index.ts"),
-    "@agentself/shared": path.join(root, "packages/shared/src/index.ts"),
-    "@agentself/skins": path.join(root, "packages/skins/src/index.ts"),
+    "@agenteam/pixel-office": path.join(root, "packages/pixel-office/src/index.ts"),
+    "@agenteam/shared": path.join(root, "packages/shared/src/index.ts"),
+    "@agenteam/skins": path.join(root, "packages/skins/src/index.ts"),
     react: path.dirname(uiRequire.resolve("react/package.json")),
     "react-dom": path.dirname(uiRequire.resolve("react-dom/package.json")),
   },
@@ -110,8 +110,8 @@ let currentFixture = fixture();
 const html = () => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>像素办公室 · 隔离验收</title><link rel="stylesheet" href="/fonts-cjk.css"><link rel="stylesheet" href="/styles.css"><style>${shellCss}</style></head><body><div id="root"></div><script>window.__snapshot=${JSON.stringify(currentFixture).replaceAll("<", "\\u003c")};if(new URLSearchParams(location.search).has('dark'))document.documentElement.classList.add('dark');</script><script src="/fixture.js"></script></body></html>`;
 const allowedFiles = new Map([
   ["/fixture.js", [path.join(out, "fixture.js"), "application/javascript"]],
-  ["/fonts-cjk.css", [path.join(ui, "src/agentself/fonts-cjk.css"), "text/css"]],
-  ["/styles.css", [path.join(ui, "src/agentself/styles.css"), "text/css"]],
+  ["/fonts-cjk.css", [path.join(ui, "src/agenteam/fonts-cjk.css"), "text/css"]],
+  ["/styles.css", [path.join(ui, "src/agenteam/styles.css"), "text/css"]],
 ]);
 const fonts = path.join(ui, "public/fonts");
 // Pre-enumerate local files, including the unicode-range slices in noto-serif-sc.
@@ -153,7 +153,7 @@ try {
   await context.route("**/*", async route => {
     const request = route.request();
     const url = new URL(request.url());
-    if (url.origin === origin && url.pathname === "/agentself/api/office" && request.method() === "GET") {
+    if (url.origin === origin && url.pathname === "/agenteam/api/office" && request.method() === "GET") {
       report.officeReads++;
       return route.fulfill({ json: currentFixture });
     }

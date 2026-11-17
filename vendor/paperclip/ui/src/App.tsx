@@ -5,9 +5,9 @@ import { Navigate, Outlet, Route, Routes, useActiveCompanyPrefix, useLocation, u
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/i18n";
 import { Layout } from "./components/Layout";
-// Agentself (P8): workbench views as routes + shared state around the company layout.
-import { AgentselfRoot, EmployeeRoute } from "./agentself/App";
-import { agentselfRoutes } from "./agentself/routes";
+// AgenTeam (P8): workbench views as routes + shared state around the company layout.
+import { AgenteamRoot, EmployeeRoute } from "./agenteam/App";
+import { agenteamRoutes } from "./agenteam/routes";
 import { ConferenceRoomChatGate } from "./components/ConferenceRoomChatGate";
 import { CasesExperimentalGate } from "./components/CasesExperimentalGate";
 import { StatusCardsExperimentalGate } from "./components/StatusCardsExperimentalGate";
@@ -147,9 +147,9 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
   const mergedTasks = streamlinedUiEnabled && combinedInboxTasksEnabled;
   return (
     <>
-      {/* Agentself (P8): the workbench is the company home page. */}
-      <Route index element={<Navigate to="agentself" replace />} />
-      {agentselfRoutes()}
+      {/* AgenTeam (P8): the workbench is the company home page. */}
+      <Route index element={<Navigate to="agenteam" replace />} />
+      {agenteamRoutes()}
       <Route path="dashboard" element={<Dashboard />} />
       <Route path="dashboard/live" element={<DashboardLive />} />
       <Route
@@ -289,7 +289,7 @@ function boardRoutes(streamlinedUiEnabled: boolean, combinedInboxTasksEnabled: b
         />
       ))}
       <Route path="agents/new" element={<NewAgent />} />
-      {/* Agentself (P10): employee full page = Paperclip detail + 档案 / 记忆 tabs */}
+      {/* AgenTeam (P10): employee full page = Paperclip detail + 档案 / 记忆 tabs */}
       <Route path="agents/:agentId" element={<EmployeeRoute detail={<AgentDetail />} />} />
       <Route path="agents/:agentId/:tab" element={<EmployeeRoute detail={<AgentDetail />} />} />
       <Route path="agents/:agentId/runs/:runId" element={<EmployeeRoute detail={<AgentDetail />} />} />
@@ -665,7 +665,7 @@ function CompanyRootRedirect() {
     return <NoCompaniesStartPage />;
   }
 
-  return <Navigate to={`/${targetCompany.issuePrefix}/agentself`} replace />; // Agentself (P8): workbench home
+  return <Navigate to={`/${targetCompany.issuePrefix}/agenteam`} replace />; // AgenTeam (P8): workbench home
 }
 
 function StatusCardsLegacyRedirect() {
@@ -804,8 +804,8 @@ export function App() {
           <Route path="instance/settings" element={<LegacySettingsRedirect />} />
           <Route path="instance/settings/*" element={<LegacySettingsRedirect />} />
           <Route path="companies" element={<UnprefixedBoardRedirect />} />
-          <Route path="agentself" element={<UnprefixedBoardRedirect />} />{/* Agentself (P8) */}
-          <Route path="agentself/*" element={<UnprefixedBoardRedirect />} />
+          <Route path="agenteam" element={<UnprefixedBoardRedirect />} />{/* AgenTeam (P8) */}
+          <Route path="agenteam/*" element={<UnprefixedBoardRedirect />} />
           <Route path="issues" element={<UnprefixedBoardRedirect />} />
           <Route path="tasks" element={<UnprefixedBoardRedirect />} />
           <Route path="issues/:issueId" element={<UnprefixedBoardRedirect />} />
@@ -861,7 +861,7 @@ export function App() {
           <Route path="execution-workspaces/:workspaceId/runtime-logs" element={<UnprefixedExecutionWorkspaceRedirect />} />
           <Route path="execution-workspaces/:workspaceId/issues" element={<UnprefixedExecutionWorkspaceRedirect />} />
           <Route path="execution-workspaces/:workspaceId/routines" element={<UnprefixedExecutionWorkspaceRedirect />} />
-          <Route path=":companyPrefix" element={<AgentselfRoot>{streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}</AgentselfRoot>}>
+          <Route path=":companyPrefix" element={<AgenteamRoot>{streamlinedUiEnabled ? <Layout /> : <ProductionLayout />}</AgenteamRoot>}>
             {boardRoutes(streamlinedUiEnabled, combinedInboxTasksEnabled)}
           </Route>
           <Route path="*" element={<NotFoundPage scope="global" />} />

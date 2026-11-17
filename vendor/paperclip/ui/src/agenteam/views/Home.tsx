@@ -19,7 +19,7 @@ function AdvancedNew({ ctx, to }: { ctx: Context; to: string }) {
   const { openNewIssue } = useDialogActions();
   const agentId = to.startsWith("lead:") ? to.slice(5) : undefined;
   const lead = ctx.agents.find((a) => a.id === agentId);
-  const projectId = ctx.departments.find((d) => d.key === lead?.metadata?.agentself?.department)?.projectId ?? undefined;
+  const projectId = ctx.departments.find((d) => d.key === lead?.metadata?.agenteam?.department)?.projectId ?? undefined;
   return (
     <button
       type="button"
@@ -62,7 +62,7 @@ export function Composer({ ctx, onDone }: { ctx: Context; onDone: () => void }) 
 
   const deptName = (key: string | null) => ctx.departments.find((d) => d.key === key)?.name ?? key ?? "";
   // Plan B: everything from the input box goes to a lead; employees only get work from their lead.
-  const leads = ctx.agents.filter((a) => a.metadata?.agentself?.isLead);
+  const leads = ctx.agents.filter((a) => a.metadata?.agenteam?.isLead);
 
   async function send() {
     if (!text.trim() || busy) return;

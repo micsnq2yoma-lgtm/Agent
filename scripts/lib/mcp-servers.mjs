@@ -1,11 +1,11 @@
 // Tool servers (MCP) for employees: a curated catalog plus custom ones, installed per machine.
-// ~/.agentself/mcp-servers.json  { servers: [{ id, name, transport, command, args, env, secretEnv,
+// ~/.agenteam/mcp-servers.json  { servers: [{ id, name, transport, command, args, env, secretEnv,
 //                                  url, tokenSecretId, enabled, scope }] }
 //   transport "stdio": command + args (+ env); "http": url (+ a bearer token)
 //   env: plain values; secretEnv: { NAME: secretId } — Paperclip secrets bound into the agent's env
 //   scope: "all" (every employee) or ["<agentId>", …]
 // Each agent's runtime gets the servers that apply to it on sync (scripts/lib/department.mjs):
-//   Claude Code — entries in .agentself/mcp.json; secrets referenced as ${NAME}
+//   Claude Code — entries in .agenteam/mcp.json; secrets referenced as ${NAME}
 //   Codex       — `-c mcp_servers.<id>.*`; secrets forwarded with env_vars / bearer_token_env_var
 // Leads get none: they only use the management tools.
 import { spawn } from "node:child_process";
@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const home = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const home = () => process.env.AGENTEAM_HOME ?? path.join(os.homedir(), ".agenteam");
 const file = () => path.join(home(), "mcp-servers.json");
 
 /**
@@ -130,7 +130,7 @@ export function listServers() {
 }
 const ID = /^[a-z][a-z0-9-]{1,30}$/;
 /** Env names a server may not take over (they steer the agent itself). */
-const RESERVED_ENV = /^(PAPERCLIP_|AGENTSELF_|ANTHROPIC_|OPENAI_API_KEY$|PATH$|HOME$|USERPROFILE$|APPDATA$)/;
+const RESERVED_ENV = /^(PAPERCLIP_|AGENTEAM_|ANTHROPIC_|OPENAI_API_KEY$|PATH$|HOME$|USERPROFILE$|APPDATA$)/;
 
 /**
  * Add or update a server. `secretIds`: { NAME: secretId } for secret env values the caller stored
@@ -138,7 +138,7 @@ const RESERVED_ENV = /^(PAPERCLIP_|AGENTSELF_|ANTHROPIC_|OPENAI_API_KEY$|PATH$|H
  */
 export function saveServer(input, { secretIds = {}, tokenSecretId } = {}) {
   const id = String(input.id ?? "").trim().toLowerCase();
-  if (!ID.test(id) || id === "agentself") throw Object.assign(new Error("工具服务的 id 要用小写英文字母开头（字母、数字、-），不能叫 agentself"), { status: 400 });
+  if (!ID.test(id) || id === "agenteam") throw Object.assign(new Error("工具服务的 id 要用小写英文字母开头（字母、数字、-），不能叫 agenteam"), { status: 400 });
   const list = readServers();
   const cur = list.find((s) => s.id === id) ?? {};
   const transport = input.transport ?? cur.transport ?? "stdio";
@@ -175,10 +175,10 @@ export function removeServer(id) {
 }
 
 /* ---------------- per-agent runtime ---------------- */
-const tokenEnv = (id) => `AGENTSELF_MCP_${id.toUpperCase().replace(/-/g, "_")}_TOKEN`;
+const tokenEnv = (id) => `AGENTEAM_MCP_${id.toUpperCase().replace(/-/g, "_")}_TOKEN`;
 /** Servers that apply to an agent (employees only). */
 export function serversFor(agent) {
-  if (agent?.metadata?.agentself?.isLead) return [];
+  if (agent?.metadata?.agenteam?.isLead) return [];
   return readServers().filter((s) => s.enabled !== false && (s.scope === "all" || (Array.isArray(s.scope) && s.scope.includes(agent?.id))));
 }
 /** Env bindings an agent needs for its servers' secrets: { NAME: secret_ref }. */
@@ -199,7 +199,7 @@ export function allMcpEnvKeys() {
   }
   return [...keys];
 }
-/** Claude Code `mcpServers` entries (merged into .agentself/mcp.json). */
+/** Claude Code `mcpServers` entries (merged into .agenteam/mcp.json). */
 export function claudeMcpEntries(agent) {
   const out = {};
   for (const s of serversFor(agent)) {
@@ -291,7 +291,7 @@ export async function testServer(spec, { timeoutMs = 90_000 } = {}) {
         } else if (m.id === 2) finish(m.error ? { ok: false, error: m.error.message } : { ok: true, tools: (m.result?.tools ?? []).map((x) => x.name) });
       }
     });
-    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "agentself", version: "1.0" } } });
+    send({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "agenteam", version: "1.0" } } });
   });
 }
 async function testHttp(spec, timeoutMs) {
@@ -305,7 +305,7 @@ async function testHttp(spec, timeoutMs) {
     return { json, session: r.headers.get("mcp-session-id") ?? session };
   };
   try {
-    const init = await call({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "agentself", version: "1.0" } } });
+    const init = await call({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "agenteam", version: "1.0" } } });
     const list = await call({ jsonrpc: "2.0", id: 2, method: "tools/list" }, init.session);
     return { ok: true, tools: (list.json.result?.tools ?? []).map((x) => x.name), ms: Date.now() - t0 };
   } catch (e) {

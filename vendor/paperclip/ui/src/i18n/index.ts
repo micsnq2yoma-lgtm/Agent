@@ -5,7 +5,7 @@ import { DEFAULT_LOCALE, i18nextResources, supportedLocales } from "./locales";
 
 const i18nextOptions: InitOptions = {
   resources: i18nextResources,
-  // Agentself: Chinese by default; DEFAULT_LOCALE (en) stays the fallback for missing keys.
+  // AgenTeam: Chinese by default; DEFAULT_LOCALE (en) stays the fallback for missing keys.
   lng: (() => {
     try {
       return localStorage.getItem("paperclip.locale") ?? "zh-CN";

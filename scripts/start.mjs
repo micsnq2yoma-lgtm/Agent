@@ -1,17 +1,19 @@
 #!/usr/bin/env node
-// Start Agentself: Paperclip (from vendor/paperclip source; the only public port, :3100) +
-// the Agentself local service (apps/console/server, loopback :3200, reached through
-// Paperclip at /agentself/api/*).
-// Restarts a service if it exits. Logs go to ~/.agentself/logs/.
+// Start AgenTeam: Paperclip (from vendor/paperclip source; the only public port, :3100) +
+// the AgenTeam local service (apps/console/server, loopback :3200, reached through
+// Paperclip at /agenteam/api/*).
+// Restarts a service if it exits. Logs go to ~/.agenteam/logs/.
 // Usage: node scripts/start.mjs [--no-paperclip] [--no-console]
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { migrateHome, resolveHome } from "./lib/legacy.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+migrateHome();
+const home = resolveHome();
 const logs = path.join(home, "logs");
 fs.mkdirSync(logs, { recursive: true });
 const args = new Set(process.argv.slice(2));
@@ -28,7 +30,7 @@ process.on("exit", () => {
 });
 
 function findPnpm() {
-  if (process.env.AGENTSELF_PNPM) return process.env.AGENTSELF_PNPM;
+  if (process.env.AGENTEAM_PNPM) return process.env.AGENTEAM_PNPM;
   const candidates = [path.join(process.env.APPDATA ?? "", "npm", "pnpm.cmd"), "pnpm"];
   for (const c of candidates) {
     const r = spawnSync(c, ["-v"], { encoding: "utf8", shell: process.platform === "win32" });
@@ -90,5 +92,5 @@ if (!args.has("--no-paperclip")) {
   });
 }
 if (!args.has("--no-console")) {
-  supervise("agentself-local", process.execPath, [path.join(root, "apps", "console", "server", "server.mjs")], path.join(root, "apps", "console"), "http://127.0.0.1:3200/agentself/api/settings");
+  supervise("agenteam-local", process.execPath, [path.join(root, "apps", "console", "server", "server.mjs")], path.join(root, "apps", "console"), "http://127.0.0.1:3200/agenteam/api/settings");
 }

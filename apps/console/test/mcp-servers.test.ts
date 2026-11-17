@@ -4,19 +4,19 @@ import os from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-process.env.AGENTSELF_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-mcp-"));
+process.env.AGENTEAM_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-mcp-"));
 // @ts-expect-error plain JS module
 const m = await import("../../../scripts/lib/mcp-servers.mjs");
 // @ts-expect-error plain JS module
 const dept = await import("../../../scripts/lib/department.mjs");
 
-const emp = (id: string) => ({ id, metadata: { agentself: { isLead: false } } });
-const lead = { id: "L", metadata: { agentself: { isLead: true } } };
+const emp = (id: string) => ({ id, metadata: { agenteam: { isLead: false } } });
+const lead = { id: "L", metadata: { agenteam: { isLead: true } } };
 
 describe("registry", () => {
   it("validates ids, commands, URLs and env names", () => {
     expect(() => m.saveServer({ id: "Bad Id", command: "x" })).toThrow(/小写英文/);
-    expect(() => m.saveServer({ id: "agentself", command: "x" })).toThrow(/不能叫 agentself/);
+    expect(() => m.saveServer({ id: "agenteam", command: "x" })).toThrow(/不能叫 agenteam/);
     expect(() => m.saveServer({ id: "nocmd" })).toThrow(/启动命令/);
     expect(() => m.saveServer({ id: "web", transport: "http", url: "ftp://x" })).toThrow(/http/);
     expect(() => m.saveServer({ id: "evil", command: "x", env: { ANTHROPIC_BASE_URL: "http://evil" } })).toThrow(/系统自己用的/);
@@ -40,13 +40,13 @@ describe("what each agent gets", () => {
   it("Claude: mcp.json entries reference secrets as ${NAME}; the token goes in a header", () => {
     const e = m.claudeMcpEntries(emp("E2"));
     expect(e.notion).toEqual({ command: "npx", args: ["-y", "@notionhq/notion-mcp-server"], env: { NOTION_TOKEN: "${NOTION_TOKEN}" } });
-    expect(e.github).toEqual({ type: "http", url: "https://api.githubcopilot.com/mcp/", headers: { Authorization: "Bearer ${AGENTSELF_MCP_GITHUB_TOKEN}" } });
+    expect(e.github).toEqual({ type: "http", url: "https://api.githubcopilot.com/mcp/", headers: { Authorization: "Bearer ${AGENTEAM_MCP_GITHUB_TOKEN}" } });
     expect(e.files.env).toEqual({ LOG: "info" });
   });
   it("secrets are bound into the agent's env as secret references", () => {
     expect(m.mcpEnvFor(emp("E2"))).toEqual({
       NOTION_TOKEN: { type: "secret_ref", secretId: "sec-n", version: "latest" },
-      AGENTSELF_MCP_GITHUB_TOKEN: { type: "secret_ref", secretId: "sec-g", version: "latest" },
+      AGENTEAM_MCP_GITHUB_TOKEN: { type: "secret_ref", secretId: "sec-g", version: "latest" },
     });
   });
   it("Codex: -c overrides, secrets forwarded with env_vars / bearer_token_env_var", () => {
@@ -54,16 +54,16 @@ describe("what each agent gets", () => {
     expect(a).toMatch(/mcp_servers\.notion\.command='npx'/);
     expect(a).toMatch(/mcp_servers\.notion\.env_vars=\['NOTION_TOKEN'\]/);
     expect(a).toMatch(/mcp_servers\.files\.env=\{LOG='info'\}/);
-    expect(a).toMatch(/mcp_servers\.github\.bearer_token_env_var='AGENTSELF_MCP_GITHUB_TOKEN'/);
+    expect(a).toMatch(/mcp_servers\.github\.bearer_token_env_var='AGENTEAM_MCP_GITHUB_TOKEN'/);
     const cfg = dept.agentAdapterConfig({ role: "employee", adapterType: "codex_local", cwd: "/w", nodePath: "node", agent: emp("E2") });
-    expect(cfg.extraArgs.join(" ")).toMatch(/mcp_servers\.agentself\..*mcp_servers\.notion\./);
+    expect(cfg.extraArgs.join(" ")).toMatch(/mcp_servers\.agenteam\..*mcp_servers\.notion\./);
   });
   it("Claude employees' mcp.json gets them next to the team server; leads only the team server", () => {
-    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-mcp-cwd-"));
+    const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-mcp-cwd-"));
     dept.writeAgentRuntime(cwd, { role: "employee", adapterType: "claude_local", agent: emp("E1") });
-    expect(Object.keys(JSON.parse(fs.readFileSync(path.join(cwd, ".agentself", "mcp.json"), "utf8")).mcpServers).sort()).toEqual(["agentself", "files", "notion"]);
+    expect(Object.keys(JSON.parse(fs.readFileSync(path.join(cwd, ".agenteam", "mcp.json"), "utf8")).mcpServers).sort()).toEqual(["agenteam", "files", "notion"]);
     dept.writeAgentRuntime(cwd, { role: "lead", adapterType: "claude_local", agent: lead });
-    expect(Object.keys(JSON.parse(fs.readFileSync(path.join(cwd, ".agentself", "mcp.json"), "utf8")).mcpServers)).toEqual(["agentself"]);
+    expect(Object.keys(JSON.parse(fs.readFileSync(path.join(cwd, ".agenteam", "mcp.json"), "utf8")).mcpServers)).toEqual(["agenteam"]);
   });
   it("disabled or removed servers disappear", () => {
     m.saveServer({ id: "files", enabled: false });

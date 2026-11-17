@@ -39,7 +39,7 @@ export interface LibraryStats {
 }
 
 export const PAPER_STATUS: Record<string, string> = { unread: "未读", reading: "在读", read: "已读", skipped: "不看" };
-const API = "/agentself/api/library";
+const API = "/agenteam/api/library";
 
 async function upload(file: File, tags: string[]) {
   const r = await fetch(`${API}/upload?name=${encodeURIComponent(file.name)}&tags=${encodeURIComponent(tags.join(","))}`, { method: "POST", headers: { "content-type": "application/pdf" }, body: file });

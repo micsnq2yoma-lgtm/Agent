@@ -158,7 +158,7 @@ function prunePendingRecords(packageRoot, buildId, now) {
  */
 export function expectedBuildOutputs(packageRoot, platform = process.platform) {
   const executable = platform === "win32" ? "paperclip-runnerd.exe" : "paperclip-runnerd";
-  // Agentself: no runnerd binary is built on Windows (see build-binary-optional.mjs).
+  // AgenTeam: no runnerd binary is built on Windows (see build-binary-optional.mjs).
   const files = ["dist/index.js", "dist/live/index.js", "dist/testing.js"];
   if (platform !== "win32") files.push(`dist/bin/${executable}`);
   return files
@@ -329,7 +329,7 @@ export function recordRunnerBuild({
     pending = readPendingRecord(pendingPath);
     if (pending) break;
   }
-  // Agentself: on Windows, Git Bash (MSYS) does not expose the shell's Windows pid to
+  // AgenTeam: on Windows, Git Bash (MSYS) does not expose the shell's Windows pid to
   // child node processes, so --begin and --finish see unrelated ppids. Fall back to
   // the newest pending record (concurrent Runner builds are not used on Windows).
   if (!pending && buildId === null && platform === "win32") {

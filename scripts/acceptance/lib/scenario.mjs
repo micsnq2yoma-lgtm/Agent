@@ -1,5 +1,6 @@
 // Shared helpers for the scenario acceptance scripts (p11–p17). They talk to Paperclip through
-// scripts/lib/paperclip.mjs and to the Agentself service through the same :3100 origin.
+// scripts/lib/paperclip.mjs and to the AgenTeam service through the same :3100 origin.
+import { resolveHome } from "../../lib/legacy.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -8,11 +9,11 @@ import { api, list, API } from "../../lib/paperclip.mjs";
 export { api, list };
 export const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
-export const home = process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+export const home = resolveHome();
 
-/** Agentself local service (proxied by Paperclip at /agentself/api). */
+/** AgenTeam local service (proxied by Paperclip at /agenteam/api). */
 export async function as(method, p, body) {
-  const r = await fetch(`${API}/agentself/api${p}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const r = await fetch(`${API}/agenteam/api${p}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const t = await r.text();
   if (!r.ok) throw new Error(`${method} ${p} -> ${r.status} ${t.slice(0, 300)}`);
   return t ? JSON.parse(t) : null;
@@ -26,7 +27,7 @@ export async function researchTeam() {
   const dept = ctx.departments.find((d) => d.key === "research") ?? ctx.departments.find((d) => d.leadAgentId === saved.leadAgentId);
   if (!dept) throw new Error("没有 research 团队：先运行 node scripts/setup-department.mjs scripts/acceptance/fixtures/research.json");
   const employees = ctx.agents.filter((a) => dept.members.includes(a.id) && a.id !== dept.leadAgentId && a.status !== "terminated");
-  const employee = employees.find((a) => a.id === process.env.AGENTSELF_EMPLOYEE || a.name === process.env.AGENTSELF_EMPLOYEE) ?? employees[0];
+  const employee = employees.find((a) => a.id === process.env.AGENTEAM_EMPLOYEE || a.name === process.env.AGENTEAM_EMPLOYEE) ?? employees[0];
   if (!employee) throw new Error("research 团队没有员工");
   return { ctx, companyId: ctx.company.id, projectId: dept.projectId, leadAgentId: dept.leadAgentId, dept, employee, employees };
 }
@@ -123,7 +124,7 @@ export async function dismissNotice(companyId, id) {
 
 /** A scratch directory outside every agent's workspace. */
 export function scratch(name) {
-  const dir = path.join(os.tmpdir(), `agentself-${name}-${Date.now().toString(36)}`);
+  const dir = path.join(os.tmpdir(), `agenteam-${name}-${Date.now().toString(36)}`);
   fs.mkdirSync(dir, { recursive: true });
   return dir;
 }

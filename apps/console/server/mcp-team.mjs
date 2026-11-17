@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Agentself team MCP server (plan B, step 2 fix). Gives a lead every action it needs as MCP tools, so its
+// AgenTeam team MCP server (plan B, step 2 fix). Gives a lead every action it needs as MCP tools, so its
 // Claude Code needs no shell at all: on Windows Claude Code runs commands through PowerShell, where a
 // Bash(curl:*) allow rule never matches, and a shell is exactly what a lead must not have anyway.
 //
@@ -26,7 +26,7 @@ async function call(base, method, p, body, auth = true) {
   return text ? JSON.parse(text) : null;
 }
 const pc = (m, p, b) => call("/api", m, p, b);
-const as = (m, p, b) => call("/agentself/api", m, p, b, false);
+const as = (m, p, b) => call("/agenteam/api", m, p, b, false);
 const arr = (x) => (Array.isArray(x) ? x : (x?.items ?? []));
 
 /** The plugin returns { content, data } somewhere inside the gateway's response. */
@@ -80,7 +80,7 @@ export async function settleReport(issueId, doc) {
   const revisionId = doc?.latestRevisionId ?? doc?.latestRevision?.id ?? null;
   await pc("POST", `/issues/${issueId}/interactions`, {
     kind: "request_confirmation",
-    idempotencyKey: `agentself:report:${issueId}:${revisionId ?? Date.now()}`,
+    idempotencyKey: `agenteam:report:${issueId}:${revisionId ?? Date.now()}`,
     title: "汇报待你验收",
     continuationPolicy: "wake_assignee",
     payload: {
@@ -106,13 +106,13 @@ export async function settleReport(issueId, doc) {
 const me = () => env("PAPERCLIP_AGENT_ID");
 /* ---------- delegation guards (PR #4 p13: rules enforced in code, not only in the skill) ---------- */
 
-/** Codex employees get the team MCP tools through `-c mcp_servers.agentself.*` in their adapter
+/** Codex employees get the team MCP tools through `-c mcp_servers.agenteam.*` in their adapter
  * config (scripts/lib/department.mjs codexMcpArgs). One that has not been synced since cannot report
  * back, so delegation to it is refused until the next sync (restart the local service). */
-export function codexBlock(employee, allow = process.env.AGENTSELF_ALLOW_CODEX === "1") {
+export function codexBlock(employee, allow = process.env.AGENTEAM_ALLOW_CODEX === "1") {
   if (allow || employee?.adapterType !== "codex_local") return null;
   const args = employee.adapterConfig?.extraArgs ?? [];
-  if (args.some((a) => String(a).includes("mcp_servers.agentself"))) return null;
+  if (args.some((a) => String(a).includes("mcp_servers.agenteam"))) return null;
   return `「${employee.name}」是 Codex 员工，但还没装上团队工具（交不了证据、也回不了话）。重启 AgenTeam 本地服务会自动补上；在那之前请派给 Claude 员工。`;
 }
 
@@ -224,12 +224,12 @@ export const TOOLS = {
     description: "看你的员工（reportsTo 是你）和其他主管。选人、转交前先看这个。",
     inputSchema: S({}),
     run: async () => {
-      const agents = arr(await pc("GET", `/companies/${companyId()}/agents`)).filter((a) => a.metadata?.agentself && a.status !== "terminated");
+      const agents = arr(await pc("GET", `/companies/${companyId()}/agents`)).filter((a) => a.metadata?.agenteam && a.status !== "terminated");
       const mine = agents.filter((a) => a.reportsTo === me());
-      const leads = agents.filter((a) => a.metadata.agentself.isLead && a.id !== me());
+      const leads = agents.filter((a) => a.metadata.agenteam.isLead && a.id !== me());
       return {
         myEmployees: mine.map((a) => ({ id: a.id, name: a.name, capabilities: a.capabilities ?? "", agent: a.adapterType === "codex_local" ? "Codex" : "Claude", status: a.status })),
-        otherLeads: leads.map((a) => ({ id: a.id, name: a.name, team: a.metadata.agentself.departmentName ?? "", capabilities: a.capabilities ?? "" })),
+        otherLeads: leads.map((a) => ({ id: a.id, name: a.name, team: a.metadata.agenteam.departmentName ?? "", capabilities: a.capabilities ?? "" })),
       };
     },
   },
@@ -470,7 +470,7 @@ export const toolsFor = (role) => Object.entries(TOOLS).filter(([, t]) => t.role
 export async function handle(msg, role) {
   const { id, method, params } = msg;
   if (method === "initialize")
-    return { jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion ?? "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "agentself", version: "0.2.0" } } };
+    return { jsonrpc: "2.0", id, result: { protocolVersion: params?.protocolVersion ?? "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "agenteam", version: "0.2.0" } } };
   if (method === "ping") return { jsonrpc: "2.0", id, result: {} };
   if (method === "tools/list")
     return { jsonrpc: "2.0", id, result: { tools: toolsFor(role).map(([name, t]) => ({ name, description: t.description, inputSchema: t.inputSchema })) } };

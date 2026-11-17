@@ -7,9 +7,9 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useQuery } from "@tanstack/react-query";
 import { Outlet, useLocation, useNavigate, useNavigationType, useParams } from "@/lib/router";
 import { Sidebar } from "./Sidebar";
-// Agentself (P8): one sidebar for the whole app; Paperclip nav + contextual rails are not rendered.
-import { AgentselfSidebar } from "../agentself/components/Sidebar";
-const AGENTSELF_SINGLE_SIDEBAR = true;
+// AgenTeam (P8): one sidebar for the whole app; Paperclip nav + contextual rails are not rendered.
+import { AgenteamSidebar } from "../agenteam/components/Sidebar";
+const AGENTEAM_SINGLE_SIDEBAR = true;
 import { CompanySettingsSidebar } from "./CompanySettingsSidebar";
 import { CompanySettingsNav } from "./access/CompanySettingsNav";
 import { AppsSidebar } from "./AppsSidebar";
@@ -131,8 +131,8 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
   // Chat keeps its header beside the agent sidebar, including before an agent is selected.
   const useStreamlinedTaskDetailShell = streamlinedUiEnabled && (isTaskDetailRoute || isAgentChatRoute);
   const isToolsRoute = companyPathSegments[0]?.toLowerCase() === "tools";
-  // Agentself (P9): our pages bring their own top bar and spacing.
-  const isAgentselfRoute = companyPathSegments[0]?.toLowerCase() === "agentself";
+  // AgenTeam (P9): our pages bring their own top bar and spacing.
+  const isAgenteamRoute = companyPathSegments[0]?.toLowerCase() === "agenteam";
   const isAppsRoute = companyPathSegments[0]?.toLowerCase() === "apps";
   const appDetailConnectionId =
     isAppsRoute && companyPathSegments[1] && !RESERVED_APP_SUBPATHS.has(companyPathSegments[1].toLowerCase())
@@ -214,7 +214,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       />
     )
   ) : null;
-  const secondarySidebar = AGENTSELF_SINGLE_SIDEBAR ? null : isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
+  const secondarySidebar = AGENTEAM_SINGLE_SIDEBAR ? null : isAgentChatRoute ? <AgentConversationsSidebar /> : shellRoute.builtInContextualSurface === "agent" && agentId ? (
     <AgentContextualSidebar agentRef={agentId} />
   ) : streamlinedUiEnabled && shellRoute.builtInContextualSurface === "routine" && routineId ? (
     <SetupWizardSidebarOutlet><RoutineContextualSidebar routineId={routineId} /></SetupWizardSidebarOutlet>
@@ -596,7 +596,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
       </a>
       <WorktreeBanner />
       <DevRestartBanner devServer={health?.devServer} />
-      <div data-agentself-row="" className={cn("min-h-0 flex-1", isMobile ? "w-full" : "flex overflow-clip")}>
+      <div data-agenteam-row="" className={cn("min-h-0 flex-1", isMobile ? "w-full" : "flex overflow-clip")}>
         {isMobile && sidebarOpen && (
           <button
             type="button"
@@ -618,11 +618,11 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 {hasSecondarySidebar ? (
                   <SecondarySidebar>{secondarySidebar}</SecondarySidebar>
                 ) : (
-                  AGENTSELF_SINGLE_SIDEBAR ? <AgentselfSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
+                  AGENTEAM_SINGLE_SIDEBAR ? <AgenteamSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
                 )}
               </div>
             </div>
-            {AGENTSELF_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
+            {AGENTEAM_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
               deploymentMode={health?.deploymentMode}
               forceExpanded={replacesPrimarySidebar}
             />}
@@ -644,10 +644,10 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 {replacesPrimarySidebar ? (
                   <SecondarySidebar>{secondarySidebar}</SecondarySidebar>
                 ) : (
-                  AGENTSELF_SINGLE_SIDEBAR ? <AgentselfSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
+                  AGENTEAM_SINGLE_SIDEBAR ? <AgenteamSidebar /> : <Sidebar>{sidebarSections}</Sidebar>
                 )}
               </div>
-              {AGENTSELF_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
+              {AGENTEAM_SINGLE_SIDEBAR ? null : <SidebarAccountMenu
                 deploymentMode={health?.deploymentMode}
                 forceExpanded={replacesPrimarySidebar}
               />}
@@ -664,7 +664,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
         <div className={cn("flex min-w-0 flex-col", isMobile ? "w-full" : "h-full flex-1")}>
           <div
             className={cn(
-              !isMobile && (useStreamlinedTaskDetailShell || isAgentselfRoute) && "hidden",
+              !isMobile && (useStreamlinedTaskDetailShell || isAgenteamRoute) && "hidden",
               isMobile && "sticky top-0 z-20 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85",
             )}
           >
@@ -722,7 +722,7 @@ export function Layout({ sidebarSections }: { sidebarSections?: ReactNode }) {
                 // page shell's top padding in place creates a stationary dark
                 // strip below the breadcrumb while messages scroll behind it.
                 !isMobile && useStreamlinedTaskDetailShell && "pt-0 md:pt-0",
-                isAgentselfRoute && "p-0 md:p-0",
+                isAgenteamRoute && "p-0 md:p-0",
                 // Reserve the scrollbar gutter on desktop so pages whose height
                 // changes (e.g. switching skill-detail tabs) don't widen/shift
                 // when the vertical scrollbar appears or disappears (PAP-10907).

@@ -1,4 +1,4 @@
-import type { ModelFamily, OfficeAnim } from "@agentself/shared";
+import type { ModelFamily, OfficeAnim } from "@agenteam/shared";
 
 export type PixelAction = OfficeAnim | "thinking" | "reading" | "writing" | "searching";
 export type Pixel = readonly [x: number, y: number, width: number, height: number, color: string];

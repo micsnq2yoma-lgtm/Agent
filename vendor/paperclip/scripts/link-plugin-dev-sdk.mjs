@@ -71,7 +71,7 @@ export function readPluginsUnder(parentDir) {
 export function linkSdkInto(packageDir) {
   const scopeDir = join(packageDir, "node_modules", "@paperclipai");
   const linkTarget = join(scopeDir, "plugin-sdk");
-  // Agentself: on Windows, directory symlinks need admin/Developer Mode (EPERM).
+  // AgenTeam: on Windows, directory symlinks need admin/Developer Mode (EPERM).
   // Junctions work without privileges but must use an absolute target.
   const isWindows = process.platform === "win32";
   const relativeSdkDir = isWindows ? sdkDir : relative(scopeDir, sdkDir);

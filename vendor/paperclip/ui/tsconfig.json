@@ -13,9 +13,9 @@
     "noEmit": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@agentself/skins": ["../../../packages/skins/src/index.ts"],
-      "@agentself/shared": ["../../../packages/shared/src/index.ts"],
-      "@agentself/pixel-office": ["../../../packages/pixel-office/src/index.ts"],
+      "@agenteam/skins": ["../../../packages/skins/src/index.ts"],
+      "@agenteam/shared": ["../../../packages/shared/src/index.ts"],
+      "@agenteam/pixel-office": ["../../../packages/pixel-office/src/index.ts"],
       "lexical": ["./node_modules/lexical/index.d.ts"]
     }
   },

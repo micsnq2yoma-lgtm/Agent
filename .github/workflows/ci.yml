@@ -1,6 +1,6 @@
 # Automatic checks on every PR and on main (release: each machine updates from main).
-# - tests: the Agentself unit tests (vitest), on Linux and on Windows (all three machines run Windows)
-# - build: Paperclip (server, UI) and the Agentself plugins, the same build scripts/update.mjs runs
+# - tests: the AgenTeam unit tests (vitest), on Linux and on Windows (all three machines run Windows)
+# - build: Paperclip (server, UI) and the AgenTeam plugins, the same build scripts/update.mjs runs
 name: CI
 on:
   pull_request:

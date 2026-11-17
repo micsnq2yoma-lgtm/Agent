@@ -2,19 +2,19 @@
 // Read-only towards the outside world: reading, searching and saving a draft into the mailbox's
 // Drafts folder. Nothing is ever sent: sending is an external action the user does themselves.
 //
-// Accounts: ~/.agentself/mail.json  { accounts: [{ id, address, host, port, user, secretId, drafts? }] }
+// Accounts: ~/.agenteam/mail.json  { accounts: [{ id, address, host, port, user, secretId, drafts? }] }
 // The app password (授权码) reads all of the person's mail, so it lives in Paperclip's secret store
 // like API keys: mail.json keeps only its secretId, and each agent run gets it as an env binding
 // (mailEnvName) that this module reads. A plain `password` is only accepted from the form (to test
 // or before the secret exists) and is moved into the store by the console server.
-// Cursor for "what is new": ~/.agentself/mail-state.json  { <id>: { uidValidity, lastUid } }
+// Cursor for "what is new": ~/.agenteam/mail-state.json  { <id>: { uidValidity, lastUid } }
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import tls from "node:tls";
 import { createHash } from "node:crypto";
 
-const home = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const home = () => process.env.AGENTEAM_HOME ?? path.join(os.homedir(), ".agenteam");
 const accountsFile = () => path.join(home(), "mail.json");
 const stateFile = () => path.join(home(), "mail-state.json");
 
@@ -45,9 +45,9 @@ function writeAccounts(list) {
   fs.writeFileSync(accountsFile(), JSON.stringify({ accounts: list }, null, 2));
 }
 /** Env variable an agent run gets the account's app password in (secret_ref to Paperclip's store). */
-export const MAIL_ENV_PREFIX = "AGENTSELF_MAIL_PW_";
+export const MAIL_ENV_PREFIX = "AGENTEAM_MAIL_PW_";
 export const mailEnvName = (id) => `${MAIL_ENV_PREFIX}${createHash("sha1").update(String(id)).digest("hex").slice(0, 10).toUpperCase()}`;
-/** Env bindings for every agent: { AGENTSELF_MAIL_PW_x: secret_ref }. */
+/** Env bindings for every agent: { AGENTEAM_MAIL_PW_x: secret_ref }. */
 export function mailEnv() {
   const env = {};
   for (const a of readAccounts()) if (a.secretId) env[mailEnvName(a.id)] = { type: "secret_ref", secretId: a.secretId, version: "latest" };
@@ -304,7 +304,7 @@ export class Imap {
   async login(user, password) {
     await this.cmd(`LOGIN ${q(user)} ${q(password)}`);
     // 163 / 126 refuse SELECT from clients that do not identify themselves ("Unsafe Login")
-    await this.cmd(`ID ("name" "agentself" "version" "1.0" "vendor" "agentself")`).catch(() => {});
+    await this.cmd(`ID ("name" "agenteam" "version" "1.0" "vendor" "agenteam")`).catch(() => {});
   }
   async select(box = "INBOX", readOnly = true) {
     const r = await this.cmd(`${readOnly ? "EXAMINE" : "SELECT"} ${q(box)}`);

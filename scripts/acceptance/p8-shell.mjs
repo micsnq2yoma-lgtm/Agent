@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // P8 acceptance (PLAN 9, v0.5): one app on :3100.
 //  1. every request the browser makes goes to :3100 (the :3200 frontend is gone)
-//  2. exactly one sidebar (the Agentself one) on Agentself pages and Paperclip admin pages
+//  2. exactly one sidebar (the AgenTeam one) on AgenTeam pages and Paperclip admin pages
 //  3. card -> project drawer -> task full page -> run record, never leaving the app
 //  4. hidden Paperclip pages (inbox, dashboard, chats, cases, goals, companies) still open by URL
 // Creates one small real task for an employee (to get a run record) and deletes it afterwards.
@@ -12,7 +12,7 @@ import { api, list } from "../lib/paperclip.mjs";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_APP ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_APP ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.existsSync(msDir)
   ? fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p))
@@ -20,7 +20,7 @@ const exe = fs.existsSync(msDir)
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const results = {};
 
-const ctx = await (await fetch(`${base}/agentself/api/context`)).json();
+const ctx = await (await fetch(`${base}/agenteam/api/context`)).json();
 const prefix = ctx.company.issuePrefix;
 const research = ctx.departments.find((d) => d.key === "research");
 const member = ctx.agents.find((a) => research.members.includes(a.id) && a.id !== research.leadAgentId);
@@ -60,12 +60,12 @@ page.on("request", (r) => {
   if (/^https?:$/.test(u.protocol) && u.origin !== new URL(base).origin && /^(127\.0\.0\.1|localhost)$/.test(u.hostname)) foreignRequests.add(u.origin);
 });
 const sidebarCheck = async (label) => {
-  await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
+  await page.waitForSelector("[data-agenteam-sidebar] .nav-item", { timeout: 60_000 });
   await page.waitForTimeout(1500);
   return {
     page: label,
     path: new URL(page.url()).pathname,
-    agentselfSidebars: await page.locator("[data-agentself-sidebar]").count(),
+    agenteamSidebars: await page.locator("[data-agenteam-sidebar]").count(),
     // navigation sidebars only: the workbench progress panel and the drawers are <aside> too
     asides: await page.evaluate(() => [...document.querySelectorAll("aside")].filter((a) => a.getBoundingClientRect().width > 0 && !a.matches(".progress, .drawer")).length),
     paperclipNewTask: await page.getByRole("button", { name: /New issue|新建任务/ }).count(),
@@ -74,22 +74,22 @@ const sidebarCheck = async (label) => {
 
 // 1 + 2. home is the workbench, one sidebar everywhere
 await page.goto(base, { waitUntil: "domcontentloaded" });
-await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
-results.homeIsWorkbench = new URL(page.url()).pathname === `/${prefix}/agentself`;
+await page.waitForSelector(".agenteam .composer", { timeout: 60_000 });
+results.homeIsWorkbench = new URL(page.url()).pathname === `/${prefix}/agenteam`;
 const pages = [];
 pages.push(await sidebarCheck("工作台"));
-for (const p of ["agentself/projects", `agentself/departments/research`, "agentself/settings", "org", "agents/all", "routines", "activity", "costs", "company/settings", "company/settings/instance/plugins", `agents/${member.id}`]) {
+for (const p of ["agenteam/projects", `agenteam/departments/research`, "agenteam/settings", "org", "agents/all", "routines", "activity", "costs", "company/settings", "company/settings/instance/plugins", `agents/${member.id}`]) {
   await page.goto(`${base}/${prefix}/${p}`, { waitUntil: "domcontentloaded" });
   pages.push(await sidebarCheck(p));
 }
 results.sidebars = pages;
-results.singleSidebarEverywhere = pages.every((p) => p.agentselfSidebars === 1 && p.asides === 1);
-const navText = await page.locator("[data-agentself-sidebar]").innerText();
+results.singleSidebarEverywhere = pages.every((p) => p.agenteamSidebars === 1 && p.asides === 1);
+const navText = await page.locator("[data-agenteam-sidebar]").innerText();
 results.hiddenFromNav = ["收件箱", "仪表盘", "Inbox", "Dashboard", "Cases", "Goals", "目标", "聊天"].filter((w) => navText.includes(w));
 
 // 3. card -> drawer -> task page -> run record
-await page.goto(`${base}/${prefix}/agentself`, { waitUntil: "domcontentloaded" });
-await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
+await page.goto(`${base}/${prefix}/agenteam`, { waitUntil: "domcontentloaded" });
+await page.waitForSelector(".agenteam .composer", { timeout: 60_000 });
 await page.waitForTimeout(6000);
 const card = page.locator("#results .card.decide").filter({ hasText: "P8 链路卡片" }).first();
 results.cardShown = (await card.count()) > 0;
@@ -100,7 +100,7 @@ results.drawerOpened = await page.locator(".drawer h2", { hasText: "P8 运行记
 await page.getByTestId("open-issue-page").click();
 await page.waitForTimeout(4000);
 results.taskPage = new URL(page.url()).pathname;
-results.taskPageInApp = results.taskPage.startsWith(`/${prefix}/issues/`) && (await page.locator("[data-agentself-sidebar]").count()) === 1;
+results.taskPageInApp = results.taskPage.startsWith(`/${prefix}/issues/`) && (await page.locator("[data-agenteam-sidebar]").count()) === 1;
 // task page -> its assignee (property panel link) -> the employee's runs -> this run
 await page.locator(`a[href*="/agents/${member.id}"]`).first().click();
 await page.waitForTimeout(3000);
@@ -118,7 +118,7 @@ if (results.runReachedFromTaskPage) {
   await page.waitForTimeout(4000);
 }
 results.runPage = new URL(page.url()).pathname;
-results.runPageInApp = results.runPage.includes(`/runs/${runId}`) && (await page.locator("[data-agentself-sidebar]").count()) === 1;
+results.runPageInApp = results.runPage.includes(`/runs/${runId}`) && (await page.locator("[data-agenteam-sidebar]").count()) === 1;
 await page.screenshot({ path: ".agenteam-shots/p8-run.png" });
 
 // 4. hidden pages still open by URL

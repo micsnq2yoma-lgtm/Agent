@@ -12,7 +12,7 @@ Say one sentence and walk away. A team of AI agents you named does the whole job
 
 [Quick start](#quick-start) · [How it works](#how-it-works) · [Features](#features) · [Guide (中文)](docs/guide.md) · [Direction (中文)](docs/v0.6-direction.md)
 
-[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/Agentself?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/Agentself/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/Agentself/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/Agentself/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
+[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/AgenTeam?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/AgenTeam/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/AgenTeam/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/AgenTeam/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
 <img src="docs/assets/pixel-office-1440x900.png" width="860" alt="AgenTeam pixel office">
 
@@ -53,8 +53,8 @@ Windows 11, Node 24.11+, pnpm 9.15+, Git. Install and log in first:
 - Codex (optional): `npm i -g @openai/codex`, then `codex login`
 
 ```powershell
-git clone https://github.com/micsnq2yoma-lgtm/Agentself.git
-cd Agentself
+git clone https://github.com/micsnq2yoma-lgtm/AgenTeam.git
+cd AgenTeam
 node scripts\install.mjs
 ```
 
@@ -71,7 +71,7 @@ node scripts\update.mjs --check   # is there a new version
 node scripts\update.mjs           # back up → stop → pull main → incremental build → start → health check
 ```
 
-A version that fails to start is rolled back automatically. The database is not restored automatically; backups are in `~/.agentself/backups/` (5 kept). Every PR and main run unit tests and a full build on GitHub Actions (Linux + Windows).
+A version that fails to start is rolled back automatically. The database is not restored automatically; backups are in `~/.agenteam/backups/` (5 kept). Every PR and main run unit tests and a full build on GitHub Actions (Linux + Windows).
 
 ## Architecture
 
@@ -79,7 +79,7 @@ A version that fails to start is rolled back automatically. The database is not 
               ┌──────────── only :3100 is exposed ────────────┐
  you / Feishu ─▶│  Paperclip (tasks, runs, UI; vendor/paperclip)  │
               │   ├─ team-layer plugin: acceptance / checks / watching / memory │
-              │   └─ /agentself/api ─▶ local service :3200 (localhost only) │
+              │   └─ /agenteam/api ─▶ local service :3200 (localhost only) │
               └────────────────────────────────────────────────┘
                      router · settings · team MCP · mail · papers · Feishu
                               │
@@ -91,12 +91,12 @@ A version that fails to start is rolled back automatically. The database is not 
 | `apps/console/` | Local service: router, IM, settings, memory, team wizard, hiring approval, team MCP |
 | `plugins/team-layer/` | Paperclip plugin: rework / hop limits, cards, structured acceptance, independent checks, watching, memory tidy-up |
 | `plugins/im-feishu/` | Feishu channel |
-| `vendor/paperclip/ui/src/agentself/` | Workbench and other pages inside the Paperclip UI |
+| `vendor/paperclip/ui/src/agenteam/` | Workbench and other pages inside the Paperclip UI |
 | `packages/` | `shared` types · `skins` · `pixel-office` renderer |
 | `skills/` `packs/` | Lead / employee / memory skill packs; blank team templates |
 | `scripts/` | Start, install, update, acceptance scripts, localization tools |
 
-Directories, API paths, env vars and the data directory are still named `agentself` (`~/.agentself`, `/agentself/api`, `AGENTSELF_*`); the rename does not affect existing installs.
+**Renamed from Agentself.** Directories, API paths, env vars and the data directory are all `agenteam` now (`~/.agenteam`, `/agenteam/api`, `AGENTEAM_*`). Existing installs migrate on the first start after updating: `~/.agentself` is renamed to `~/.agenteam`, old `AGENTSELF_*` variables are still honored, and agent metadata and per-agent `.agentself` folders are converted. Nothing is lost. The one thing not renamed is the team-layer plugin's internal id `agentself.team-layer` (renaming it would drop the plugin's reminder and watch state). Team files exported by older versions (`agentself.department/1`) can still be imported.
 
 ## Docs (Chinese)
 
@@ -104,7 +104,7 @@ Directories, API paths, env vars and the data directory are still named `agentse
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/Agentself&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/Agentself&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/AgenTeam&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/AgenTeam&Date)
 
 ## Acknowledgements
 

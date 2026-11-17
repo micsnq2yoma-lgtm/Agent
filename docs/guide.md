@@ -5,7 +5,7 @@
 ## 手动运行
 
 ```powershell
-node scripts\start.mjs   # 对外只有 :3100；AgenTeam 本地服务只听本机 :3200，由 Paperclip 经 /agentself/api 反向代理。崩溃自动重启，日志在 ~/.agentself/logs
+node scripts\start.mjs   # 对外只有 :3100；AgenTeam 本地服务只听本机 :3200，由 Paperclip 经 /agenteam/api 反向代理。崩溃自动重启，日志在 ~/.agenteam/logs
 node scripts\stop.mjs    # 停止
 node scripts\build.mjs   # 手动重新构建（--install 先装依赖，--ui 只构建界面）
 node scripts\setup-department.mjs scripts\acceptance\fixtures\research.json   # 验收用的示例团队；日常在应用里用向导新建
@@ -15,7 +15,7 @@ Windows 上不要直接在 `vendor\paperclip` 里跑 `pnpm build`：Paperclip �
 
 开机自启：`powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1`（`-Remove` 卸载）。
 
-飞书：在设置页填 App ID、白名单 open_id 并启用；App Secret 放在环境变量 `AGENTSELF_FEISHU_APP_SECRET`（不写进任何文件）。要你拍板的卡片、新建员工请求和通知都会推送，按钮直接生效。
+飞书：在设置页填 App ID、白名单 open_id 并启用；App Secret 放在环境变量 `AGENTEAM_FEISHU_APP_SECRET`（不写进任何文件）。要你拍板的卡片、新建员工请求和通知都会推送，按钮直接生效。
 
 邮箱：设置 → 邮箱，填地址和授权码（IMAP）。授权码存进 Paperclip 密钥库（和 API key 一样），员工运行时才拿到。员工只读邮件、存回复草稿，不会替你发送。
 

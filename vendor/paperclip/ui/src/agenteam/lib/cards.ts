@@ -1,6 +1,6 @@
 // Workbench cards (PLAN 4.3 / 7.0): built from Paperclip attention items, top-level issues and
 // front-desk answers. Pure functions — unit-tested in test/cards.test.ts.
-import type { Tier } from "@agentself/shared";
+import type { Tier } from "@agenteam/shared";
 
 /** Sentinels the UI replaces with skin terms (no hard-coded role words). */
 export const FRONTDESK = "__frontdesk__";
@@ -85,7 +85,7 @@ export interface AgentLite {
   name: string;
   adapterType?: string;
   adapterConfig?: { model?: string };
-  metadata?: { agentself?: { department?: string; departmentName?: string; isLead?: boolean } };
+  metadata?: { agenteam?: { department?: string; departmentName?: string; isLead?: boolean } };
 }
 
 export interface IssueLite {

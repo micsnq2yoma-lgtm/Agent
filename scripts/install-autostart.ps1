@@ -19,7 +19,7 @@ if ($Remove) {
 $node = (Get-Command node -ErrorAction Stop).Source
 $script = Join-Path $repo "scripts\start.mjs"
 $vbs = @"
-' AgenTeam autostart: runs node scripts\start.mjs hidden (logs in %USERPROFILE%\.agentself\logs)
+' AgenTeam autostart: runs node scripts\start.mjs hidden (logs in %USERPROFILE%\.agenteam\logs)
 Set sh = CreateObject("WScript.Shell")
 sh.CurrentDirectory = "$repo"
 sh.Run """$node"" ""$script""", 0, False

@@ -10,7 +10,7 @@ try { pw = require("playwright"); } catch { pw = require(path.resolve("vendor/pa
 const out = process.argv[2] ?? ".agenteam-shots";
 const base = process.argv[3] ?? "http://127.0.0.1:3100";
 fs.mkdirSync(out, { recursive: true });
-const exe = process.env.AGENTSELF_CHROME ?? fs.readdirSync(path.join(process.env.LOCALAPPDATA, 'ms-playwright')).filter((d) => d.startsWith('chromium-')).map((d) => path.join(process.env.LOCALAPPDATA, 'ms-playwright', d, 'chrome-win64', 'chrome.exe')).find((p) => fs.existsSync(p));
+const exe = process.env.AGENTEAM_CHROME ?? fs.readdirSync(path.join(process.env.LOCALAPPDATA, 'ms-playwright')).filter((d) => d.startsWith('chromium-')).map((d) => path.join(process.env.LOCALAPPDATA, 'ms-playwright', d, 'chrome-win64', 'chrome.exe')).find((p) => fs.existsSync(p));
 const browser = await pw.chromium.launch({ executablePath: exe });
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1 });
 const errors = [];

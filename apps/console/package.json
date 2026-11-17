@@ -1,5 +1,5 @@
 {
-  "name": "@agentself/console",
+  "name": "@agenteam/console",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,10 +8,10 @@
     "start": "node server/server.mjs"
   },
   "dependencies": {
-    "@agentself/shared": "workspace:*",
-    "@agentself/skins": "workspace:*",
-    "@agentself/im-feishu": "workspace:*"
+    "@agenteam/shared": "workspace:*",
+    "@agenteam/skins": "workspace:*",
+    "@agenteam/im-feishu": "workspace:*"
   },
   "devDependencies": {},
-  "description": "AgenTeam local service (front desk, Feishu, office snapshot, settings, memory, department wizard). UI lives in vendor/paperclip/ui/src/agentself."
+  "description": "AgenTeam local service (front desk, Feishu, office snapshot, settings, memory, department wizard). UI lives in vendor/paperclip/ui/src/agenteam."
 }

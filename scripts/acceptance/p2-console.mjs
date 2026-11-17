@@ -16,15 +16,15 @@ import { api, list } from "../lib/paperclip.mjs";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_CONSOLE ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.existsSync(msDir)
   ? fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p))
   : undefined;
-const { companyId, projectId, leadAgentId } = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agentself", "department-research.json"), "utf8"));
+const { companyId, projectId, leadAgentId } = JSON.parse(fs.readFileSync(path.join(os.homedir(), ".agenteam", "department-research.json"), "utf8"));
 const results = {};
 const as = async (method, p, body) => {
-  const r = await fetch(`${base}/agentself/api${p}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  const r = await fetch(`${base}/agenteam/api${p}`, { method, headers: { "content-type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
   const t = await r.text();
   if (!r.ok) throw new Error(`${method} ${p} → ${r.status} ${t.slice(0, 200)}`);
   return t ? JSON.parse(t) : null;
@@ -35,7 +35,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 await page.goto(base, { waitUntil: "domcontentloaded" });
-await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
+await page.waitForSelector(".agenteam .composer", { timeout: 60_000 });
 await page.waitForTimeout(3000);
 
 /** Click a card (whole-card button) by its text and return the expanded detail. */
@@ -89,7 +89,7 @@ const probeLater = await mkProbe("[验收] 稍后", "验收：这张卡稍后再
 // 4. a hire request (declined below, so no agent is created)
 const hire = leadAgentId ? await as("POST", "/hire-requests", { leadAgentId, name: "验收员工", capabilities: "验收用，不会被创建", reason: "P2 验收" }) : null;
 await page.reload({ waitUntil: "domcontentloaded" });
-await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
+await page.waitForSelector("[data-agenteam-sidebar] .nav-item", { timeout: 60_000 });
 await page.waitForTimeout(6000);
 
 const askDetail = await openCard(".card.decide", "请选 A 还是 B");

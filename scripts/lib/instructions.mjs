@@ -7,6 +7,7 @@
 // and when the user edits the profile or memory, or a lead records a decision (local service).
 //
 // Shared by the local service (scripts/lib/department.mjs) and the team-layer plugin (bundled).
+import { migrateRuntimeDir } from "./legacy.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +41,10 @@ const MEMORY_FILES = [
 ];
 const PROFILE_CAP = 6000;
 
-const runtimeDir = (cwd) => path.join(cwd, ".agentself");
+const runtimeDir = (cwd) => {
+  migrateRuntimeDir(cwd);
+  return path.join(cwd, ".agenteam");
+};
 export const instructionsPath = (cwd) => path.join(runtimeDir(cwd), "instructions.md");
 const runtimeMetaPath = (cwd) => path.join(runtimeDir(cwd), "runtime.json");
 const posix = (p) => p.split(path.sep).join("/");
@@ -133,7 +137,7 @@ export function writeInstructions({ role, cwd, home, adapterType, repoRoot }) {
   return f;
 }
 
-/** Regenerate one agent's instructions if it has an Agentself runtime (no-op otherwise). */
+/** Regenerate one agent's instructions if it has an AgenTeam runtime (no-op otherwise). */
 export function refreshInstructions(cwd, home) {
   let meta;
   try {

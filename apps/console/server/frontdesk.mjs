@@ -55,7 +55,7 @@ export function parseRoute(raw) {
 }
 
 /** Run `claude -p` with the prompt on stdin; resolves with the model's text result. */
-export function runClaude(prompt, { model = DEFAULT_ROUTER_MODEL, timeoutMs = 120_000, claudeBin = process.env.AGENTSELF_CLAUDE_BIN ?? "claude" } = {}) {
+export function runClaude(prompt, { model = DEFAULT_ROUTER_MODEL, timeoutMs = 120_000, claudeBin = process.env.AGENTEAM_CLAUDE_BIN ?? "claude" } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(
       claudeBin,

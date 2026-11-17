@@ -1,8 +1,8 @@
 // SETO workbench logic (docs/handoff/design/DESIGN.md §4.7–4.9): stages and acceptance documents.
 import { describe, expect, it } from "vitest";
-import { cardsOfLead, progressOf, statusOf, tasksOfLead } from "../../../vendor/paperclip/ui/src/agentself/lib/progress";
-import { cronText } from "../../../vendor/paperclip/ui/src/agentself/lib/cron";
-import { parseAcceptance } from "../../../vendor/paperclip/ui/src/agentself/lib/acceptance-parse";
+import { cardsOfLead, progressOf, statusOf, tasksOfLead } from "../../../vendor/paperclip/ui/src/agenteam/lib/progress";
+import { cronText } from "../../../vendor/paperclip/ui/src/agenteam/lib/cron";
+import { parseAcceptance } from "../../../vendor/paperclip/ui/src/agenteam/lib/acceptance-parse";
 import { criteriaMarkdown, evidenceMarkdown, verificationMarkdown } from "../../../plugins/team-layer/src/acceptance";
 
 const issue = (o: Record<string, unknown>) => ({ id: "x", identifier: null, title: "t", status: "todo", parentId: null, projectId: "p", assigneeAgentId: "lead", createdAt: "2026-11-15T10:00:00Z", updatedAt: "2026-11-15T10:00:00Z", ...o }) as never;
@@ -38,8 +38,8 @@ describe("one status everywhere (PR #3 review: AGE-129)", () => {
   const ask = { type: "decide", issueId: "t129", title: "要不要换数据集？", department: "某个项目名", source: { kind: "interaction" } } as never;
   const ctx = {
     agents: [
-      { id: "lead", name: "科研主管", metadata: { agentself: { isLead: true, department: "research" } } },
-      { id: "emp", name: "小码", metadata: { agentself: { department: "research" } } },
+      { id: "lead", name: "科研主管", metadata: { agenteam: { isLead: true, department: "research" } } },
+      { id: "emp", name: "小码", metadata: { agenteam: { department: "research" } } },
     ],
     departments: [{ key: "research", name: "科研", projectId: "p-research", leadAgentId: "lead", members: ["lead", "emp"] }],
   } as never;

@@ -9,7 +9,7 @@ import { pathToFileURL } from "node:url";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_CONSOLE ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_CONSOLE ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p));
 const { office } = await import(pathToFileURL(path.resolve("packages/skins/src/index.ts")).href);
@@ -22,7 +22,7 @@ const lab = {
   tokens: { ...office.tokens, accent: "#0f8a8a", accentStrong: "#0b6b6b", sidebar: "#eef5f4" },
   terms: { ...office.terms, lead: "组长", employee: "组员", report: "周报", workbench: "实验台", team: "实验室全景", decide: "等你定夺" },
 };
-const file = path.join(os.tmpdir(), "agentself-skin-lab.json");
+const file = path.join(os.tmpdir(), "agenteam-skin-lab.json");
 fs.writeFileSync(file, JSON.stringify(lab, null, 2));
 
 const results = {};
@@ -33,7 +33,7 @@ page.on("dialog", (d) => d.accept());
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 await page.goto(base, { waitUntil: "domcontentloaded" });
-await page.waitForSelector(".agentself .composer", { timeout: 60_000 });
+await page.waitForSelector(".agenteam .composer", { timeout: 60_000 });
 await page.getByRole("link", { name: "设置", exact: true }).click();
 await page.getByRole("tab", { name: "皮肤", exact: true }).click(); // settings are tabbed (SETO)
 await page.locator("input[type=file]").setInputFiles(file);
@@ -59,7 +59,7 @@ results.exportOk = exported.id === "lab" && exported.terms.lead === "组长";
 
 // persisted on the server -> survives reload
 await page.reload({ waitUntil: "domcontentloaded" });
-await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
+await page.waitForSelector("[data-agenteam-sidebar] .nav-item", { timeout: 60_000 });
 await page.waitForTimeout(1500);
 results.persisted = (await page.locator("body").innerText()).includes("实验台");
 

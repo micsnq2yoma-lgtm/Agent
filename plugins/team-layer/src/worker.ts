@@ -1,6 +1,6 @@
 // team-layer worker: wires the pure rules (./rules) to Paperclip events, state and tools.
 import { definePlugin, runWorker } from "@paperclipai/plugin-sdk";
-import type { FeedMessage } from "@agentself/shared";
+import type { FeedMessage } from "@agenteam/shared";
 import { applyRework, isDuplicateTransition, checkHop, issueDepth, type IssueStatus } from "./rules/index.js";
 import { addNotice, dismissNotice, dropRemindersFor, dueReminders, SETTLED_STATUSES, type Reminder } from "./store.js";
 import fs from "node:fs";
@@ -58,11 +58,11 @@ const DEFAULTS: Config = {
 /* Same file format as scripts/lib/profile.mjs.                         */
 /* ------------------------------------------------------------------ */
 
-const agentselfHome = () => process.env.AGENTSELF_HOME ?? path.join(os.homedir(), ".agentself");
+const agenteamHome = () => process.env.AGENTEAM_HOME ?? path.join(os.homedir(), ".agenteam");
 
 function addProfileProposals(items: string[], from: { agentId: string; name: string }) {
   if (items.length === 0) return 0;
-  const file = path.join(agentselfHome(), "profile", "proposals.json");
+  const file = path.join(agenteamHome(), "profile", "proposals.json");
   let list: Array<{ id: string; text: string; status: string }> = [];
   try {
     list = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -89,7 +89,7 @@ function addProfileProposals(items: string[], from: { agentId: string; name: str
 type AgentLike = { id: string; name?: string; adapterConfig?: Record<string, unknown> | null; metadata?: Record<string, unknown> | null };
 
 function memDirOf(agent: AgentLike | null): string | null {
-  if (!agent?.metadata || !(agent.metadata as { agentself?: unknown }).agentself) return null;
+  if (!agent?.metadata || !(agent.metadata as { agenteam?: unknown }).agenteam) return null;
   const cwd = agent.adapterConfig?.cwd;
   return typeof cwd === "string" && cwd ? path.join(cwd, "memory") : null;
 }
@@ -113,9 +113,9 @@ async function onRunEnded(ctx: Ctx, companyId: string, p: { agentId?: string; is
 /** The agent may have written to its memory during the run: put the new contents into its instructions. */
 function refreshAgentInstructions(memDir: string) {
   try {
-    (refreshInstructions as (cwd: string, home: string) => boolean)(path.dirname(memDir), agentselfHome());
+    (refreshInstructions as (cwd: string, home: string) => boolean)(path.dirname(memDir), agenteamHome());
   } catch {
-    /* an agent without an Agentself runtime, or a transient fs error: next run refreshes again */
+    /* an agent without an AgenTeam runtime, or a transient fs error: next run refreshes again */
   }
 }
 
@@ -264,7 +264,7 @@ async function onIssueCreated(ctx: Ctx, companyId: string, issueId: string, acto
   await askOnIssue(ctx, {
     companyId,
     issueId: issue.parentId,
-    key: `agentself:hop:${issue.id}`,
+    key: `agenteam:hop:${issue.id}`,
     title: "任务拆得太深 / 太多，已暂停",
     prompt: `${verdict.detail}。新任务「${issue.title}」已置为 blocked。怎么处理？`,
     helpText: "不回复会怎样：该任务保持 blocked，不会继续往下拆。",
@@ -323,7 +323,7 @@ async function onIssueUpdated(ctx: Ctx, companyId: string, issueId: string, payl
   await askOnIssue(ctx, {
     companyId,
     issueId: issue.parentId,
-    key: `agentself:rework:${issueId}:${r.count}`,
+    key: `agenteam:rework:${issueId}:${r.count}`,
     title: `「${issue.title}」已返工 ${r.count} 次`,
     prompt: `子任务「${issue.title}」已被打回 ${r.count} 次，已停止自动返工。怎么处理？`,
     helpText: "不回复会怎样：该子任务保持 blocked，主管不会再自动返工。",
@@ -357,7 +357,7 @@ interface VerifyJob {
   attempts: number;
 }
 
-const verifyDir = () => path.join(agentselfHome(), "verify");
+const verifyDir = () => path.join(agenteamHome(), "verify");
 const verifyFile = (childId: string) => path.join(verifyDir(), `${childId.replace(/[^\w-]/g, "_")}.json`);
 
 function writeVerifyJob(job: VerifyJob) {
@@ -487,7 +487,7 @@ const plugin = definePlugin({
         const card = await askOnIssue(ctx, {
           companyId: run.companyId,
           issueId: p.issueId,
-          key: `agentself:ask:${run.runId}:${p.question.slice(0, 40)}`,
+          key: `agenteam:ask:${run.runId}:${p.question.slice(0, 40)}`,
           title: p.question.slice(0, 200),
           prompt: p.question,
           helpText: p.ifNoReply ? `不回复会怎样：${p.ifNoReply}` : null as never,
@@ -731,7 +731,7 @@ const plugin = definePlugin({
           if (!res.wake) continue;
           try {
             await ctx.issues.createComment(w.issueId, wakeComment(w, res.wake, r.spawnError ?? r.output), cid);
-            await ctx.issues.requestWakeup(w.issueId, cid, { reason: "agentself_watch" } as never);
+            await ctx.issues.requestWakeup(w.issueId, cid, { reason: "agenteam_watch" } as never);
           } catch (err) {
             ctx.logger.error(`watch wake failed: ${errText(err)}`, { issueId: w.issueId, err: errText(err) });
           }
@@ -758,7 +758,7 @@ const plugin = definePlugin({
             const issue = await ctx.issues.get(r.issueId, c.id).catch(() => null);
             if (issue && SETTLED_STATUSES.has(String(issue.status))) continue;
             if (r.note) await ctx.issues.createComment(r.issueId, `⏰ 稍后提醒：${r.note}`, c.id);
-            await ctx.issues.requestWakeup(r.issueId, c.id, { reason: "agentself_later" } as never);
+            await ctx.issues.requestWakeup(r.issueId, c.id, { reason: "agenteam_later" } as never);
           } catch (err) {
             ctx.logger.error(`later wake failed: ${errText(err)}`, { issueId: r.issueId, err: String(err) });
           }

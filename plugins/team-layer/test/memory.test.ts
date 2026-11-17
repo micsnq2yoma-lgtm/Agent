@@ -17,7 +17,7 @@ import {
 } from "../src/memory-jobs.js";
 
 function tmpMem() {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agentself-mem-"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "agenteam-mem-"));
   const mem = path.join(dir, "memory");
   fs.mkdirSync(path.join(mem, "log"), { recursive: true });
   fs.mkdirSync(path.join(mem, "topics"), { recursive: true });

@@ -11,7 +11,7 @@ import path from "node:path";
 
 const require = createRequire(path.resolve("vendor/paperclip/node_modules/.pnpm/node_modules/x.js"));
 const pw = require("playwright");
-const base = process.env.AGENTSELF_APP ?? "http://127.0.0.1:3100";
+const base = process.env.AGENTEAM_APP ?? "http://127.0.0.1:3100";
 const msDir = path.join(process.env.LOCALAPPDATA ?? "", "ms-playwright");
 const exe = fs.existsSync(msDir)
   ? fs.readdirSync(msDir).filter((d) => d.startsWith("chromium-")).map((d) => path.join(msDir, d, "chrome-win64", "chrome.exe")).find((p) => fs.existsSync(p))
@@ -21,7 +21,7 @@ const j = async (method, p, body) => {
   if (!r.ok) throw new Error(`${method} ${p} -> ${r.status}`);
   return r.json();
 };
-const ctx = await j("GET", "/agentself/api/context");
+const ctx = await j("GET", "/agenteam/api/context");
 const prefix = ctx.company.issuePrefix;
 const research = ctx.departments.find((d) => d.key === "research");
 const original = ctx.settings.skin;
@@ -30,8 +30,8 @@ const SKINS = {
   court: { bg: "#f6efe2", employee: "侍郎", user: "朕", workbench: "御书房" },
 };
 const pages = [
-  ["workbench", `/${prefix}/agentself`],
-  ["org", `/${prefix}/agentself/org`],
+  ["workbench", `/${prefix}/agenteam`],
+  ["org", `/${prefix}/agenteam/org`],
   ["employees", `/${prefix}/agents/all`],
   ["employee", `/${prefix}/agents/${research.leadAgentId}/overview`],
   ["costs", `/${prefix}/activity/costs`],
@@ -61,7 +61,7 @@ async function inspect() {
       for (const a of ["placeholder", "title", "aria-label"]) if ((el.getAttribute(a) ?? "").includes("智能体")) (agentWord++, hits.push(`@${a}:${el.getAttribute(a)}`));
     const html = getComputedStyle(document.documentElement);
     const imgs = [...document.querySelectorAll("img")].map((i) => i.getAttribute("src") ?? "");
-    const sb = document.querySelector("[data-agentself-sidebar]")?.getBoundingClientRect();
+    const sb = document.querySelector("[data-agenteam-sidebar]")?.getBoundingClientRect();
     return {
       background: html.getPropertyValue("--background").trim(),
       bodyBg: getComputedStyle(document.body).backgroundColor,
@@ -77,11 +77,11 @@ async function inspect() {
 
 const results = {};
 for (const skin of ["office", "court"]) {
-  await j("PUT", "/agentself/api/settings", { ...ctx.settings, skin });
+  await j("PUT", "/agenteam/api/settings", { ...ctx.settings, skin });
   const rows = [];
   for (const [name, url] of pages) {
     await page.goto(`${base}${url}`, { waitUntil: "domcontentloaded" });
-    await page.waitForSelector("[data-agentself-sidebar] .nav-item", { timeout: 60_000 });
+    await page.waitForSelector("[data-agenteam-sidebar] .nav-item", { timeout: 60_000 });
     await page.waitForTimeout(4500);
     const r = await inspect();
     const want = SKINS[skin];
@@ -101,7 +101,7 @@ for (const skin of ["office", "court"]) {
   }
   results[skin] = rows;
 }
-await j("PUT", "/agentself/api/settings", { ...ctx.settings, skin: original });
+await j("PUT", "/agenteam/api/settings", { ...ctx.settings, skin: original });
 await browser.close();
 
 const ok = (rows, skin) =>
