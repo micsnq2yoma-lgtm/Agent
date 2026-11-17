@@ -119,7 +119,7 @@ if (results.runReachedFromTaskPage) {
 }
 results.runPage = new URL(page.url()).pathname;
 results.runPageInApp = results.runPage.includes(`/runs/${runId}`) && (await page.locator("[data-agentself-sidebar]").count()) === 1;
-await page.screenshot({ path: "spikes/shots/p8-run.png" });
+await page.screenshot({ path: ".agenteam-shots/p8-run.png" });
 
 // 4. hidden pages still open by URL
 const hidden = {};

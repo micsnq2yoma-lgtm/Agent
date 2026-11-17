@@ -508,7 +508,7 @@ export function Home(props: {
       <div className="workbench-main">
         <div className="hero">
           <Wordmark size={56} />
-          <div className="tagline-en">Put your attention on what truly matters.</div>
+          <div className="tagline-en">Focus your attention on valuable things.</div>
         </div>
         <div className="results-head">
           <div className="filters" role="tablist" aria-label="筛选">

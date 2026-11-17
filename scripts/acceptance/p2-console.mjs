@@ -138,8 +138,8 @@ if (await deliverCard.count()) {
   results.reportConfirmed = { title };
 } else results.reportConfirmed = "no report waiting";
 
-fs.mkdirSync("spikes/shots", { recursive: true });
-await page.screenshot({ path: "spikes/shots/p2-after.png" });
+fs.mkdirSync(".agenteam-shots", { recursive: true });
+await page.screenshot({ path: ".agenteam-shots/p2-after.png" });
 await browser.close();
 for (const it of [probeAnswer, probeLater]) await api("DELETE", `/issues/${it.id}`).catch(() => {}); // leave no test data
 results.pageErrors = errors;

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Run the scenario acceptance scripts one after another and print a summary table.
 // Cheap ones first, the expensive research run last. Each script's full output goes to
-// spikes/acceptance/<name>.log.
+// .agenteam-shots/logs/<name>.log.
 // Usage: node scripts/acceptance/run-scenarios.mjs [--only p12,p15] [--skip p17]
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -13,7 +13,7 @@ const pick = (flag) => (args.includes(flag) ? args[args.indexOf(flag) + 1].split
 const only = pick("--only");
 const skip = pick("--skip") ?? [];
 const names = ALL.filter((n) => (!only || only.some((o) => n.startsWith(o))) && !skip.some((s) => n.startsWith(s)));
-const logDir = path.resolve("spikes", "acceptance");
+const logDir = path.resolve(".agenteam-shots", "logs");
 fs.mkdirSync(logDir, { recursive: true });
 
 const rows = [];

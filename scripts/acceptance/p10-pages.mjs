@@ -195,8 +195,8 @@ results.advancedNewOpensForm = (await page.locator("[role=dialog]").count()) > 0
 await page.keyboard.press("Escape");
 await page.getByRole("tab", { name: /工作台|御书房/ }).click();
 
-fs.mkdirSync("spikes/shots", { recursive: true });
-await page.screenshot({ path: "spikes/shots/p10-workbench.png" });
+fs.mkdirSync(".agenteam-shots", { recursive: true });
+await page.screenshot({ path: ".agenteam-shots/p10-workbench.png" });
 await browser.close();
 results.pageErrors = errors;
 const pass =

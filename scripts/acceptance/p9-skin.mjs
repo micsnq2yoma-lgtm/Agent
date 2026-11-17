@@ -97,7 +97,7 @@ for (const skin of ["office", "court"]) {
       paperclipAvatars: r.paperclipAvatars,
       sidebarRight: r.sidebarX != null && r.sidebarX > 700,
     });
-    await page.screenshot({ path: `spikes/shots/p9-${skin}-${name}.png` });
+    await page.screenshot({ path: `.agenteam-shots/p9-${skin}-${name}.png` });
   }
   results[skin] = rows;
 }
