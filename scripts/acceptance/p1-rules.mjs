@@ -46,7 +46,7 @@ let prev = null;
 const chain = [];
 for (let depth = 1; depth <= 9; depth++) {
   const it = await api("POST", `/companies/${companyId}/issues`, {
-    title: `[验收] 跳数 L${depth}`,
+    title: `[验收] 跳数 L${depth} ${Date.now().toString(36)}`,
     projectId,
     status: "backlog",
     ...(prev ? { parentId: prev.id } : {}),

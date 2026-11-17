@@ -9,7 +9,7 @@
 // Model cost: one short turn per source. ~2–6 min each.
 // Usage: node scripts/acceptance/p18-model-sources.mjs [--only codex,api:deepseek]
 import { removeTeam } from "../lib/teardown.mjs";
-import { api, as, comments, log, researchTeam, runsOf, verdict, waitFor } from "./lib/scenario.mjs";
+import { api, as, cancelTree, comments, log, researchTeam, runsOf, verdict, waitFor } from "./lib/scenario.mjs";
 
 const args = process.argv.slice(2);
 const only = args.includes("--only") ? args[args.indexOf("--only") + 1].split(",") : null;
@@ -27,6 +27,7 @@ for (const source of sources) {
   const r = { source };
   results[source] = r;
   let agentId = null;
+  let issueId = null;
   try {
     const hire = await as("POST", "/hire-requests", { leadAgentId, name: `验收${source.replace(/^api:/, "")}`, capabilities: "p18 验收用，跑完删除", reason: "p18", adapterType: source === "codex" ? "codex_local" : "claude_local" });
     const done = await as("POST", `/hire-requests/${hire.id}/approve`, { source });
@@ -37,12 +38,13 @@ for (const source of sources) {
     r.codexMcpArgs = agent.adapterType === "codex_local" ? (agent.adapterConfig?.extraArgs ?? []).some((a) => String(a).includes("mcp_servers.agentself")) : undefined;
     r.apiEnv = source.startsWith("api:") ? !!agent.adapterConfig?.env?.ANTHROPIC_BASE_URL : undefined;
     const issue = await api("POST", `/companies/${companyId}/issues`, {
-      title: `[验收 p18] ${source} 团队工具`,
+      title: `[验收 p18] ${source} 团队工具 ${Date.now().toString(36)}`,
       description: `用你的 agentself 团队工具完成，不要用 curl 或命令行调接口：\n1. 用 comment 工具在这个任务上留言：${mark}\n2. 用 update_task 工具把这个任务置为 done。\n这是验收测试，不要做别的。`,
       projectId,
       assigneeAgentId: agentId,
       status: "todo",
     });
+    issueId = issue.id;
     r.task = issue.identifier;
     await waitFor(
       `${source}: waiting`,
@@ -62,12 +64,18 @@ for (const source of sources) {
     r.runs = runs.map((x) => `${x.status}${x.adapterType ? `/${x.adapterType}` : ""}`);
     r.failed = runs.filter((x) => x.status === "failed").map((x) => x.error ?? x.errorCode ?? "failed");
     r.pass = r.status === "done" && r.commentByEmployee && r.storedSource === source && (r.codexMcpArgs ?? true) && (r.apiEnv ?? true);
-    if (!["done", "cancelled"].includes(final.status)) await api("PATCH", `/issues/${issue.id}`, { status: "backlog" }).catch(() => {});
   } catch (e) {
     r.error = e.message;
     r.pass = false;
   } finally {
+    // the task goes first (cancelled, then deleted; a run still going is waited for), then the employee
+    if (issueId) r.taskCleanup = await cancelTree(companyId, issueId).catch((e) => ({ error: e.message }));
     if (agentId) r.cleanup = await removeTeam({ companyId, projectId: null, members: [agentId] });
+    // a task left behind fails the check: it would pile up and be handed back to the next run
+    if (issueId && !(r.taskCleanup?.deleted > 0)) {
+      r.pass = false;
+      r.error = `${r.error ? `${r.error}；` : ""}验收任务没有删干净（${JSON.stringify(r.taskCleanup)}）`;
+    }
   }
   log(source, r.pass ? "PASS" : "FAIL");
 }

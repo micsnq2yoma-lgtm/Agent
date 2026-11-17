@@ -247,12 +247,36 @@ async function isExpectedSymlink(target: string, source: string): Promise<boolea
   return path.resolve(path.dirname(target), linkedPath) === path.resolve(source);
 }
 
+/**
+ * AgenTeam (Windows): a file symlink needs administrator rights or Developer Mode, so without
+ * them `fs.symlink` fails with EPERM. For files (auth.json) fall back to a hard link — same
+ * volume, same file, so Codex's in-place token refresh is seen by both homes — and, when even
+ * that is impossible (another volume), to a copy that is reconciled before each run.
+ */
+async function linkFileFallback(target: string, source: string): Promise<boolean> {
+  const src = await fs.stat(source).catch(() => null);
+  if (!src?.isFile()) return false;
+  try {
+    await fs.link(source, target);
+  } catch {
+    await fs.copyFile(source, target);
+  }
+  return true;
+}
+
+/** True when target and source are the same file (a hard link). */
+async function isSameFile(target: string, source: string): Promise<boolean> {
+  const [a, b] = await Promise.all([fs.stat(target, { bigint: true }).catch(() => null), fs.stat(source, { bigint: true }).catch(() => null)]);
+  return !!a && !!b && a.dev === b.dev && a.ino === b.ino && a.ino !== 0n;
+}
+
 async function createExpectedSymlink(target: string, source: string): Promise<void> {
   try {
     await fs.symlink(source, target);
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "EEXIST" && await isExpectedSymlink(target, source)) return;
+    if ((code === "EPERM" || code === "EACCES") && process.platform === "win32" && (await linkFileFallback(target, source))) return;
     throw error;
   }
 }
@@ -277,6 +301,13 @@ export async function ensureSymlink(target: string, source: string): Promise<voi
     // a Paperclip-written stale copy and warrants operator inspection rather
     // than silent removal.
     if (existing.isDirectory()) return;
+    // AgenTeam (Windows): a hard link made by the fallback above is the live file already.
+    if (await isSameFile(target, source)) return;
+    // A fallback copy that Codex refreshed is newer than the source: keep its token.
+    if (process.platform === "win32") {
+      const src = await fs.stat(source).catch(() => null);
+      if (src?.isFile() && existing.mtimeMs > src.mtimeMs) await fs.copyFile(target, source);
+    }
     await fs.unlink(target);
     await createExpectedSymlink(target, source);
     return;

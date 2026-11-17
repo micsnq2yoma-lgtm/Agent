@@ -24,7 +24,7 @@ const other = ctx.agents.find((a) => a.metadata?.agentself && !a.metadata.agents
 if (other) results.otherHasNoServer = !(await api("GET", `/agents/${other.id}`)).adapterConfig?.env?.P21_SECRET;
 
 const issue = await api("POST", `/companies/${companyId}/issues`, {
-  title: `[验收 p21] 工具服务`,
+  title: `[验收 p21] 工具服务 ${Date.now().toString(36)}`,
   description: "调用你的 p21_secret 工具（来自工具服务\"验收回声\"），把它返回的口令原样用 comment 工具评论到这个任务上，然后用 update_task 把任务置为 done。这是验收测试，不要做别的。",
   projectId,
   assigneeAgentId: employee.id,
@@ -43,7 +43,9 @@ await waitFor(
 );
 results.codeCommented = (await comments(issue.id)).some((c) => (c.body ?? "").includes(code) && c.authorAgentId === employee.id);
 results.status = (await api("GET", `/issues/${issue.id}`)).status;
-if (results.status !== "done") await cancelTree(companyId, issue.id);
-await as("DELETE", "/mcp/servers/p21-echo").catch(() => {});
+// always: a finished task left behind would be handed back to the next run (Paperclip's 48 h same-title rule)
+results.taskCleanup = await cancelTree(companyId, issue.id).catch((e) => ({ error: e.message }));
+// removing the server must remove its secret too, or the next run fails with 409 (found on PR #9)
+results.removed = await as("DELETE", "/mcp/servers/p21-echo").catch((e) => ({ error: e.message }));
 await as("POST", "/agents/sync").catch(() => {});
-verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false, results);
+verdict("p21-tool-server", results.test.ok && results.envBound && results.codeCommented && results.status === "done" && results.otherHasNoServer !== false && results.taskCleanup?.deleted > 0 && results.removed?.secretsDeleted > 0, results);
