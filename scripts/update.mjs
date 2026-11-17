@@ -59,7 +59,7 @@ async function healthy(url) {
 }
 
 /** Install and build what changed between two commits ("" = build everything). */
-function installAndBuild(from, to) {
+export function installAndBuild(from, to) {
   const changed = from ? git("diff", "--name-only", from, to).split(/\r?\n/).filter(Boolean) : null;
   const any = (re) => !changed || changed.some((f) => re.test(f));
   if (any(/^pnpm-lock\.yaml$|^(apps|packages|plugins)\/[^/]+\/package\.json$|^package\.json$/)) {
@@ -83,11 +83,11 @@ function installAndBuild(from, to) {
   }
 }
 
-function startDetached() {
+export function startDetached() {
   const child = spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: "ignore", windowsHide: true });
   child.unref();
 }
-async function waitHealthy(minutes = Number(process.env.AGENTSELF_UPDATE_HEALTH_MINUTES ?? 4)) {
+export async function waitHealthy(minutes = Number(process.env.AGENTSELF_UPDATE_HEALTH_MINUTES ?? 4)) {
   const end = Date.now() + minutes * 60_000;
   while (Date.now() < end) {
     if ((await healthy("http://127.0.0.1:3100/api/health")) && (await healthy("http://127.0.0.1:3100/agentself/api/context"))) return true;
@@ -96,7 +96,7 @@ async function waitHealthy(minutes = Number(process.env.AGENTSELF_UPDATE_HEALTH_
   return false;
 }
 
-function backup() {
+export function backup() {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
   const dir = path.join(home, "backups", stamp);
   fs.mkdirSync(dir, { recursive: true });
