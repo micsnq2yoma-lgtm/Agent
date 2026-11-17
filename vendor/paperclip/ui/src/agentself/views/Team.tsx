@@ -1,10 +1,11 @@
 import { X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { OfficeSnapshot } from "@agentself/shared";
-import { ACTION_TEXT, DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, type Label } from "@agentself/pixel-office";
+import { ACTION_TEXT, DARK_PALETTE, DEFAULT_PALETTE, OfficeRenderer, WORLD_H, ZONE_W, type Label } from "@agentself/pixel-office";
 import { as, type Context } from "../lib/api";
 import type { Card } from "../lib/cards";
 import { useSkin } from "../lib/skin";
+import { fitOfficeScale } from "../lib/office-size";
 
 const ANIM_TEXT = ACTION_TEXT;
 const ANIM_DOT: Record<string, string> = {
@@ -27,12 +28,34 @@ export function Team(props: {
 }) {
   const { t, skin, dark } = useSkin();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<OfficeRenderer | null>(null);
   const [labels, setLabels] = useState<Label[]>([]);
   const [zones, setZones] = useState<Array<{ id: string; name: string; left: number }>>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [snapshot, setSnapshot] = useState<OfficeSnapshot | null>(null);
-  const [worldW, setWorldW] = useState(300);
+  const [world, setWorld] = useState({ width: ZONE_W, height: WORLD_H });
+  const [scale, setScale] = useState(2);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    const content = viewport.closest<HTMLElement>(".content");
+    const measure = () => {
+      const bounds = viewport.getBoundingClientRect();
+      const bottom = Math.min(window.innerHeight, (content?.getBoundingClientRect().bottom ?? window.innerHeight) + window.scrollY);
+      // Measure the resting position, so resizing after a scroll cannot enlarge
+      // the office and push the people farther down again. Leave room for the hint.
+      const top = bounds.top + (content?.scrollTop ?? 0) + window.scrollY;
+      setScale(fitOfficeScale(world, { width: viewport.clientWidth, height: bottom - top - 40 }));
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(viewport);
+    if (content) observer.observe(content);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); };
+  }, [world.width, world.height]);
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -70,7 +93,10 @@ export function Team(props: {
         setSnapshot(filtered);
         rendererRef.current?.setSnapshot(filtered);
         setZones(rendererRef.current?.zoneLabels() ?? []);
-        if (canvasRef.current) setWorldW(canvasRef.current.width);
+        if (canvasRef.current) {
+          const { width, height } = canvasRef.current;
+          setWorld(previous => previous.width === width && previous.height === height ? previous : { width, height });
+        }
         setLabels(rendererRef.current?.labels() ?? []);
       } catch {
         /* keep last frame */
@@ -93,14 +119,14 @@ export function Team(props: {
   const personCards = props.cards.filter((c) => c.type === "decide" && person && c.who === person.name);
 
   return (
-    <div className="page" style={{ maxWidth: "none" }}>
+    <div className="office-team">
       {snapshot && snapshot.people.length === 0 && <div className="empty"><b>还没有{t("employee")}</b><span>在侧栏「{t("lead")}」旁边点加号，新建一位{t("lead")}和他的{t("employee")}。</span></div>}
-      <div className="office-scroll">
-      <div className="office-wrap" style={{ maxWidth: worldW * 4, minWidth: worldW * 2, margin: "0 auto" }}>
+      <div className="office-scroll" ref={viewportRef}>
+      <div className="office-wrap" style={{ width: world.width * scale }}>
         <canvas
           ref={canvasRef}
-          width={300}
-          height={180}
+          width={ZONE_W}
+          height={WORLD_H}
           aria-label={`${t("team")}：点击人物查看`}
           onClick={(e) => {
             const rc = e.currentTarget.getBoundingClientRect();

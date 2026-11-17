@@ -101,9 +101,13 @@ export const BODY_COLORS = ["#5B7FD6", "#7D8794", "#9C8CC9", "#3E9C8C", "#B07CC9
 /** 8x8 robot: a antenna, f frame, s screen, e eye, b body. */
 export const ROBOT = ["...aa...", ".ffffff.", "ffssssff", "fsessesf", "fssssssf", ".ffffff.", "..bbbb..", ".b.bb.b."];
 
-export const WORLD_H = 300;
+export const WORLD_H = 228;
 export const ZONE_W = 240;
 const TOP = 46;
+const LEAD_DESK_Y = TOP + 46;
+const ROW_GAP = 100;
+// The desk hides the seated character's lower body; walking sprites use all 44px.
+const SEATED_BASELINE = 32;
 
 export interface Seat {
   agentId: string;
@@ -139,19 +143,19 @@ export function layoutOffice(snapshot: OfficeSnapshot): Layout {
     const staff = people.filter((p) => p !== lead);
     if (lead) {
       const deskX = z.x + z.w / 2 - 20;
-      const deskY = TOP + 64;
-      seats.push({ agentId: lead.agentId, x: deskX - 4, y: deskY - SPRITE_HEIGHT, deskX, deskY, isLead: true, zone: zi });
+      const deskY = LEAD_DESK_Y;
+      seats.push({ agentId: lead.agentId, x: deskX - 4, y: deskY - SEATED_BASELINE, deskX, deskY, isLead: true, zone: zi });
     }
     staff.forEach((p, i) => {
       const col = i % 3;
       const row = Math.floor(i / 3);
       const deskX = z.x + 16 + col * 74;
-      const deskY = TOP + 164 + row * 100;
-      seats.push({ agentId: p.agentId, x: deskX - 4, y: deskY - SPRITE_HEIGHT, deskX, deskY, isLead: false, zone: zi });
+      const deskY = LEAD_DESK_Y + (row + (lead ? 1 : 0)) * ROW_GAP;
+      seats.push({ agentId: p.agentId, x: deskX - 4, y: deskY - SEATED_BASELINE, deskX, deskY, isLead: false, zone: zi });
     });
   });
-  const rows = Math.max(1, ...zones.map((_, zi) => Math.ceil(seats.filter((s) => s.zone === zi && !s.isLead).length / 3)));
-  return { width: Math.max(ZONE_W, zones.length * ZONE_W), height: Math.max(WORLD_H, TOP + 164 + rows * 100 + 6), zones, seats };
+  const height = Math.max(WORLD_H, ...seats.map((s) => s.deskY + 36));
+  return { width: Math.max(ZONE_W, zones.length * ZONE_W), height, zones, seats };
 }
 
 export function hashColor(id: string): string {
@@ -239,10 +243,14 @@ export class OfficeRenderer {
       if (seat && lead) {
         const midY = lead.deskY + 22;
         const aisleX = Math.min(seat.deskX + 42, (seat.zone + 1) * ZONE_W - SPRITE_WIDTH - 2);
+        // Leave the first row vertically before crossing the open corridor,
+        // instead of passing sideways through the neighbouring employee.
+        const approach: Array<[number, number]> = seat.deskY === lead.deskY + ROW_GAP
+          ? [[seat.x, midY]]
+          : [[aisleX, seat.y], [aisleX, midY]];
         const path: Array<[number, number]> = [
           [seat.x, seat.y],
-          [aisleX, seat.y],
-          [aisleX, midY],
+          ...approach,
           [lead.x, midY],
           [lead.x, lead.deskY + 14],
         ];
@@ -266,7 +274,7 @@ export class OfficeRenderer {
         bubble: p.bubble ?? null,
         pendingCards: p.pendingCards,
         left: (x + SPRITE_WIDTH / 2) / this.layout.width,
-        top: (y + SPRITE_HEIGHT + 17) / this.layout.height,
+        top: (w || !seat ? y + SPRITE_HEIGHT + 5 : seat.deskY + 18) / this.layout.height,
         bubbleTop: Math.max(42, y - 6) / this.layout.height,
         isLead: p.isLead,
       };
@@ -373,7 +381,7 @@ export class OfficeRenderer {
     for (const s of this.layout.seats) {
       const p = byId.get(s.agentId);
       if (!p) continue;
-      this.px(P.chair, s.deskX + 14, s.deskY - 8, 14, 9);
+      this.px(P.chair, s.deskX + 12, s.deskY - 20, 18, 21);
       const walking = this.walkers.has(s.agentId);
       if (!walking) this.drawRobot(s.x, s.y, p, t);
       this.drawDesk(s.deskX, s.deskY, walking ? "idle" : p.anim, t, s.isLead);

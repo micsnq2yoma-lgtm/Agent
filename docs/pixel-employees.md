@@ -31,15 +31,22 @@ Gemini、Kimi、GLM、Qwen、MiniMax 和 Grok 从各家官方标志中提取轮�
 
 原有 `/office` 状态优先级保留。思考、阅读、编写、搜索四个细分动作也导出供有明确状态的调用方使用；办公室不会根据时间随机假装员工正在执行这些动作。`AgentCharacter` 的显式状态映射到相应动作；没有显式状态时读取员工状态。小头像默认静态，大头像与办公室播放动画。SVG 和 Canvas 都尊重 `prefers-reduced-motion`。
 
-对话框仅展示状态与真实任务标题，标题使用 React 文本转义，长文本两行省略，完整内容保留在标题属性和原有任务详情中。窄屏横向滚动，办公室至少以 2 倍像素比例显示。保留现有员工/任务管理入口，没有新增抚摸、喂食、拖拽或鼠标跟随功能。
+对话框仅展示状态与真实任务标题，标题使用 React 文本转义，长文本两行省略，完整内容保留在标题属性和原有任务详情中。办公室根据统计条下方的可视宽度和高度选择 2～4 倍整数缩放；单主管加三名员工的画布为 240×228，去掉末尾多余的一整排留白。窄屏保留横向滚动，多排团队按实际工位增加高度并允许纵向滚动。滚动条固定占位，避免临界宽度时反复缩放；窗口变大或变小时重新测量。
+
+坐姿比原来的桌面基线下移 12 个逻辑像素，椅背先画、人物居中、桌面和显示器最后画，遮住下半身；姓名位于桌脚下方，气泡与上一排姓名在最低 2 倍缩放时也保留间距。原模型素材、状态动画和帧时长不变。保留现有员工/任务管理入口，没有新增抚摸、喂食、拖拽或鼠标跟随功能。
+
+![1440×900：真实 Team 组件与模拟状态的隔离验收，主管及三员工均在首屏](assets/pixel-office-1440x900.png)
 
 ## 检查与预览
 
 ```sh
 pnpm exec vitest run packages/pixel-office/test packages/shared/test apps/console/test/office.test.ts
 node scripts/preview-pixel-employees.mjs
+node scripts/acceptance/pixel-office-viewport.mjs
 ```
 
 第二条命令需要 Node 24，在 `work/pixel-preview/index.html` 生成无需联网的被动动画图鉴（演示状态，不连接真实任务）。浏览器打开即可检查全部模型和动作。源素材留在代码中，可以通过 `characterFrame` 导出像素矩形，通过 `characterSvg` / `characterDataUrl` 导出静态或动画 SVG。
+
+第三条命令使用已安装的 Playwright/Chromium；也可通过 `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` 指定本机 Chrome。它加载真实 Team、皮肤、字标和 CSS，以隔离的模拟 `/office` 检查首屏、气泡间距、窄屏滚动和窗口缩放；报告与截图写到 `work/pixel-office-viewport/`，不读写真实员工或任务。页面外围的统计条与输入框为采用生产样式的演示结构，不能替代完整后端端到端验收。
 
 版权和来源见 `packages/pixel-office/THIRD_PARTY_LICENSES`。
