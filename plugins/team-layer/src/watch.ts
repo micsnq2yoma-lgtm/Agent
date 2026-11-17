@@ -83,3 +83,39 @@ export function wakeComment(w: Watch, wake: "finished" | "error" | "expired", ou
     .filter(Boolean)
     .join("\n\n");
 }
+
+/** What the project drawer shows about one task family: its watches and pending reminders. Pure. */
+export interface WatchView {
+  id: string;
+  issueId: string;
+  agentId: string;
+  command: string;
+  everyMinutes: number;
+  checks: number;
+  nextAt: string;
+  expiresAt: string;
+  note: string;
+}
+export interface ReminderView {
+  issueId: string;
+  agentId: string;
+  dueAt: string;
+  note: string;
+}
+export function watchesFor(
+  watches: Watch[],
+  reminders: Array<{ issueId: string; agentId: string; dueAt: string; note: string }>,
+  issueIds: string[],
+): { watches: WatchView[]; reminders: ReminderView[] } {
+  const ids = new Set(issueIds);
+  return {
+    watches: watches
+      .filter((w) => ids.has(w.issueId))
+      .sort((a, b) => a.nextAt.localeCompare(b.nextAt))
+      .map((w) => ({ id: w.id, issueId: w.issueId, agentId: w.agentId, command: w.command.slice(0, 300), everyMinutes: w.everyMinutes, checks: w.checks, nextAt: w.nextAt, expiresAt: w.expiresAt, note: w.note })),
+    reminders: reminders
+      .filter((r) => ids.has(r.issueId))
+      .sort((a, b) => a.dueAt.localeCompare(b.dueAt))
+      .map((r) => ({ issueId: r.issueId, agentId: r.agentId, dueAt: r.dueAt, note: r.note })),
+  };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { afterCheck, classifyProbe, dueWatches, newWatch, wakeComment } from "../src/watch.js";
+import { afterCheck, classifyProbe, dueWatches, newWatch, wakeComment, watchesFor } from "../src/watch.js";
 
 const t0 = Date.parse("2026-11-15T10:00:00Z");
 const ctx = { companyId: "c", agentId: "a", cwd: "/w", now: t0, id: "w1" };
@@ -38,5 +38,21 @@ describe("watch", () => {
     expect(c).toContain("看守已结束：训练 v2");
     expect(c).toContain("END");
     expect(c.length).toBeLessThan(2000);
+  });
+});
+
+describe("watchesFor (project drawer)", () => {
+  it("only the task family's watches and reminders, soonest first, command trimmed", () => {
+    const a = newWatch({ issueId: "kid", command: "x".repeat(400), everyMinutes: 30 }, { ...ctx, id: "wa" });
+    const b = newWatch({ issueId: "kid", command: "probe.sh", everyMinutes: 5 }, { ...ctx, id: "wb" });
+    const other = newWatch({ issueId: "elsewhere", command: "probe.sh" }, { ...ctx, id: "wc" });
+    const rem = [
+      { issueId: "lead", agentId: "L", dueAt: "2026-11-15T12:00:00Z", note: "看看进度" },
+      { issueId: "elsewhere", agentId: "L", dueAt: "2026-11-15T11:00:00Z", note: "" },
+    ];
+    const v = watchesFor([a, b, other], rem, ["lead", "kid"]);
+    expect(v.watches.map((w) => w.id)).toEqual(["wb", "wa"]);
+    expect(v.watches[1].command).toHaveLength(300);
+    expect(v.reminders).toEqual([{ issueId: "lead", agentId: "L", dueAt: "2026-11-15T12:00:00Z", note: "看看进度" }]);
   });
 });

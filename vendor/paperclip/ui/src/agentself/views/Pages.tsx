@@ -4,7 +4,7 @@ import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins"
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
-import { adapterOfSource, reloadModels, useModels, type Provider } from "../lib/models";
+import { adapterOfSource, estimateYuan, formatYuan, priceOf, priceText, reloadModels, useModels, type Provider } from "../lib/models";
 import { SourceSelect } from "../components/SourceSelect";
 import { Skeleton } from "../components/Skeleton";
 import { LibrarySettings } from "./Library";
@@ -194,6 +194,14 @@ interface WindowSpend {
   outputTokens: number;
   costCents: number;
 }
+interface AgentModelSpend {
+  agentId: string;
+  model: string | null;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  costCents: number;
+}
 interface QuotaWindow {
   provider: string;
   ok: boolean;
@@ -205,16 +213,42 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
   const cid = ctx.company!.id;
   const [data] = usePoll(
     async () => {
-      const [byAgent, windows, quota] = await Promise.all([
+      const [byAgent, windows, quota, byModel] = await Promise.all([
         pc.get<Array<{ agentId: string; costCents: number }>>(`/companies/${cid}/costs/by-agent`).catch(() => []),
         pc.get<WindowSpend[]>(`/companies/${cid}/costs/window-spend`).catch(() => []),
         pc.get<QuotaWindow[]>(`/companies/${cid}/costs/quota-windows`).catch(() => []),
+        pc.get<AgentModelSpend[]>(`/companies/${cid}/costs/by-agent-model`).catch(() => []),
       ]);
-      return { byAgent: list<{ agentId: string; costCents: number }>(byAgent), windows: list<WindowSpend>(windows), quota: list<QuotaWindow>(quota) };
+      return { byAgent: list<{ agentId: string; costCents: number }>(byAgent), windows: list<WindowSpend>(windows), quota: list<QuotaWindow>(quota), byModel: list<AgentModelSpend>(byModel) };
     },
     20000,
     [cid],
   );
+  const models = useModels();
+  // API employees: their real token counts × the price the user filled in for each model
+  const estimate = (id: string): { yuan: number; missing: boolean } | null => {
+    const a = ctx.agents.find((x) => x.id === id);
+    const source = a?.metadata?.agentself?.source;
+    if (!source?.startsWith("api:")) return null;
+    let yuan = 0;
+    let missing = false;
+    for (const r of (data?.byModel ?? []).filter((x) => x.agentId === id)) {
+      const y = estimateYuan(r, priceOf(models, source, r.model ?? undefined));
+      if (y === null) missing = missing || r.inputTokens + r.outputTokens + r.cachedInputTokens > 0;
+      else yuan += y;
+    }
+    return { yuan, missing };
+  };
+  const estimateCell = (id: string) => {
+    const e = estimate(id);
+    if (!e) return <span className="sub">订阅</span>;
+    return (
+      <span title={e.missing ? "有模型还没填价格（设置 → 模型与订阅），这部分没算进去" : "按你填的价格和实际 token 折算"}>
+        {formatYuan(e.yuan)}
+        {e.missing ? " *" : ""}
+      </span>
+    );
+  };
   const agentCost = (id: string) => data?.byAgent.find((x) => x.agentId === id)?.costCents ?? ctx.agents.find((a) => a.id === id)?.spentMonthlyCents ?? 0;
   const depts = departmentKey ? ctx.departments.filter((d) => d.key === departmentKey) : ctx.departments;
   return (
@@ -228,6 +262,7 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
               <th>{t("department")} / {t("employee")}</th>
               <th>模型</th>
               <th>本月</th>
+              <th>API 实际（估算）</th>
               <th>预算</th>
               <th></th>
             </tr>
@@ -237,11 +272,13 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
               const members = ctx.agents.filter((a) => d.members.includes(a.id));
               const spent = members.reduce((s, a) => s + agentCost(a.id), 0);
               const budget = members.reduce((s, a) => s + (a.budgetMonthlyCents ?? 0), 0);
+              const est = members.map((a) => estimate(a.id)).filter((x): x is { yuan: number; missing: boolean } => !!x);
               return [
                 <tr key={d.key} style={{ fontWeight: 600 }}>
                   <td>{d.name}</td>
                   <td />
                   <td>{money(spent)}</td>
+                  <td>{est.length ? `${formatYuan(est.reduce((s, x) => s + x.yuan, 0))}${est.some((x) => x.missing) ? " *" : ""}` : "—"}</td>
                   <td>{budget ? money(budget) : "—"}</td>
                   <td>
                     {budget > 0 && (
@@ -256,6 +293,7 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
                     <td style={{ paddingLeft: 20 }}>{a.name}</td>
                     <td>{modelName(a)}</td>
                     <td>{money(agentCost(a.id))}</td>
+                    <td>{estimateCell(a.id)}</td>
                     <td>{a.budgetMonthlyCents ? money(a.budgetMonthlyCents) : "—"}</td>
                     <td />
                   </tr>
@@ -264,7 +302,9 @@ export function Usage({ ctx, departmentKey, embedded = false }: { ctx: Context; 
             })}
           </tbody>
         </table>
-        <p className="hint">订阅内的运行不实际计费；这里是按 API 价格折算的参考值。</p>
+        <p className="hint">
+          「本月」是 Paperclip 按 Claude 官方 API 价格折算的参考值：订阅内的运行不实际计费，走 DeepSeek 等 API 的员工也是按 Claude 价格算的。「API 实际（估算）」用这些员工真实的 token 数，乘以你在 设置 → 模型与订阅 里给每个模型填的价格（元 / 百万 token）；带 * 的表示有模型还没填价格，那部分没算进去。
+        </p>
       </div>
       {!departmentKey && (
       <div className="section">
@@ -892,11 +932,20 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [open, setOpen] = useState(!p.preset && !p.hasKey);
   const set = (k: keyof typeof form, v: string) => setForm({ ...form, [k]: v });
+  // prices: yuan per million tokens, one row per model in use (plus any the user added)
+  const toText = (x?: number) => (x === undefined ? "" : String(x));
+  const [prices, setPrices] = useState<Record<string, { input: string; output: string; cached: string }>>(() =>
+    Object.fromEntries(Object.entries(p.prices ?? {}).map(([k, v]) => [k, { input: toText(v.input), output: toText(v.output), cached: toText(v.cached) }])),
+  );
+  const [newModel, setNewModel] = useState("");
+  const priceModels = [...new Set([form.model, form.smallModel, ...Object.keys(prices)].filter(Boolean))];
+  const setPrice = (model: string, k: "input" | "output" | "cached", v: string) =>
+    setPrices((cur) => ({ ...cur, [model]: { ...(cur[model] ?? { input: "", output: "", cached: "" }), [k]: v } }));
   async function save() {
     setBusy("save");
     setMsg(null);
     try {
-      await as.put(`/providers/${p.id}`, { name: p.name, ...form, apiKey: form.apiKey || undefined });
+      await as.put(`/providers/${p.id}`, { name: p.name, ...form, apiKey: form.apiKey || undefined, prices });
       setForm({ ...form, apiKey: "" });
       setMsg("已保存。用这个服务商的主管和员工会自动换成新的设置。");
       onSaved();
@@ -945,6 +994,9 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
             {p.model}
             {p.models?.length ? ` · 共 ${p.models.length} 个模型` : ""}
           </span>
+          <span className="sub" style={{ display: "block" }} data-testid={`price-${p.id}`}>
+            {priceText(p.prices?.[p.model]) || "还没填价格"}
+          </span>
         </span>
         <span className={`status-tag ${p.hasKey ? "good" : ""}`}>{p.hasKey ? "可用" : "未配置"}</span>
       </button>
@@ -968,6 +1020,48 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
               轻量模型（后台小任务）
               <input className="input mono" list={listId} value={form.smallModel} onChange={(e) => set("smallModel", e.target.value)} />
             </label>
+          </div>
+          <div className="field">
+            <span>
+              价格（元 / 百万 token，按服务商官网填；用量页据此折算）
+              {p.pricingUrl && (
+                <a className="sub" style={{ marginLeft: 8 }} href={p.pricingUrl} target="_blank" rel="noreferrer">
+                  官网价格
+                </a>
+              )}
+            </span>
+            <table className="data price-table">
+              <thead>
+                <tr>
+                  <th>模型</th>
+                  <th>输入</th>
+                  <th>缓存命中</th>
+                  <th>输出</th>
+                </tr>
+              </thead>
+              <tbody>
+                {priceModels.map((m) => (
+                  <tr key={m}>
+                    <td className="mono">{m}</td>
+                    {(["input", "cached", "output"] as const).map((k) => (
+                      <td key={k}>
+                        <input className="input mono" inputMode="decimal" aria-label={`${m} ${k}`} value={prices[m]?.[k] ?? ""} placeholder={k === "cached" ? "同输入" : ""} onChange={(e) => setPrice(m, k, e.target.value)} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={4}>
+                    <input className="input mono" list={listId} placeholder="再加一个模型的价格（回车）" value={newModel} onChange={(e) => setNewModel(e.target.value)} onKeyDown={(e) => {
+                      if (e.key === "Enter" && newModel.trim()) {
+                        setPrice(newModel.trim(), "input", prices[newModel.trim()]?.input ?? "");
+                        setNewModel("");
+                      }
+                    }} />
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
           <label className="field">
             API key{p.hasKey ? "（已保存在 Paperclip 密钥库；填新的会替换）" : ""}
@@ -1056,7 +1150,7 @@ function ModelsSettings() {
     <>
       <div className="section">
         <h2>订阅</h2>
-        <p className="hint">订阅只用 Claude 和 Codex：这台电脑上登录的账号就是员工用的账号。三台电脑各自登录各自的订阅。</p>
+        <p className="hint">订阅只用 Claude 和 Codex：这台电脑上登录的账号就是员工用的账号。三台电脑各自登录各自的订阅。订阅是包月的，不按 token 计费，所以没有单价；剩余额度看 用量 → 订阅额度。</p>
         <div className="row">
           <div>
             <div className="label">Claude Code</div>
