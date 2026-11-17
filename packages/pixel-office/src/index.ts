@@ -1,6 +1,8 @@
 // Pixel office (PLAN 7.1). Input: an OfficeSnapshot. Output: a canvas drawing + label positions.
-// Room drawing is ported from the v0.1 demo (our own work); people are original 8x8 pixel robots.
+// Model-specific employees share the same integer-cell artwork as UI portraits.
 import type { OfficeAnim, OfficeSnapshot } from "@agentself/shared";
+import { characterDataUrl, characterFrame, characterSvg, FRAME_MS, SPRITE_HEIGHT, SPRITE_WIDTH } from "./characters.js";
+export * from "./characters.js";
 
 export interface OfficePalette {
   floorA: string;
@@ -99,9 +101,13 @@ export const BODY_COLORS = ["#5B7FD6", "#7D8794", "#9C8CC9", "#3E9C8C", "#B07CC9
 /** 8x8 robot: a antenna, f frame, s screen, e eye, b body. */
 export const ROBOT = ["...aa...", ".ffffff.", "ffssssff", "fsessesf", "fssssssf", ".ffffff.", "..bbbb..", ".b.bb.b."];
 
-export const WORLD_H = 180;
-export const ZONE_W = 150;
+export const WORLD_H = 228;
+export const ZONE_W = 240;
 const TOP = 46;
+const LEAD_DESK_Y = TOP + 46;
+const ROW_GAP = 100;
+// The desk hides the seated character's lower body; walking sprites use all 44px.
+const SEATED_BASELINE = 32;
 
 export interface Seat {
   agentId: string;
@@ -137,19 +143,19 @@ export function layoutOffice(snapshot: OfficeSnapshot): Layout {
     const staff = people.filter((p) => p !== lead);
     if (lead) {
       const deskX = z.x + z.w / 2 - 20;
-      const deskY = TOP + 32;
-      seats.push({ agentId: lead.agentId, x: deskX + 16, y: deskY - 11, deskX, deskY, isLead: true, zone: zi });
+      const deskY = LEAD_DESK_Y;
+      seats.push({ agentId: lead.agentId, x: deskX - 4, y: deskY - SEATED_BASELINE, deskX, deskY, isLead: true, zone: zi });
     }
     staff.forEach((p, i) => {
       const col = i % 3;
       const row = Math.floor(i / 3);
-      const deskX = z.x + 6 + col * 47;
-      const deskY = TOP + 78 + row * 46;
-      seats.push({ agentId: p.agentId, x: deskX + 16, y: deskY - 11, deskX, deskY, isLead: false, zone: zi });
+      const deskX = z.x + 16 + col * 74;
+      const deskY = LEAD_DESK_Y + (row + (lead ? 1 : 0)) * ROW_GAP;
+      seats.push({ agentId: p.agentId, x: deskX - 4, y: deskY - SEATED_BASELINE, deskX, deskY, isLead: false, zone: zi });
     });
   });
-  const rows = Math.max(1, ...zones.map((_, zi) => Math.ceil(seats.filter((s) => s.zone === zi && !s.isLead).length / 3)));
-  return { width: Math.max(ZONE_W, zones.length * ZONE_W), height: Math.max(WORLD_H, TOP + 78 + rows * 46 + 6), zones, seats };
+  const height = Math.max(WORLD_H, ...seats.map((s) => s.deskY + 36));
+  return { width: Math.max(ZONE_W, zones.length * ZONE_W), height, zones, seats };
 }
 
 export function hashColor(id: string): string {
@@ -180,6 +186,7 @@ export interface Label {
   /** fractions of the canvas (0..1) for HTML overlay positioning */
   left: number;
   top: number;
+  bubbleTop: number;
   isLead: boolean;
 }
 
@@ -213,6 +220,12 @@ export class OfficeRenderer {
   setSnapshot(s: OfficeSnapshot) {
     this.snapshot = s;
     this.layout = layoutOffice(s);
+    for (const id of this.seenWalk) {
+      if (this.reducedMotion || !s.people.some((p) => p.agentId === id && p.anim === "walk_to_lead")) {
+        this.seenWalk.delete(id);
+        this.walkers.delete(id);
+      }
+    }
     if (this.canvas.width !== this.layout.width || this.canvas.height !== this.layout.height) {
       this.canvas.width = this.layout.width;
       this.canvas.height = this.layout.height;
@@ -229,10 +242,15 @@ export class OfficeRenderer {
       const lead = this.layout.seats.find((x) => x.isLead && x.zone === seat?.zone);
       if (seat && lead) {
         const midY = lead.deskY + 22;
+        const aisleX = Math.min(seat.deskX + 42, (seat.zone + 1) * ZONE_W - SPRITE_WIDTH - 2);
+        // Leave the first row vertically before crossing the open corridor,
+        // instead of passing sideways through the neighbouring employee.
+        const approach: Array<[number, number]> = seat.deskY === lead.deskY + ROW_GAP
+          ? [[seat.x, midY]]
+          : [[aisleX, seat.y], [aisleX, midY]];
         const path: Array<[number, number]> = [
           [seat.x, seat.y],
-          [seat.deskX + 42, seat.y],
-          [seat.deskX + 42, midY],
+          ...approach,
           [lead.x, midY],
           [lead.x, lead.deskY + 14],
         ];
@@ -255,8 +273,9 @@ export class OfficeRenderer {
         anim: p.anim,
         bubble: p.bubble ?? null,
         pendingCards: p.pendingCards,
-        left: (x + 4) / this.layout.width,
-        top: (y + 22) / this.layout.height,
+        left: (x + SPRITE_WIDTH / 2) / this.layout.width,
+        top: (w || !seat ? y + SPRITE_HEIGHT + 5 : seat.deskY + 18) / this.layout.height,
+        bubbleTop: Math.max(42, y - 6) / this.layout.height,
         isLead: p.isLead,
       };
     });
@@ -274,7 +293,7 @@ export class OfficeRenderer {
       const w = this.walkers.get(s.agentId);
       const px = w ? w.x : s.x;
       const py = w ? w.y : s.y;
-      if (x >= px - 3 && x <= px + 11 && y >= py - 4 && y <= py + 12) return s.agentId;
+      if (x >= px && x <= px + SPRITE_WIDTH && y >= py && y <= py + SPRITE_HEIGHT) return s.agentId;
       if (!w && x >= s.deskX && x <= s.deskX + 40 && y >= s.deskY - 12 && y <= s.deskY + 14) return s.agentId;
     }
     return null;
@@ -302,7 +321,8 @@ export class OfficeRenderer {
   private frame(t: number) {
     const dt = Math.min(64, t - (this.last || t));
     this.last = t;
-    this.stepWalkers(dt);
+    if (!this.reducedMotion) this.stepWalkers(dt);
+    if (this.reducedMotion) t = 0;
     const P = this.palette;
     const { width: W, height: H } = this.layout;
     this.ctx.imageSmoothingEnabled = false;
@@ -361,19 +381,15 @@ export class OfficeRenderer {
     for (const s of this.layout.seats) {
       const p = byId.get(s.agentId);
       if (!p) continue;
-      this.px(P.chair, s.deskX + 14, s.deskY - 8, 14, 9);
+      this.px(P.chair, s.deskX + 12, s.deskY - 20, 18, 21);
       const walking = this.walkers.has(s.agentId);
       if (!walking) this.drawRobot(s.x, s.y, p, t);
       this.drawDesk(s.deskX, s.deskY, walking ? "idle" : p.anim, t, s.isLead);
-      if (!walking) this.drawBadge(s.x, s.y, p.anim, t);
     }
     for (const w of this.walkers.values()) {
       const p = byId.get(w.agentId);
       if (p) {
         this.drawRobot(w.x, w.y, p, t, true);
-        // carrying a report
-        this.px("#ffffff", w.x + 8, w.y + 6, 4, 5);
-        this.px("#9aa3b5", w.x + 9, w.y + 8, 2, 1);
       }
     }
     // selection marker
@@ -384,9 +400,9 @@ export class OfficeRenderer {
         const x = w ? w.x : s.x;
         const y = w ? w.y : s.y;
         const b = this.reducedMotion ? 0 : Math.floor(t / 300) % 2;
-        this.px(P.accent, x + 1, y - 10 + b, 6, 2);
-        this.px(P.accent, x + 2, y - 8 + b, 4, 1);
-        this.px(P.accent, x + 3, y - 7 + b, 2, 1);
+        this.px(P.accent, x + 21, y - 10 + b, 6, 2);
+        this.px(P.accent, x + 22, y - 8 + b, 4, 1);
+        this.px(P.accent, x + 23, y - 7 + b, 2, 1);
       }
     }
   }
@@ -400,47 +416,10 @@ export class OfficeRenderer {
   }
 
   private drawRobot(x: number, y: number, p: OfficeSnapshot["people"][number], t: number, walking = false) {
-    const paused = p.anim === "paused";
-    const body = paused ? grey(hashColor(p.agentId)) : hashColor(p.agentId);
-    const eye = paused ? "#6b6b6b" : EYE_COLORS[p.eye];
-    const blink = !this.reducedMotion && (t + p.agentId.length * 377) % 3600 < 130;
-    const typing = p.anim === "working" && !this.reducedMotion;
-    const bob = walking ? Math.floor(t / 140) % 2 : typing ? Math.floor(t / 220) % 2 : 0;
-    const pal: Record<string, string> = {
-      a: paused ? "#8a8a8a" : p.anim === "failed" ? "#c23b3b" : "#9aa3b5",
-      f: paused ? "#5a5a5a" : "#2f2f3a",
-      s: "#1b1722",
-      e: blink ? "#1b1722" : eye,
-      b: body,
-    };
-    ROBOT.forEach((row, r) => {
-      for (let c = 0; c < row.length; c++) {
-        const ch = row[c];
-        if (ch === ".") continue;
-        // legs alternate when walking
-        if (walking && r === 7 && ((bob && c < 4) || (!bob && c >= 4))) continue;
-        this.px(pal[ch] ?? body, x + c, y + r - (r < 6 ? bob : 0), 1, 1);
-      }
-    });
-  }
-
-  private drawBadge(x: number, y: number, anim: OfficeAnim, t: number) {
-    const flash = this.reducedMotion || Math.floor(t / 400) % 2 === 0;
-    if (anim === "failed") {
-      this.px("#c23b3b", x + 3, y - 9, 2, 5);
-      this.px("#c23b3b", x + 3, y - 3, 2, 1);
-    }
-    if (anim === "waiting") {
-      // holding up a sign
-      this.px("#5e4733", x + 8, y - 6, 1, 10);
-      this.px(flash ? "#ffc56b" : "#ffffff", x + 5, y - 12, 8, 6);
-      this.px("#1b1722", x + 8, y - 11, 2, 1);
-      this.px("#1b1722", x + 9, y - 10, 1, 2);
-      this.px("#1b1722", x + 9, y - 7, 1, 1);
-    }
-    if (anim === "delivering") {
-      this.px("#ffffff", x + 9, y + 2, 4, 5);
-      this.px("#2b7a3b", x + 10, y + 4, 2, 1);
+    const frame = this.reducedMotion ? 0 : Math.floor(t / FRAME_MS);
+    const action = walking ? "walk_to_lead" : p.anim;
+    for (const [dx, dy, w, h, color] of characterFrame(p.eye, action, frame)) {
+      this.px(color, x + dx, y + dy, w, h);
     }
   }
 
@@ -500,24 +479,11 @@ export class OfficeRenderer {
   }
 }
 
-/**
- * The pixel robot as a standalone SVG string (P9): used as every employee avatar in the
- * Paperclip admin pages. Body colour comes from the seed (agent id), eyes from the adapter.
- */
-export function robotSvg(seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false, background = "#26241f"): string {
-  const body = seed === "frontdesk" ? BODY_COLORS[0] : hashColor(seed);
-  const pal: Record<string, string> = {
-    a: "#9aa3b5",
-    f: muted ? "#5a5a5a" : "#2f2f3a",
-    s: "#1b1722",
-    e: muted ? "#6b6b6b" : EYE_COLORS[eye],
-    b: muted ? grey(body) : body,
-  };
-  const rects = ROBOT.flatMap((row, y) => [...row].map((ch, x) => (ch === "." ? "" : `<rect x="${x}" y="${y}" width="1" height="1" fill="${pal[ch]}"/>`))).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-1 -1 10 10" shape-rendering="crispEdges"><rect x="-1" y="-1" width="10" height="10" rx="1.2" fill="${background}"/>${rects}</svg>`;
+/** Compatibility API for existing avatar consumers. */
+export function robotSvg(_seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false, _background = "#26241f"): string {
+  return characterSvg(eye, muted ? "paused" : "idle", { muted });
 }
 
-/** robotSvg as a data: URL for <img src>. */
-export function robotDataUrl(seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false): string {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(robotSvg(seed, eye, muted))}`;
+export function robotDataUrl(_seed: string, eye: keyof typeof EYE_COLORS = "claude", muted = false): string {
+  return characterDataUrl(eye, muted ? "paused" : "idle", { muted });
 }

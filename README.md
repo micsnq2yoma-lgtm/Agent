@@ -19,7 +19,7 @@ plugins/team-layer/  Paperclip 插件：返工上限、跳数上限、卡片与�
 plugins/im-feishu/   飞书通道（长连接，无需公网地址）
 packages/shared/     类型：卡片、消息、部门包、办公室快照
 packages/skins/      皮肤：办公室（默认）、朝堂；共享皮肤校验与注册
-packages/pixel-office/ 像素办公室 canvas 渲染（原创 8×8 像素机器人）
+packages/pixel-office/ 模型专属像素员工、状态动画与办公室 canvas 渲染
 skills/              主管 / 员工 / 记忆技能包
 packs/departments/   新建团队用的空白模板（主管和员工都由你命名）
 scripts/             启动、建团队、开机自启、验收脚本、界面中文化工具；dev/ 下是截图和删除团队的小工具

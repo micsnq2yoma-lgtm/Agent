@@ -14,10 +14,9 @@ export interface AgentCharacterProps extends Omit<AgentAvatarProps, "pose"> {
   followCursor?: boolean;
   followRotation?: boolean;
 }
-// Agentself (P9): every employee portrait is the static pixel robot (see AgentAvatar);
-// the animated Paperclip character is kept below, unused.
-export function AgentCharacter({ agent, appearance, size = 256, muted = false, className, label, name }: AgentCharacterProps) {
-  return <AgentAvatar agent={agent} appearance={appearance} size={size} muted={muted} className={className} label={label} name={name} />;
+// Display only: state drives pixel frames. Cursor tracking and pet controls are not used.
+export function AgentCharacter({ agent, appearance, size = 256, state, motion = "auto", muted = false, className, label, name }: AgentCharacterProps) {
+  return <AgentAvatar agent={agent} appearance={appearance} size={size} pose={state} animated={motion === "auto"} muted={muted} className={className} label={label} name={name} />;
 }
 
 export function PaperclipAgentCharacter({ agent, appearance, size = 256, state = "idle", muted = false, motion = "auto", trackingRegion, trackingScope = "region", followCursor = true, followRotation = true, className, label, name }: AgentCharacterProps) {

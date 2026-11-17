@@ -304,9 +304,16 @@ html.dark .agentself .drawer-backdrop { background: rgba(0, 0, 0, 0.5); }
 .agentself .status-tag.good { background: color-mix(in srgb, var(--as-medium) 12%, transparent); color: var(--as-medium); }
 
 /* ---------- team / pixel office ---------- */
-.agentself .office-wrap { position: relative; width: 100%; }
+.agentself .content:has(.office-team) { scrollbar-gutter: stable; }
+.employee-pixel-avatar { flex: none; display: block; object-fit: contain; image-rendering: pixelated; background: var(--as-avatar-bg); border-radius: var(--as-radius, 8px); }
+.agentself .office-scroll { overflow-x: auto; }
+.agentself .office-wrap { position: relative; margin: 0 auto; }
+.agentself .employee-speech { position: absolute; transform: translate(-50%, -100%); width: 136px; box-sizing: border-box; display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; color: var(--as-text); background: var(--as-surface); border: 1px solid var(--as-border); border-radius: var(--as-radius, 8px); box-shadow: var(--as-x-shadow-nav); pointer-events: none; font-size: 11px; line-height: 1.35; }
+.agentself .employee-speech::after { content: ""; position: absolute; top: 100%; left: calc(50% - 4px); border: 4px solid transparent; border-top-color: var(--as-surface); }
+.agentself .employee-speech strong { font-weight: 600; }
+.agentself .employee-speech span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: var(--as-muted); }
 .agentself .office-wrap canvas { width: 100%; image-rendering: pixelated; display: block; border-radius: var(--as-x-r-panel); box-shadow: var(--as-x-shadow-card); cursor: pointer; }
-.agentself .nameplate { position: absolute; transform: translate(-50%, 0); font-size: 11px; background: var(--as-surface); border: 0; border-radius: 999px; padding: 0 8px; white-space: nowrap; pointer-events: none; box-shadow: var(--as-x-shadow-nav); }
+.agentself .nameplate { position: absolute; transform: translate(-50%, 0); max-width: 136px; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; font-size: 11px; background: var(--as-surface); border: 0; border-radius: 999px; padding: 0 8px; white-space: nowrap; pointer-events: none; box-shadow: var(--as-x-shadow-nav); }
 .agentself .nameplate .m { color: var(--as-muted); margin-left: 4px; }
 .agentself .nameplate .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
 .agentself .zone-label { position: absolute; top: 2px; transform: translateX(-50%); font-size: 12px; font-weight: 600; background: var(--as-surface); padding: 1px 10px; border-radius: 999px; box-shadow: var(--as-x-shadow-nav); }

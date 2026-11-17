@@ -1,27 +1,57 @@
 // @vitest-environment jsdom
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { expect, it } from "vitest";
-import { appearanceForPalette } from "@paperclipai/shared";
+import { afterEach, expect, it } from "vitest";
+import { registerAgentAdapters } from "@/agentself/lib/avatar";
 import { AgentAvatar } from "./AgentAvatar";
 import { AgentCharacter } from "./AgentCharacter";
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
-it("shows the uploaded image in small and animated-character surfaces, then returns to the palette on reset", async () => {
-  const base = appearanceForPalette("deep-tide");
-  const appearance = { ...base, customAvatarAssetId: "22222222-2222-4222-8222-222222222222" };
-  const container = document.createElement("div");
-  const root = createRoot(container);
+afterEach(() => registerAgentAdapters([]));
+const drawing = (container: HTMLElement, n = 0) => decodeURIComponent(container.querySelectorAll("img")[n]?.getAttribute("src") ?? "");
+
+it("renders the selected model in small and animated portraits without pet controls", async () => {
+  const container = document.createElement("div"); const root = createRoot(container);
+  const agent = { id: "coder", adapterType: "claude_local", adapterConfig: { model: "deepseek-chat" }, status: "running" };
   try {
-    await act(async () => root.render(<><AgentAvatar appearance={appearance} /><AgentCharacter appearance={appearance} /></>));
-    for (const image of container.querySelectorAll("img")) {
-      expect(image.getAttribute("src")).toBe("/api/assets/22222222-2222-4222-8222-222222222222/content");
-      expect(image.hasAttribute("srcset")).toBe(false);
-      expect(image.parentElement?.classList.contains("invisible")).toBe(false);
-    }
-    expect(container.querySelectorAll("img")).toHaveLength(2);
-    expect(container.querySelector("canvas")).toBeNull();
-    await act(async () => root.render(<AgentAvatar appearance={base} />));
-    expect(container.querySelector("img")?.getAttribute("src")).toContain("/api/agent-avatars/cap-v1/deep-tide/");
+    await act(async () => root.render(<><AgentAvatar agent={agent} /><AgentCharacter agent={agent} /></>));
+    expect(drawing(container)).toContain('data-family="deepseek"');
+    expect(drawing(container)).toContain('data-action="working"');
+    expect(drawing(container)).not.toContain("@keyframes");
+    expect(drawing(container, 1)).toContain("@keyframes");
+    expect(container.querySelector("button,canvas,input")).toBeNull();
+  } finally { await act(async () => root.unmount()); }
+});
+
+it("refreshes already mounted ID-only avatars after context hydration and model changes", async () => {
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<AgentAvatar agent={{ id: "a" }} label="员工" />));
+    expect(drawing(container)).toContain('data-family="other"');
+    await act(async () => registerAgentAdapters([{ id: "a", adapterType: "codex_local", status: "running" }]));
+    expect(drawing(container)).toContain('data-family="codex"');
+    await act(async () => registerAgentAdapters([{ id: "a", adapterType: "claude_local", adapterConfig: { model: "deepseek-chat" } }]));
+    expect(drawing(container)).toContain('data-family="deepseek"');
+    expect(container.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("员工");
+    await act(async () => registerAgentAdapters([]));
+    expect(drawing(container)).toContain('data-family="other"');
+  } finally { await act(async () => root.unmount()); }
+});
+
+it("keeps explicit still and paused portraits static, and animates an identity-free fallback", async () => {
+  const container = document.createElement("div"); const root = createRoot(container);
+  try {
+    await act(async () => root.render(<>
+      <AgentCharacter agent={{ adapterType: "codex_local" }} state="thinking" motion="still" />
+      <AgentCharacter agent={{ id: "a", adapterType: "codex_local", status: "paused" }} state="working" />
+      <AgentCharacter state="thinking" />
+    </>));
+    expect(drawing(container)).toContain('data-family="codex"');
+    expect(drawing(container)).toContain('data-action="thinking"');
+    expect(drawing(container)).not.toContain("@keyframes");
+    expect(drawing(container, 1)).toContain('data-action="paused"');
+    expect(drawing(container, 1)).not.toContain("@keyframes");
+    expect(drawing(container, 2)).toContain("@keyframes");
+    expect(drawing(container, 2)).toContain("prefers-reduced-motion:reduce");
   } finally { await act(async () => root.unmount()); }
 });

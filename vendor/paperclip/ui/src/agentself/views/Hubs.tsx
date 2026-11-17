@@ -262,7 +262,7 @@ export function DepartmentPage(props: {
                           <td>
                             {emp ? (
                               <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                                <Robot id={emp.id} eye={eyeOf(emp.adapterType)} size={22} />
+                                <Robot id={emp.id} eye={eyeOf(emp.adapterType, emp.adapterConfig?.model)} size={22} />
                                 {emp.name}
                               </span>
                             ) : (
@@ -287,7 +287,7 @@ export function DepartmentPage(props: {
               {employees.map((a) => (
                 <div key={a.id} className="row" style={{ cursor: "pointer" }} onClick={() => props.openEmployee(a.id)}>
                   <span style={{ display: "inline-flex", gap: 10, alignItems: "center", minWidth: 0 }}>
-                    <Robot id={a.id} eye={eyeOf(a.adapterType)} size={28} grey={a.status === "paused"} />
+                    <Robot id={a.id} eye={eyeOf(a.adapterType, a.adapterConfig?.model)} size={28} grey={a.status === "paused"} />
                     <span style={{ minWidth: 0 }}>
                       <div style={{ fontWeight: 600 }}>{a.name}</div>
                       <div className="sub">{a.capabilities || modelName(a)}</div>
@@ -326,7 +326,7 @@ export function DepartmentPage(props: {
               <tr key={a.id}>
                 <td>
                   <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
-                    {a.id === dept.leadAgentId ? <PackIcon name={dept.icon} /> : <Robot id={a.id} eye={eyeOf(a.adapterType)} size={22} grey={a.status === "paused"} />}
+                    {a.id === dept.leadAgentId ? <PackIcon name={dept.icon} /> : <Robot id={a.id} eye={eyeOf(a.adapterType, a.adapterConfig?.model)} size={22} grey={a.status === "paused"} />}
                     {a.name}
                   </span>
                 </td>

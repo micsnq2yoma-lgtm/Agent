@@ -1,7 +1,10 @@
 // AGENTEAM brand: the mark (three agents linked into one team, the lead in the brand colour) and the
 // wordmark AGEN·T·EAM in the display serif, the T (the letter AGENT and TEAM share) in the brand colour.
-// The original pixel robot avatar (employees only) is below.
-import { BODY_COLORS, EYE_COLORS, ROBOT, hashColor } from "@agentself/pixel-office";
+// Model-specific pixel employee portraits use the registered employee identity and observed status.
+import { characterDataUrl } from "@agentself/pixel-office";
+import { modelFamilyFor, officeAnimForStatus, type ModelFamily } from "@agentself/shared";
+import { useSyncExternalStore } from "react";
+import { employeeRevision, registeredEmployee, subscribeEmployees } from "../lib/avatar";
 
 /** The mark. Ink follows the text colour (light / dark skins); the lead head takes the brand colour. */
 export function LogoMark({ size = 24 }: { size?: number }) {
@@ -47,24 +50,17 @@ export function Wordmark({ size = 21, mark = true }: { size?: number; mark?: boo
   );
 }
 
-export function Robot({ id = "frontdesk", eye = "claude", size = 26, grey = false }: { id?: string; eye?: keyof typeof EYE_COLORS; size?: number; grey?: boolean }) {
-  const body = id === "frontdesk" ? BODY_COLORS[0] : hashColor(id);
-  const pal: Record<string, string> = {
-    a: "#9aa3b5",
-    f: grey ? "#5a5a5a" : "#2f2f3a",
-    s: "#1b1722",
-    e: grey ? "#6b6b6b" : EYE_COLORS[eye],
-    b: grey ? "#8a8a8a" : body,
-  };
-  return (
-    <svg width={size} height={size} viewBox="-1 -1 10 10" shapeRendering="crispEdges" aria-hidden="true" style={{ flex: "none", display: "block", background: "var(--as-x-avatar, var(--as-avatar-bg, #EEF0F2))", borderRadius: Math.round(size * 0.3) }}>
-      {ROBOT.flatMap((row, y) => [...row].map((ch, x) => (ch === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill={pal[ch]} />)))}
-    </svg>
-  );
+export function Robot({ id = "frontdesk", eye = "other", size = 26, grey = false, status }: { id?: string; eye?: ModelFamily; size?: number; grey?: boolean; status?: string }) {
+  useSyncExternalStore(subscribeEmployees, employeeRevision, () => 0);
+  const employee = registeredEmployee(id);
+  const family = employee?.family ?? eye;
+  const action = grey ? "paused" : officeAnimForStatus(status ?? employee?.status);
+  return <img width={size} height={size} alt="" aria-hidden="true" className="employee-pixel-avatar"
+    src={characterDataUrl(family, action, { animated: size >= 40, muted: grey })} />;
 }
 
-export function eyeOf(adapterType: string | undefined): keyof typeof EYE_COLORS {
-  return adapterType === "claude_local" ? "claude" : adapterType === "codex_local" ? "codex" : "other";
+export function eyeOf(adapterType: string | undefined, model?: unknown): ModelFamily {
+  return modelFamilyFor(adapterType, model);
 }
 
 export function modelName(a: { adapterType?: string; adapterConfig?: { model?: string }; metadata?: { agentself?: { source?: string } } } | undefined): string {

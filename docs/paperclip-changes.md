@@ -36,6 +36,8 @@
 | 2026-11-16 | `packages/adapters/codex-local/src/server/codex-home.ts`（p18 · codex 验收） | Windows 上给员工的 Codex 运行目录建 `auth.json` 软链接被拒（EPERM）时，退回硬链接（同盘，同一个文件），再不行就复制一份；硬链接视为已链好，复制件比源文件新时（Codex 刷新过令牌）先拷回源文件再重建 | 没有管理员 / 开发者模式时 Windows 不能建文件软链接，Codex 员工第一次运行就 `adapter_failed`。目录软链接不受影响（仍按原逻辑） |
 
 ## 待做
+像素员工（2026-11-16）：`AgentAvatar` / `AgentCharacter` / Agentself `Robot` 共用外层 `@agentself/pixel-office` 的模型形象与状态动画；员工注册表支持模型更新和公司切换；Team 展示被动任务气泡。无新增宠物交互、状态采集或执行控制。实现及验证见 [pixel-employees.md](pixel-employees.md) 和 [pixel-employees-verification.md](pixel-employees-verification.md)。
+
 - 后台中文化：已完成（见 docs/phase-7-report.md）；上游更新后重跑 scripts/i18n。
 
 ## 运行方式

@@ -1,4 +1,5 @@
 // Office snapshot (PLAN 7.1): agent status + runs + attention -> pixel animation state.
+import { modelFamilyFor } from "@agentself/shared";
 const arr = (x) => (Array.isArray(x) ? x : (x?.items ?? []));
 
 /** Pure mapping, priority order from PLAN 7.1. */
@@ -12,10 +13,8 @@ export function animFor({ agent, lastRunFailed, waitingCards, running, inReview,
   return "idle";
 }
 
-export function eyeFor(adapterType) {
-  if (adapterType === "claude_local") return "claude";
-  if (adapterType === "codex_local") return "codex";
-  return "other";
+export function eyeFor(adapterType, model) {
+  return modelFamilyFor(adapterType, model);
 }
 
 export function modelLabel(agent) {
@@ -58,10 +57,10 @@ export async function buildOfficeSnapshot(ctx, pc, now = Date.now()) {
         name: agent.name,
         title: agent.title ?? "",
         model: modelLabel(agent),
-        eye: eyeFor(agent.adapterType),
+        eye: eyeFor(agent.adapterType, agent.adapterConfig?.model),
         isLead: !!m.isLead,
         anim: animFor({ agent, lastRunFailed: last?.status === "failed", waitingCards, running, inReview, justDelivered }),
-        bubble: current ? current.title.slice(0, 24) : null,
+        bubble: current?.title ?? null,
         pendingCards: waitingCards,
         currentIssueId: current?.id ?? null,
       };

@@ -23,6 +23,9 @@ importers:
       '@agentself/im-feishu':
         specifier: workspace:*
         version: link:../../plugins/im-feishu
+      '@agentself/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@agentself/skins':
         specifier: workspace:*
         version: link:../../packages/skins
