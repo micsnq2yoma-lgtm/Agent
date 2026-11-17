@@ -4,7 +4,7 @@ import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agentself/skins"
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
-import { adapterOfSource, estimateYuan, formatYuan, priceOf, priceText, reloadModels, useModels, type Provider } from "../lib/models";
+import { adapterOfSource, contextLengthText, estimateYuan, formatYuan, priceOf, priceText, reloadModels, useModels, type Provider } from "../lib/models";
 import { SourceSelect } from "../components/SourceSelect";
 import { Skeleton } from "../components/Skeleton";
 import { LibrarySettings } from "./Library";
@@ -937,15 +937,21 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
   const [prices, setPrices] = useState<Record<string, { input: string; output: string; cached: string }>>(() =>
     Object.fromEntries(Object.entries(p.prices ?? {}).map(([k, v]) => [k, { input: toText(v.input), output: toText(v.output), cached: toText(v.cached) }])),
   );
+  const [contextLengths, setContextLengths] = useState<Record<string, string>>(() =>
+    Object.fromEntries(Object.entries(p.contextLengths ?? {}).map(([model, length]) => [model, String(length)])),
+  );
   const [newModel, setNewModel] = useState("");
-  const priceModels = [...new Set([form.model, form.smallModel, ...Object.keys(prices)].filter(Boolean))];
+  const priceModels = [...new Set([form.model, form.smallModel, ...(p.models ?? []), ...Object.keys(prices), ...Object.keys(contextLengths)].filter(Boolean))];
   const setPrice = (model: string, k: "input" | "output" | "cached", v: string) =>
     setPrices((cur) => ({ ...cur, [model]: { ...(cur[model] ?? { input: "", output: "", cached: "" }), [k]: v } }));
   async function save() {
     setBusy("save");
     setMsg(null);
     try {
-      await as.put(`/providers/${p.id}`, { name: p.name, ...form, apiKey: form.apiKey || undefined, prices });
+      if (Object.values(contextLengths).some((value) => value.trim() && (!Number.isSafeInteger(Number(value)) || Number(value) <= 0))) {
+        throw new Error("上下文长度要填正整数（单位 token），不知道的可以留空。");
+      }
+      await as.put(`/providers/${p.id}`, { name: p.name, ...form, apiKey: form.apiKey || undefined, prices, contextLengths });
       setForm({ ...form, apiKey: "" });
       setMsg("已保存。用这个服务商的主管和员工会自动换成新的设置。");
       onSaved();
@@ -959,8 +965,9 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
     setBusy("models");
     setMsg(null);
     try {
-      const r = await as.post<{ models: string[]; from: string }>(`/providers/${p.id}/models`, { apiKey: form.apiKey, baseUrl: form.baseUrl });
-      setMsg(`拿到 ${r.models.length} 个模型，填模型名时可以直接选。`);
+      const r = await as.post<{ models: string[]; contextLengths?: Record<string, number>; from: string }>(`/providers/${p.id}/models`, { apiKey: form.apiKey, baseUrl: form.baseUrl });
+      setContextLengths((current) => ({ ...current, ...Object.fromEntries(Object.entries(r.contextLengths ?? {}).map(([model, length]) => [model, String(length)])) }));
+      setMsg(`拿到 ${r.models.length} 个模型，服务商提供的上下文长度已带入，未提供的可手动填写。`);
       onSaved();
     } catch (e) {
       setMsg(e instanceof Error ? e.message : String(e));
@@ -996,6 +1003,9 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
           </span>
           <span className="sub" style={{ display: "block" }} data-testid={`price-${p.id}`}>
             {priceText(p.prices?.[p.model]) || "还没填价格"}
+          </span>
+          <span className="sub" data-testid={`context-${p.id}`}>
+            {contextLengthText(p.contextLengths?.[p.model])}
           </span>
         </span>
         <span className={`status-tag ${p.hasKey ? "good" : ""}`}>{p.hasKey ? "可用" : "未配置"}</span>
@@ -1037,6 +1047,7 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
                   <th>输入</th>
                   <th>缓存命中</th>
                   <th>输出</th>
+                  <th>上下文（token）</th>
                 </tr>
               </thead>
               <tbody>
@@ -1048,11 +1059,14 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
                         <input className="input mono" inputMode="decimal" aria-label={`${m} ${k}`} value={prices[m]?.[k] ?? ""} placeholder={k === "cached" ? "同输入" : ""} onChange={(e) => setPrice(m, k, e.target.value)} />
                       </td>
                     ))}
+                    <td>
+                      <input className="input mono" type="number" min="1" step="1" inputMode="numeric" aria-label={`${m} 上下文长度`} value={contextLengths[m] ?? ""} placeholder="未提供" onChange={(e) => setContextLengths((current) => ({ ...current, [m]: e.target.value }))} />
+                    </td>
                   </tr>
                 ))}
                 <tr>
-                  <td colSpan={4}>
-                    <input className="input mono" list={listId} placeholder="再加一个模型的价格（回车）" value={newModel} onChange={(e) => setNewModel(e.target.value)} onKeyDown={(e) => {
+                  <td colSpan={5}>
+                    <input className="input mono" list={listId} placeholder="再加一个模型（回车）" value={newModel} onChange={(e) => setNewModel(e.target.value)} onKeyDown={(e) => {
                       if (e.key === "Enter" && newModel.trim()) {
                         setPrice(newModel.trim(), "input", prices[newModel.trim()]?.input ?? "");
                         setNewModel("");
@@ -1062,6 +1076,7 @@ function ProviderRow({ p, onSaved }: { p: Provider; onSaved: () => void }) {
                 </tr>
               </tbody>
             </table>
+            <div className="sub">上下文长度单位为 token；服务商未提供时可手填，留空表示未知。</div>
           </div>
           <label className="field">
             API key{p.hasKey ? "（已保存在 Paperclip 密钥库；填新的会替换）" : ""}
