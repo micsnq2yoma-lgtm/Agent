@@ -15,6 +15,8 @@ import { pnpmCommand } from "./lib/pnpm.mjs";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 migrateHome();
 const home = resolveHome();
+const stopFile = path.join(home, "run", "stopping");
+fs.rmSync(stopFile, { force: true });
 const logs = path.join(home, "logs");
 fs.mkdirSync(logs, { recursive: true });
 const args = new Set(process.argv.slice(2));
@@ -42,6 +44,7 @@ async function healthy(url) {
 function supervise(name, cmd, cmdArgs, cwd, healthUrl, extraEnv = {}, shell = false) {
   let backoff = 2000;
   const run = async () => {
+    if (fs.existsSync(stopFile)) return;
     if (healthUrl && (await healthy(healthUrl))) {
       log(`${name} already running (${healthUrl}); watching`);
       const t = setInterval(async () => {
@@ -77,6 +80,7 @@ if (!args.has("--no-paperclip")) {
   const spec = pnpmCommand(["paperclipai", "run"]);
   supervise("paperclip", spec.command, spec.args, path.join(root, "vendor", "paperclip"), "http://127.0.0.1:3100/api/health", {
     ...spec.env,
+    AGENTEAM_STOP_FILE: stopFile,
     PAPERCLIP_UI_DEV_MIDDLEWARE: process.env.PAPERCLIP_UI_DEV_MIDDLEWARE ?? "false",
   }, spec.shell);
 }

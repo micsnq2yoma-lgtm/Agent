@@ -39,6 +39,8 @@
 | 2026-11-17 | `ui/src/agenteam/components/WorkbenchHero.tsx`、`views/Home.tsx`、`styles.css` | 工作台标语改为 `Focus Your Attention on Valuable Things.`，强调 Attention 和 Valuable Things.，进入页面时光点从注意力传向价值，仅播放一次；支持减少动态效果、窄屏换行及离开页面时清理 | 落地选定的“光点接力”设计，静态文案始终可读，皮肤颜色沿用现有 token |
 
 ## 待做
+Windows 更新停机（2026-11-17）：`server/src/embedded-postgres-supervisor.ts` 增加可选的恢复许可回调；`server/src/index.ts` 仅在数据库退出或恢复时检查 AgenTeam 传入的停止标记。更新脚本先写标记，使用对应数据库的 `pg_ctl stop -m fast -w`，再结束 Windows 应用进程，避免强杀控制台父进程后遗留共享内存；不影响正常运行时的自动恢复。验证包括 Windows 临时数据库连续两轮停机重启、数据保留，以及另一套同时运行的数据库不受影响。
+
 像素员工（2026-11-16）：`AgentAvatar` / `AgentCharacter` / AgenTeam `Robot` 共用外层 `@agenteam/pixel-office` 的模型形象与状态动画；员工注册表支持模型更新和公司切换；Team 展示被动任务气泡。无新增宠物交互、状态采集或执行控制。实现及验证见 [pixel-employees.md](pixel-employees.md) 和 [pixel-employees-verification.md](pixel-employees-verification.md)。
 
 - 后台中文化：已完成（见 docs/history/phase-7-report.md）；上游更新后重跑 scripts/i18n。

@@ -73,6 +73,8 @@ node scripts\update.mjs --check   # 有没有新版本
 node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量构建 → 启动 → 健康检查
 ```
 
+Windows 更新会先正常关闭嵌入式 PostgreSQL，再结束应用进程。如果旧版强制停止后已出现 `pre-existing shared memory block is still in use`，请保存其他工作并重启 Windows，随后拉取最新代码、运行 `node scripts/build.mjs` 和 `node scripts/start.mjs`。不要删除数据库目录或 `postmaster.pid`。更新日志位于 `~/.agenteam/logs/update.log`，后台启动日志位于 `~/.agenteam/logs/startup.log`。
+
 ## 架构
 
 <p align="center"><img src="docs/assets/architecture-zh.png" width="900" alt="AgenTeam 架构"></p>

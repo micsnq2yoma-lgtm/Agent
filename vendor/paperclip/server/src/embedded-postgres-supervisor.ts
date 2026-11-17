@@ -16,6 +16,7 @@ type Options = {
   initialInstance: SupervisedEmbeddedPostgres;
   createInstance: () => SupervisedEmbeddedPostgres;
   beforeRestart?: (attempt: number) => Promise<void> | void;
+  shouldRecover?: () => boolean;
   restartDelaysMs?: number[];
   delay?: (milliseconds: number) => Promise<void>;
   onUnexpectedExit?: EmbeddedPostgresExitListener;
@@ -37,13 +38,14 @@ export function createEmbeddedPostgresSupervisor(options: Options): EmbeddedPost
   const recover = async () => {
     let lastError: unknown = new Error("Embedded PostgreSQL exited unexpectedly");
     for (let index = 0; index < restartDelaysMs.length; index += 1) {
-      if (shuttingDown) return;
+      if (shuttingDown || options.shouldRecover?.() === false) return;
       const attempt = index + 1;
       const delayMs = restartDelaysMs[index] ?? 0;
       if (delayMs > 0) await wait(delayMs);
-      if (shuttingDown) return;
+      if (shuttingDown || options.shouldRecover?.() === false) return;
       try {
         await options.beforeRestart?.(attempt);
+        if (shuttingDown || options.shouldRecover?.() === false) return;
         const replacement = options.createInstance();
         await replacement.start();
         if (shuttingDown) {
@@ -73,6 +75,7 @@ export function createEmbeddedPostgresSupervisor(options: Options): EmbeddedPost
       if (activeInstance !== instance) return;
       activeInstanceExited = true;
       if (shuttingDown) return;
+      if (options.shouldRecover?.() === false) return;
       options.onUnexpectedExit?.(code, signal);
       recoveryPromise = recover().finally(() => { recoveryPromise = null; });
     });

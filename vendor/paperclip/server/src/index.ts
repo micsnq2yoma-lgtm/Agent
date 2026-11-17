@@ -617,6 +617,9 @@ async function startServerWithDatabaseTeardown(
         embeddedPostgresSupervisor = createEmbeddedPostgresSupervisor({
           initialInstance: embeddedPostgres,
           createInstance: createEmbeddedPostgres,
+          // AgenTeam's Windows updater closes the database before its console owner.
+          // The marker is checked only on DB exit, never by an idle polling loop.
+          shouldRecover: () => !(process.env.AGENTEAM_STOP_FILE && existsSync(process.env.AGENTEAM_STOP_FILE)),
           beforeRestart: () => {
             const runningPostgresPid = getRunningPid();
             if (runningPostgresPid) {

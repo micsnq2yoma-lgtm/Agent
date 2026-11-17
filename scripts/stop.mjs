@@ -8,6 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveHome } from "./lib/legacy.mjs";
+import { stopWindowsTree } from "./lib/windows-stop.mjs";
 
 const home = resolveHome();
 const pidFile = path.join(home, "run", "supervisor.pid");
@@ -21,8 +22,8 @@ async function up(url) {
 }
 
 /** Kill a process and its children. */
-function killTree(pid) {
-  if (process.platform === "win32") return spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { encoding: "utf8" }).status === 0;
+function killTree(pid, log) {
+  if (process.platform === "win32") return stopWindowsTree(pid, { log });
   spawnSync("pkill", ["-TERM", "-P", String(pid)]);
   try {
     process.kill(pid, "SIGTERM");
@@ -43,13 +44,15 @@ function pidsOnPort(port) {
 }
 
 export async function stopAgenteam(log = console.log) {
+  fs.mkdirSync(path.join(home, "run"), { recursive: true });
+  fs.writeFileSync(path.join(home, "run", "stopping"), String(process.pid));
   if (fs.existsSync(pidFile)) {
     const pid = Number(fs.readFileSync(pidFile, "utf8"));
-    if (pid) log(killTree(pid) ? `stopped supervisor ${pid}` : `supervisor ${pid} was not running`);
+    if (pid) log(killTree(pid, log) ? `stopped supervisor ${pid}` : `supervisor ${pid} was not running`);
     fs.rmSync(pidFile, { force: true });
   }
   // leftovers: Paperclip (3100) and the local service (3200)
-  for (const port of [3100, 3200]) for (const pid of pidsOnPort(port)) if (pid !== process.pid) log(killTree(pid) ? `stopped pid ${pid} on :${port}` : `could not stop pid ${pid} on :${port}`);
+  for (const port of [3100, 3200]) for (const pid of pidsOnPort(port)) if (pid !== process.pid) log(killTree(pid, log) ? `stopped pid ${pid} on :${port}` : `could not stop pid ${pid} on :${port}`);
   const end = Date.now() + 30_000;
   while (Date.now() < end && ((await up("http://127.0.0.1:3100/api/health")) || (await up("http://127.0.0.1:3200/agenteam/api/settings")))) await new Promise((r) => setTimeout(r, 1000));
 }

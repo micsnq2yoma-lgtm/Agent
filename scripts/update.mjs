@@ -90,8 +90,14 @@ export function installAndBuild(from, to) {
 }
 
 export function startDetached() {
-  const child = spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: "ignore", windowsHide: true });
-  child.unref();
+  const out = fs.openSync(path.join(home, "logs", "startup.log"), "a");
+  try {
+    const child = spawn(process.execPath, [path.join(root, "scripts", "start.mjs")], { cwd: root, detached: true, stdio: ["ignore", out, out], windowsHide: true });
+    child.on("error", (error) => log(`supervisor launch failed: ${error.message}`));
+    child.unref();
+  } finally {
+    fs.closeSync(out);
+  }
 }
 export async function waitHealthy(minutes = Number(process.env.AGENTEAM_UPDATE_HEALTH_MINUTES ?? 4)) {
   const end = Date.now() + minutes * 60_000;
@@ -160,8 +166,10 @@ async function main() {
   await stopAgenteam(log);
   let failure = null;
   try {
+    log("fast-forwarding code");
     git("merge", "--ff-only", `origin/${branch}`);
     installAndBuild(prev, "HEAD");
+    log("starting services; supervisor output: logs/startup.log");
     startDetached();
     if (!(await waitHealthy())) throw new Error("新版本启动后健康检查没通过（4 分钟内 Paperclip 或本地服务没起来）");
     log(`updated to ${c.latest}`);
@@ -187,7 +195,7 @@ async function main() {
     state({ status: "broken", error: `${failure.message}；回退也失败：${e.message}`, backup: saved?.dir ?? null });
   }
   throw new Error(
-    `更新失败，已回退到 ${prev.slice(0, 7)}：${failure.message}` +
+    `更新失败，已尝试回退到 ${prev.slice(0, 7)}，请查看上方回退和健康检查结果：${failure.message}` +
       (saved ? `\n数据库没有自动恢复。如果新版本已经改过数据库、旧版本运行不正常，用这份备份恢复：${saved.db ?? saved.dir}` : ""),
   );
 }
