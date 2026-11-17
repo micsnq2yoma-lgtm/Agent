@@ -58,7 +58,9 @@ cd AgenTeam
 node scripts\install.mjs
 ```
 
-The script checks the environment, installs and builds, runs first-time setup, starts everything, installs the team-layer plugin and enables autostart (10+ minutes). Then open <http://127.0.0.1:3100> and click **+** next to “Leads” in the sidebar to create your first lead and employee.
+The script checks the environment, installs and builds, runs first-time setup, starts everything, installs the team-layer plugin, enables autostart and puts a shortcut with the project icon on the desktop (10+ minutes). Then open <http://127.0.0.1:3100> and click **+** next to “Leads” in the sidebar to create your first lead and employee.
+
+**One-click launch afterwards**: double-click the **AgenTeam** icon on the desktop. If it is not running it starts first, and opens in the browser once ready. To recreate the shortcut: `powershell -ExecutionPolicy Bypass -File scripts\create-shortcut.ps1` (one on the desktop and one in the Start menu; add `-Remove` to delete). On macOS / Linux use `node scripts/launch.mjs`.
 
 Each machine is independent: its own subscriptions, API keys and data.
 

@@ -3,7 +3,7 @@
 // Each machine is an independent AgenTeam with its own subscriptions, API keys and data.
 //   git clone https://github.com/micsnq2yoma-lgtm/AgenTeam.git; cd AgenTeam
 //   node scripts/install.mjs            # check → install → build → first-run setup → start → plugin → autostart
-//   node scripts/install.mjs --no-autostart
+//   node scripts/install.mjs --no-autostart   # also --no-shortcut
 // Safe to run again: every step skips what is already done.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -113,7 +113,19 @@ else {
   ok("已安装");
 }
 
-// 6. autostart
+// 6. desktop shortcut with the project icon (one click: start if needed, then open)
+if (!args.has("--no-shortcut")) {
+  step("桌面快捷方式");
+  if (win) {
+    try {
+      run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(root, "scripts", "create-shortcut.ps1")]);
+    } catch (e) {
+      warn(`没能创建快捷方式（不影响使用，之后可以运行 scripts\\create-shortcut.ps1）：${e.message}`);
+    }
+  } else warn("桌面快捷方式只为 Windows 准备了脚本；其他系统用 node scripts/launch.mjs 一键启动并打开。");
+}
+
+// 7. autostart
 if (!args.has("--no-autostart")) {
   step("开机自启");
   if (win) run("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path.join(root, "scripts", "install-autostart.ps1")]);
