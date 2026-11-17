@@ -7,7 +7,7 @@ import { useSyncExternalStore } from "react";
 import { employeeRevision, registeredEmployee, subscribeEmployees } from "../lib/avatar";
 
 /** The mark. Ink follows the text colour (light / dark skins); the lead head takes the brand colour. */
-export function LogoMark({ size = 24 }: { size?: number }) {
+export function LogoMark({ size = 24 }: { size?: number | string }) {
   const eyes = (x: number, y: number) => (
     <>
       <rect x={x} y={y} width="1.6" height="3" rx=".5" />
@@ -33,12 +33,12 @@ export function LogoMark({ size = 24 }: { size?: number }) {
   );
 }
 
-export function Wordmark({ size = 21, mark = true }: { size?: number; mark?: boolean }) {
+export function Wordmark({ size = 21, mark = true }: { size?: number | string; mark?: boolean }) {
   return (
     <span className="wordmark" role="img" aria-label="AGENTEAM" style={{ fontSize: size }}>
       {mark && (
         <span className="mark" aria-hidden="true">
-          <LogoMark size={Math.round(size * 1.15)} />
+          <LogoMark size={typeof size === "number" ? Math.round(size * 1.15) : "1.15em"} />
         </span>
       )}
       <span aria-hidden="true">AGEN</span>

@@ -35,6 +35,8 @@
 | 2026-11-16 | `server/src/services/accounting-integrity.ts`、`server/src/routes/costs.ts`（PR #4 验收） | 新增 `POST /api/companies/:id/accounting/runs/:runId/write-off {reason, costUsd?}`：把一条一直"待记账"的已结束运行，按已采集的用量（或给定金额，默认 0）记为**估算**费用，原因写进运行的 `usageJson.accountingWriteOff` 和活动记录，再走正常记账 | 运行被中途取消后用量回执永远不到，Paperclip 不肯"凭空记 0"，于是这位智能体的预算一直硬暂停、提高预算也恢复不了。上游没有人工出口；这里只加一个需要写原因的人工入口，不改自动逻辑。配套脚本 `scripts/dev/budget-unstick.mjs` |
 | 2026-11-16 | `packages/adapters/codex-local/src/server/codex-home.ts`（p18 · codex 验收） | Windows 上给员工的 Codex 运行目录建 `auth.json` 软链接被拒（EPERM）时，退回硬链接（同盘，同一个文件），再不行就复制一份；硬链接视为已链好，复制件比源文件新时（Codex 刷新过令牌）先拷回源文件再重建 | 没有管理员 / 开发者模式时 Windows 不能建文件软链接，Codex 员工第一次运行就 `adapter_failed`。目录软链接不受影响（仍按原逻辑） |
 | 2026-11-16 | `ui/src/agenteam/lib/models.ts`、`lib/model-context.ts`、`views/Pages.tsx`、`views/EmployeeDrawer.tsx` | 模型价格表增加可选上下文长度（token）并在员工模型选择旁显示；服务商返回的长度自动带入，缺失可手填 | 模型选择需要同时比较价格和上下文容量，不预置未经确认的长度 |
+| 2026-11-17 | `ui/src/agenteam/views/Home.tsx`、`components/Brand.tsx`、`styles.css`；`views/Pages.tsx`、`lib/update-status.ts` | 标题、标志和标语放大并随内容区缩放；更新页面只认本轮更新的新终态，外层脚本单独记录检查时间 | 加强工作台视觉层次；避免检查版本或重启期间提前出现刷新按钮 |
+| 2026-11-17 | `ui/src/agenteam/components/WorkbenchHero.tsx`、`views/Home.tsx`、`styles.css` | 工作台标语改为 `Focus Your Attention on Valuable Things.`，强调 Attention 和 Valuable Things.，进入页面时光点从注意力传向价值，仅播放一次；支持减少动态效果、窄屏换行及离开页面时清理 | 落地选定的“光点接力”设计，静态文案始终可读，皮肤颜色沿用现有 token |
 
 ## 待做
 像素员工（2026-11-16）：`AgentAvatar` / `AgentCharacter` / AgenTeam `Robot` 共用外层 `@agenteam/pixel-office` 的模型形象与状态动画；员工注册表支持模型更新和公司切换；Team 展示被动任务气泡。无新增宠物交互、状态采集或执行控制。实现及验证见 [pixel-employees.md](pixel-employees.md) 和 [pixel-employees-verification.md](pixel-employees-verification.md)。

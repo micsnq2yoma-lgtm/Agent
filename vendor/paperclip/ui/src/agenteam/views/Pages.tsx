@@ -4,6 +4,7 @@ import { BUILTIN_SKINS, registerSkin, skins, type Skin } from "@agenteam/skins";
 import { as, list, pc, usePoll, type Context, type Issue, type Settings } from "../lib/api";
 import { useSkin } from "../lib/skin";
 import { cronText } from "../lib/cron";
+import { updateFinished } from "../lib/update-status";
 import { adapterOfSource, contextLengthText, estimateYuan, formatYuan, priceOf, priceText, reloadModels, useModels, type Provider } from "../lib/models";
 import { SourceSelect } from "../components/SourceSelect";
 import { Skeleton } from "../components/Skeleton";
@@ -1263,16 +1264,14 @@ function UpdateSection() {
   const c = st?.lastCheck;
 
   /** The update stops the whole system and starts it again, so the page loses the service for a while: poll until it is back. */
-  async function follow(startedAt: number) {
+  async function follow(previousUpdatedAt?: string) {
     const end = Date.now() + 25 * 60_000;
-    let seenDown = false;
     while (Date.now() < end) {
       await new Promise((r) => setTimeout(r, 3000));
       let v: UpdateState | null = null;
       try {
         v = await as.get<UpdateState>("/update/status");
       } catch {
-        seenDown = true;
         setMsg("系统正在重启…（构建和重启要几分钟，不用刷新）");
         continue;
       }
@@ -1281,8 +1280,7 @@ function UpdateSection() {
         setMsg("正在更新：备份、拉取、构建中…");
         continue;
       }
-      const fresh = v.updatedAt ? Date.parse(v.updatedAt) >= startedAt - 5000 : false;
-      if (fresh || seenDown) {
+      if (updateFinished(v, previousUpdatedAt)) {
         setMsg(
           v.status === "updated"
             ? `更新完成：${v.current ?? ""}`
@@ -1300,8 +1298,9 @@ function UpdateSection() {
   }
 
   async function updateNow(force = false): Promise<void> {
-    const startedAt = Date.now();
+    let previousUpdatedAt: string | undefined;
     try {
+      previousUpdatedAt = (await as.get<UpdateState>("/update/status")).updatedAt;
       await as.post("/update/run", { force });
     } catch (e) {
       const text = e instanceof Error ? e.message : String(e);
@@ -1311,7 +1310,7 @@ function UpdateSection() {
       return;
     }
     setMsg("已在后台开始更新：系统会停下、构建、重启。失败会自动回退到当前版本。");
-    await follow(startedAt);
+    await follow(previousUpdatedAt);
     setBusy(null);
   }
 

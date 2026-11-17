@@ -174,6 +174,17 @@ const row = page.locator("aside.progress .row-link").first();
 if (await row.count()) {
   await row.click();
   await page.waitForSelector(".drawer", { timeout: 10_000 });
+  // The drawer frame shows before its data (stages, criteria, input) has loaded: wait for the content, not just the frame.
+  await page
+    .waitForFunction(
+      () => {
+        const d = document.querySelector(".drawer");
+        return !!d && !!d.querySelector(".stages.lg") && !!d.querySelector(".say-pill") && (!!d.querySelector(".criteria") || /还没有登记验收标准/.test(d.textContent ?? ""));
+      },
+      undefined,
+      { timeout: 20_000 },
+    )
+    .catch(() => {}); // not loaded in time: the assertions below report what is missing
   results.drawer = await page.evaluate(() => {
     const d = document.querySelector(".drawer");
     const cs = getComputedStyle(d);

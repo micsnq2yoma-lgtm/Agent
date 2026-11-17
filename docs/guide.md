@@ -44,6 +44,8 @@ node scripts\acceptance\p8-shell.mjs        # 一个端口、一条侧栏、卡�
 node scripts\acceptance\p6-share.mjs        # 共享皮肤（需另起一个实例）
 node scripts\acceptance\p9-skin.mjs         # 皮肤管到管理页：配色、称呼、像素头像；默认皮肤不出现"智能体"
 node scripts\acceptance\p10-pages.mjs       # 侧栏结构、无重复入口、主管页 / 员工完整页 / 合并页 / 设置分标签 / 项目抽屉 / 高级
+node scripts\acceptance\p22-update-button.mjs            # 设置里的“检查并更新”：已是最新（不带参数）
+node scripts\acceptance\p22-update-button.mjs --update   # 真更新：实例要落后 origin/main，只在隔离的克隆上跑
 ```
 
 删除测试或不用的团队：`node scripts\dev\remove-team.mjs <团队名>`（先列出要删的内容，加 `--yes` 才执行）。预算因为中途取消的运行一直暂停：`node scripts\dev\budget-unstick.mjs`（同样加 `--yes` 才执行）。
