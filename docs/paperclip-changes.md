@@ -45,4 +45,4 @@
 - 构建：`node scripts/build.mjs --install`（pnpm 9.15+；Windows 上它负责把 Git Bash 交给 pnpm，直接 `pnpm build` 会报"命令语法不正确"）；只改界面时 `node scripts/build.mjs --ui`（构建失败时上游 sw 插件会掩盖真实错误，先删 `ui/dist` 再看）
 - 启动：`cd vendor/paperclip && pnpm paperclipai run`（数据目录 `~/.paperclip/instances/default`，与之前 npx 版相同）
 
-改名（2026-11-17）：Agentself → AgenTeam。`ui/src/agentself/` → `ui/src/agenteam/`，`server/src/agentself/` → `server/src/agenteam/`；别名 `@agentself/*` → `@agenteam/*`；`/agentself/api` → `/agenteam/api`；`data-agentself-*` → `data-agenteam-*`；环境变量 `AGENTSELF_*` → `AGENTEAM_*`（旧名仍认）。团队层插件的内部标识 `agentself.team-layer` 不改（改了会丢插件状态）。迁移逻辑在 `scripts/lib/legacy.mjs`。
+改名（2026-11-17）：Agentself → AgenTeam。`ui/src/agentself/` → `ui/src/agenteam/`，`server/src/agentself/` → `server/src/agenteam/`；别名 `@agentself/*` → `@agenteam/*`；`/agentself/api` → `/agenteam/api`；`data-agentself-*` → `data-agenteam-*`；环境变量 `AGENTSELF_*` → `AGENTEAM_*`（旧名仍认）。团队层插件的内部标识改为 `agenteam.team-layer`：新增迁移 `packages/db/src/migrations/0375_rename_team_layer_plugin.sql`（并在 `meta/_journal.json` 加一项），原地改 `plugins` 表的 key、包名和 manifest id，插件 uuid 不变，plugin_state 等数据都保留；上游更新时注意这条迁移的编号和日志项不要冲突。迁移逻辑在 `scripts/lib/legacy.mjs`。
