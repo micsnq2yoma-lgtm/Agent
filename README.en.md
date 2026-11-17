@@ -71,8 +71,6 @@ node scripts\update.mjs --check   # is there a new version
 node scripts\update.mjs           # back up → stop → pull main → incremental build → start → health check
 ```
 
-A version that fails to start is rolled back automatically. The database is not restored automatically; backups are in `~/.agenteam/backups/` (5 kept). Unit tests and a full build run continuously on Linux and Windows.
-
 ## Architecture
 
 <p align="center"><img src="docs/assets/architecture-en.png" width="900" alt="AgenTeam architecture"></p>
