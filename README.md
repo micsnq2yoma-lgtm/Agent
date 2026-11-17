@@ -8,9 +8,11 @@
 
 你说一句话就可以离开。一支由你命名的 AI 团队替你从头做到尾，带着证据交付。
 
+**中文** · [English](README.en.md)
+
 [快速开始](#快速开始) · [它怎么工作](#它怎么工作) · [功能](#功能) · [使用手册](docs/guide.md) · [路线](docs/v0.6-direction.md)
 
-![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
+[![stars](https://img.shields.io/github/stars/micsnq2yoma-lgtm/Agentself?style=flat&logo=github)](https://github.com/micsnq2yoma-lgtm/Agentself/stargazers) [![CI](https://img.shields.io/github/actions/workflow/status/micsnq2yoma-lgtm/Agentself/ci.yml?branch=main&label=CI)](https://github.com/micsnq2yoma-lgtm/Agentself/actions/workflows/ci.yml) ![license](https://img.shields.io/badge/license-MIT-blue) ![platform](https://img.shields.io/badge/platform-Windows%2011-informational) ![node](https://img.shields.io/badge/node-%E2%89%A524.11-339933) ![built on](https://img.shields.io/badge/built%20on-Paperclip-orange)
 
 <img src="docs/assets/pixel-office-1440x900.png" width="860" alt="AgenTeam 像素办公室">
 
@@ -102,6 +104,21 @@ node scripts\update.mjs           # 备份 → 停止 → 拉取 main → 增量
 - [对 Paperclip 源码的改动](docs/paperclip-changes.md)
 - [历史方案与各阶段报告](docs/history/)
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=micsnq2yoma-lgtm/Agentself&type=Date)](https://star-history.com/#micsnq2yoma-lgtm/Agentself&Date)
+
+## 致谢
+
+AgenTeam 站在这些项目的肩膀上。完整的第三方许可见 `NOTICE` 和 `packages/pixel-office/THIRD_PARTY_LICENSES`。
+
+| 项目 | 我们用了什么 | 方式 |
+| --- | --- | --- |
+| [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI） | 整个底座：任务、运行、界面、插件系统 | 源码内置于 `vendor/paperclip` 并有修改，见 [docs/paperclip-changes.md](docs/paperclip-changes.md) |
+| [agent-autoloop](https://github.com/KKKKhazix/agent-autoloop)（MIT） | 卡片协议（ask / notice / resolve / later）、跳数上限、事件规则、全局档案与双入口 | 设计遵循，自行实现 |
+| LobeHub | 验收作为一等数据：任务书、逐条证据、逐条判定；记忆“提议 → 审核 → 写入” | 只借鉴思路 |
+| MyAgents（AGPL） | 产品思路 | 只借鉴思路，未打开或复制其代码 |
+
 ## 许可
 
-MIT。基于并修改了 [Paperclip](https://github.com/paperclipai/paperclip)（MIT，© Paperclip AI），见 `NOTICE`。MyAgents（AGPL）只借鉴思路，未打开或复制其代码。
+MIT。详见 `LICENSE`。第三方项目见上方[致谢](#致谢)。
