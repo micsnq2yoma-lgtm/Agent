@@ -25,10 +25,10 @@
 
 ## 2026-11-16：首屏、坐姿与 main 同步复核
 
-- 合并最新 main `343f3b4`。`Brand.tsx` 保留 AgenTeam 的新标志和字标，以及本 PR 的模型头像、身份订阅和动态状态。锁文件以 main 为基础重新安装；只增加 console 对 shared 的工作区依赖三行，其余锁定内容不变，随后 frozen-lockfile 安装通过。
+- 先合并 main `343f3b4`，最终同步时继续合入推进到 `e17ade3` 的字体、项目抽屉和验收工具更新。`Brand.tsx` 保留 AgenTeam 的新标志和字标，以及本 PR 的模型头像、身份订阅和动态状态。锁文件以 main 为基础重新安装；只增加 console 对 shared 的工作区依赖三行，其余锁定内容不变，随后 frozen-lockfile 安装通过。
 - 单主管加三名员工的画布从 240×316 改为 240×228。Team 按统计条下方实际可视宽高取 2～4 倍整数缩放，去掉重复 page 内边距；多排团队和窄屏仍能滚动访问全部员工。
 - 人物坐姿下移 12 个逻辑像素，桌面在人物后绘制并遮住脚部，椅背在人物前绘制。增加最终像素遮挡、气泡/姓名间距和完整送件往返测试；模型素材基线继续通过。
-- 根工作区完整 Vitest：25 个文件、225 项通过。UI 缩放、头像与身份注册测试：3 个文件、9 项通过。UI 完整类型检查、Vite 生产构建和三项 token/palette/character 检查通过。
+- 第一次合并后根工作区完整 Vitest：25 个文件、225 项通过；最终 main 同步后为 26 个文件、237 项全部通过。UI 缩放、头像与身份注册测试：3 个文件、9 项通过。UI 完整类型检查、Vite 生产构建和三项 token/palette/character 检查通过；Paperclip 完整构建通过，Windows 上可选 Rust runner 二进制因缺少 Cargo 被构建脚本跳过，保留 Copilot runtime unsupported-platform 提示。末次字体同步后另重跑 UI 类型检查与构建。
 - `node scripts/acceptance/pixel-office-viewport.mjs`：15 场景、178 检查全部通过。使用真实 Team、SkinProvider、Wordmark 和 CSS，外层统计条/Composer 是生产结构的只读模拟，所有 `/office` 请求均由 fixture 返回，不连接真实后端任务。
 - 1440×900：画布 y=176～860、3 倍；1440×650：y=176～632、2 倍。主管及三员工的角色、桌子、姓名、长任务气泡全部首屏可见。深色、两部门、窄屏横滚、多排纵滚、窗口缩放及滚动后 resize 均通过，零页面错误和外网/API 写入。
 - 复核曾发现真实滚动条在临界宽度导致 2↔3 倍循环：750ms 内 81 次测量、53 次 ResizeObserver 错误。用稳定 scrollbar gutter 修复后，相同复现仅 2 次测量、零错误。正式验收开启真实滚动条，在 1024×900/920/936 连续采样 1 秒均保持 2 倍；滚动 180px 后 resize 保持原缩放与静止位置。

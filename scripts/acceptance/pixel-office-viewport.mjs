@@ -107,13 +107,23 @@ function fixture(departments = 1, staff = 3) {
   return snapshot;
 }
 let currentFixture = fixture();
-const html = () => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>像素办公室 · 隔离验收</title><link rel="stylesheet" href="/styles.css"><style>${shellCss}</style></head><body><div id="root"></div><script>window.__snapshot=${JSON.stringify(currentFixture).replaceAll("<", "\\u003c")};if(new URLSearchParams(location.search).has('dark'))document.documentElement.classList.add('dark');</script><script src="/fixture.js"></script></body></html>`;
+const html = () => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>像素办公室 · 隔离验收</title><link rel="stylesheet" href="/fonts-cjk.css"><link rel="stylesheet" href="/styles.css"><style>${shellCss}</style></head><body><div id="root"></div><script>window.__snapshot=${JSON.stringify(currentFixture).replaceAll("<", "\\u003c")};if(new URLSearchParams(location.search).has('dark'))document.documentElement.classList.add('dark');</script><script src="/fixture.js"></script></body></html>`;
 const allowedFiles = new Map([
   ["/fixture.js", [path.join(out, "fixture.js"), "application/javascript"]],
+  ["/fonts-cjk.css", [path.join(ui, "src/agentself/fonts-cjk.css"), "text/css"]],
   ["/styles.css", [path.join(ui, "src/agentself/styles.css"), "text/css"]],
 ]);
 const fonts = path.join(ui, "public/fonts");
-if (fs.existsSync(fonts)) for (const font of fs.readdirSync(fonts)) if (font.endsWith(".woff2")) allowedFiles.set(`/fonts/${font}`, [path.join(fonts, font), "font/woff2"]);
+// Pre-enumerate local files, including the unicode-range slices in noto-serif-sc.
+// Request URLs only look up this map; they never become arbitrary filesystem paths.
+function allowFontFiles(directory) {
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const file = path.join(directory, entry.name);
+    if (entry.isDirectory()) allowFontFiles(file);
+    else if (entry.isFile() && entry.name.endsWith(".woff2")) allowedFiles.set(`/fonts/${path.relative(fonts, file).replaceAll("\\", "/")}`, [file, "font/woff2"]);
+  }
+}
+if (fs.existsSync(fonts)) allowFontFiles(fonts);
 const server = createServer((req, res) => {
   const pathname = new URL(req.url, "http://127.0.0.1").pathname;
   if (req.method !== "GET") { res.writeHead(405); return res.end("Read-only fixture"); }
@@ -130,7 +140,7 @@ const { chromium } = require("playwright");
 const browserDirs = [process.env.PLAYWRIGHT_BROWSERS_PATH, process.env.LOCALAPPDATA && path.join(process.env.LOCALAPPDATA, "ms-playwright"), process.env.USERPROFILE && path.join(process.env.USERPROFILE, "AppData/Local/ms-playwright")].filter(Boolean);
 const candidates = browserDirs.flatMap(dir => fs.existsSync(dir) ? fs.readdirSync(dir).filter(n => n.startsWith("chromium-")).flatMap(n => [path.join(dir, n, "chrome-win64/chrome.exe"), path.join(dir, n, "chrome-win/chrome.exe"), path.join(dir, n, "chrome-linux/chrome")]) : []);
 const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? candidates.find(p => fs.existsSync(p));
-const report = { fixtureOnly: true, realComponents: ["Team.tsx", "SkinProvider", "Wordmark"], shell: "App .topbar/.content/.page/TeamStats hierarchy; default 240px sidebar; actual styles.css; read-only Composer markup fixture (not Home.Composer), with two-row textarea, controls and hint", visibleScrollbars: true, scenarios: [], checks: [], pageErrors: [], windowErrors: [], deniedRequests: [], officeReads: 0 };
+const report = { fixtureOnly: true, realComponents: ["Team.tsx", "SkinProvider", "Wordmark"], shell: "App .topbar/.content/.page/TeamStats hierarchy; default 240px sidebar; actual fonts-cjk.css then styles.css; read-only Composer markup fixture (not Home.Composer), with two-row textarea, controls and hint", visibleScrollbars: true, fontRequests: [], scenarios: [], checks: [], pageErrors: [], windowErrors: [], deniedRequests: [], officeReads: 0 };
 const check = (name, pass, detail) => report.checks.push({ name, pass: !!pass, ...(detail === undefined ? {} : { detail }) });
 let browser;
 try {
@@ -147,7 +157,10 @@ try {
       report.officeReads++;
       return route.fulfill({ json: currentFixture });
     }
-    if (url.origin === origin && request.method() === "GET" && (url.pathname === "/" || url.pathname === "/favicon.ico" || allowedFiles.has(url.pathname))) return route.continue();
+    if (url.origin === origin && request.method() === "GET" && (url.pathname === "/" || url.pathname === "/favicon.ico" || allowedFiles.has(url.pathname))) {
+      if (url.pathname.startsWith("/fonts/") && !report.fontRequests.includes(url.pathname)) report.fontRequests.push(url.pathname);
+      return route.continue();
+    }
     report.deniedRequests.push({ method: request.method(), url: request.url() });
     return route.abort("blockedbyclient");
   });
@@ -156,7 +169,14 @@ try {
 
   async function settle() {
     await page.waitForFunction(count => document.querySelectorAll(".nameplate").length === count && document.querySelector("canvas")?.width === window.__officeFixture.layout.width, currentFixture.people.length);
-    await page.evaluate(() => document.fonts.ready);
+    await page.evaluate(async () => {
+      await document.fonts.ready;
+      // Office body text uses the skin's system sans stack. Explicitly load a CJK
+      // heading sample too, so missing bundled font slices cannot silently pass.
+      const faces = await document.fonts.load('500 16px "Noto Serif SC"', "主管研发部");
+      if (!faces.length || faces.some(face => face.status !== "loaded")) throw new Error("Bundled Noto Serif SC heading font did not load");
+      await document.fonts.ready;
+    });
     await page.waitForFunction(() => {
       const r = document.querySelector("canvas").getBoundingClientRect();
       const previous = window.__lastOfficeRect;
